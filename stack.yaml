@@ -8,7 +8,11 @@ packages:
 - '.'
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
-extra-deps: []
+extra-deps: 
+- GPipe-2.1.4
+- GPipe-GLFW-1.2.1
+- GLFW-b-1.4.7.3
+- bindings-GLFW-3.1.1.4
 
 # Override default flag values for local packages and extra-deps
 flags: {}
