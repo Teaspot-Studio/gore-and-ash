@@ -25,7 +25,8 @@ library
                      , mtl >= 2.2
                      , transformers >= 0.4
                      , netwire >= 5.0.1
-
+  default-extensions:  Arrows
+  
 executable gore-and-ash
   hs-source-dirs:      app
   main-is:             Main.hs

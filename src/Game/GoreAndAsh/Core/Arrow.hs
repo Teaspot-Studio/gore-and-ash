@@ -11,9 +11,12 @@ module Game.GoreAndAsh.Core.Arrow(
   , liftGameMonad2Once
   , liftGameMonad3Once
   , liftGameMonad4Once
+  -- | Event functions
+  , once'
   ) where
 
-import Control.Wire.Core
+import Prelude hiding (id, (.))
+import Control.Wire
 import Game.GoreAndAsh.Core.Monad
 import Game.GoreAndAsh.Core.Session
 
@@ -89,3 +92,11 @@ liftGameMonad4Once :: Monad m => (a -> b -> c -> d -> GameMonadT m e) -> GameWir
 liftGameMonad4Once action = mkGen $ \_ (a, b, c, d) -> do 
   val <- action a b c d
   return (Right val, pure val)
+
+-- | Pass through first occurence and then forget about event producer
+-- Note: netwire once combinator still holds it event producer when event
+-- is produced.
+once' :: Monad m => GameWire m a (Event b) -> GameWire m a (Event b)
+once' w = proc a -> do 
+  e <- w -< a 
+  drSwitch id -< (e, fmap (const never) e)

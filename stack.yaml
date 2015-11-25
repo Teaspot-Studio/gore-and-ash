@@ -8,7 +8,7 @@ packages:
 - '.'
 - location:
     git: https://github.com/Teaspot-Studio/netwire.git
-    commit: 79f619e510db12bf2245744aab2a0be297216884
+    commit: c9f8034c4f24c4491db88782142e0fcdf8bba540
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps: 
