@@ -5,6 +5,7 @@ module Game.GoreAndAsh.Core.State(
   ) where
 
 import Prelude hiding (id, (.))
+import Control.DeepSeq
 import Control.Monad.IO.Class
 import Control.Wire
 import Game.GoreAndAsh.Core.Arrow
@@ -14,14 +15,14 @@ import Game.GoreAndAsh.Core.Session
 -- | Holds all data that is needed to produce next step
 -- of game simulation
 data GameState m s a = GameState {
-  gameSession :: GameSession 
-, gameWire :: GameWire m () a
-, gameContext :: GameContext
-, gameModuleState :: s
+  gameSession :: !GameSession 
+, gameWire :: !(GameWire m () a)
+, gameContext :: !GameContext
+, gameModuleState :: !s
 }
 
 -- | Main loop of the game where each frame is calculated
-stepGame :: (GameModule m s, MonadIO m') => GameState m s a -> m' (Maybe a, GameState m s a)
+stepGame :: (GameModule m s, NFData s, MonadIO m') => GameState m s a -> m' (Maybe a, GameState m s a)
 stepGame GameState{..} = do 
   (t, gameSession') <- stepGameSession gameSession
   -- Removing layers of abstraction
@@ -37,7 +38,9 @@ stepGame GameState{..} = do
     , gameContext = gameContext'
     , gameModuleState = gameModuleState'
     }
-  return (eitherToMaybe ma, newState)
+  return $ gameModuleState' 
+    `deepseq` gameContext'
+    `deepseq` (eitherToMaybe ma, newState)
 
 -- | Helper to throw away left value
 eitherToMaybe :: Either a b -> Maybe b 

@@ -26,12 +26,15 @@ library
                      , mtl >= 2.2
                      , transformers >= 0.4
                      , netwire >= 5.0.1
+                     , deepseq >= 1.4
+
   default-extensions:  Arrows
                        MultiParamTypeClasses
                        FunctionalDependencies
                        ScopedTypeVariables
                        RecordWildCards
-
+                       DeriveGeneric
+                       
 executable gore-and-ash
   hs-source-dirs:      app
   main-is:             Main.hs

@@ -6,7 +6,9 @@ module Game.GoreAndAsh.Core.Monad(
   , GameModule(..)
   ) where
 
+import Control.DeepSeq
 import Control.Monad.State.Strict
+import GHC.Generics (Generic)
 
 -- | Basic game monad transformer
 -- Here goes all core API that accessable from each 
@@ -20,7 +22,9 @@ newtype GameMonadT m a = GameMonadT {
 -- game simulation step.
 data GameContext = GameContext {
   
-}
+} deriving Generic
+
+instance NFData GameContext
 
 -- | Create empty context
 newGameContext :: GameContext 
