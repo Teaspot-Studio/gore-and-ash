@@ -16,10 +16,15 @@ library
   hs-source-dirs:      src
   exposed-modules:     Game.GoreAndAsh
                        Game.GoreAndAsh.Core
+                       Game.GoreAndAsh.Core.Arrow
                        Game.GoreAndAsh.Core.Monad
+                       Game.GoreAndAsh.Core.Session
+                       
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
                      , mtl >= 2.2
+                     , transformers >= 0.4
+                     , netwire >= 5.0.1
 
 executable gore-and-ash
   hs-source-dirs:      app

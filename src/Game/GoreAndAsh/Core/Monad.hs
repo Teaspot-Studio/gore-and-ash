@@ -1,6 +1,7 @@
 module Game.GoreAndAsh.Core.Monad(
     GameMonadT
   , GameContext(..)
+  , evalGameMonad
   ) where
 
 import Control.Monad.State.Strict
@@ -32,3 +33,7 @@ instance Monad m => Monad (GameMonadT m) where
   (GameMonadT ma) >>= f = GameMonadT $ do 
     a <- ma
     runGameMonadT $ f a
+
+-- | Runs game monad with given context
+evalGameMonad :: GameMonadT m a -> GameContext -> m (a, GameContext)
+evalGameMonad (GameMonadT m) ctx = runStateT m ctx

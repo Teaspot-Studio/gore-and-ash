@@ -6,6 +6,9 @@ resolver: lts-3.15
 # Local packages, usually specified by relative directory name
 packages:
 - '.'
+- location:
+    git: https://github.com/Teaspot-Studio/netwire.git
+    commit: 79f619e510db12bf2245744aab2a0be297216884
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps: 
@@ -13,6 +16,7 @@ extra-deps:
 - GPipe-GLFW-1.2.1
 - GLFW-b-1.4.7.3
 - bindings-GLFW-3.1.1.4
+- netwire-5.0.1
 
 # Override default flag values for local packages and extra-deps
 flags: {}
