@@ -34,7 +34,7 @@ library
                        ScopedTypeVariables
                        RecordWildCards
                        DeriveGeneric
-                       
+
 executable gore-and-ash
   hs-source-dirs:      app
   main-is:             Main.hs
@@ -45,4 +45,6 @@ executable gore-and-ash
                      , GPipe-GLFW >= 1.2.1
                      , GLFW-b >= 1.4.7.3
                      , lens >= 4.12.3
+                     , transformers >= 0.4.2
+                     
   ghc-options: -O2 -Wall -Werror -threaded
