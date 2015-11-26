@@ -14,6 +14,47 @@ data ViewContext = ViewContext {
 , viewPort :: ViewPort
 }
 
+type CameraUniform os = Buffer os (Uniform (B4 Float))
+
+data Camera os = Camera {
+  cameraViewMtxUniform :: CameraUniform os
+, cameraPos :: V2 Float 
+, cameraRot :: Float 
+, cameraZoom :: Float
+}
+
+newCamera :: MonadIO m => ContextT w os f m (Camera os)
+newCamera = do 
+  vu <- newBuffer 4
+  writeBuffer vu 0 [
+      V4 1 0 0 0
+    , V4 0 1 0 0
+    , V4 0 0 1 0
+    , V4 0 0 0 1 ]
+
+  return $ Camera {
+      cameraViewMtxUniform = vu 
+    , cameraPos = 0 
+    , cameraRot = 0 
+    , cameraZoom = 1
+    }
+
+updateCamera :: MonadIO m => 
+     V2 Float -- ^ Position of camera 
+  -> Float -- ^ Rotation of camera
+  -> Float -- ^ Zoom of camera
+  -> Camera os -- ^ Current camera
+  -> ContextT w os f m (Camera os) -- ^ New camera
+updateCamera pos rot zm cam@Camera{..} = do 
+  unless (cameraPos == pos && cameraRot == rot && cameraZoom == zm) $ do 
+    let (V4 r1 r2 r3 r4) = scale (V3 zm zm zm) !*! rotationZ (-rot) !*! translate (V3 (-pos^._x) (-pos^._y) 0) 
+    writeBuffer cameraViewMtxUniform 0 [r1, r2, r3, r4]
+  return $ cam {
+      cameraPos = pos 
+    , cameraRot = rot 
+    , cameraZoom = zm
+    }
+
 data Square os = Square {
   squareBuffer :: Buffer os (B2 Float)
 , squareModelMtxUniform :: Buffer os (Uniform (B4 Float))
@@ -90,45 +131,49 @@ translate (V3 x y z) = V4
   (V4 0 0 0 1)
 
 type AspectUniform os = Buffer os (Uniform (B Float))
+type AppShader os a = Shader os (ContextFormat RGBFloat ()) ViewContext a
 
+-- | Load matrix from uniform buffer (4 4-dim vectors)
+loadMatrix44 ::
+     Buffer os (Uniform (B4 Float))
+  -> AppShader os (M44 VFloat)
+loadMatrix44 b = V4 
+  <$> getUniform (const (b, 0))
+  <*> getUniform (const (b, 1))
+  <*> getUniform (const (b, 2))
+  <*> getUniform (const (b, 3))
 
 drawSquare :: 
      AspectUniform os -- ^ Buffer with aspect ration
-  -> Square os -- ^ Square with uniform buffers
-  -> Shader os (ContextFormat RGBFloat ()) ViewContext ()
+  -> Camera os -- ^ Camera matrix (View matrix)
+  -> Square os -- ^ Square with uniform buffers (Holds Model matrix)
+  -> AppShader os ()
   -- ^ Resulting shader
-drawSquare aspectBuffer Square{..} = do 
+drawSquare aspectBuffer Camera{..} Square{..} = do 
   -- | Load uniforms
   aspect <- getUniform (const (aspectBuffer,0))
-  modelMtx <- getModelMtx squareModelMtxUniform
+  modelMtx <- loadMatrix44 squareModelMtxUniform
+  viewMtx <- loadMatrix44 cameraViewMtxUniform
   color <- getUniform (const (squareColorUniform, 0))
 
   -- | Convert vertecies
   primitiveStream <- toPrimitiveStream viewArray  
-  let primitiveStream2 = fmap (\pos2d -> (make3d aspect modelMtx pos2d, pos2d)) primitiveStream  
+  let primitiveStream2 = fmap (\pos2d -> (make3d aspect viewMtx modelMtx pos2d, pos2d)) primitiveStream  
   fragmentStream <- rasterize (\ViewContext{..} -> (FrontAndBack, viewPort, DepthRange 0 1)) primitiveStream2  
 
   -- | Colorize vertecies
   let fragmentStream2 = fmap (const color) fragmentStream  
   drawContextColor (const (ContextColorOption NoBlending (pure True))) fragmentStream2       
-  where 
-    getModelMtx ::
-         Buffer os (Uniform (B4 Float))
-      -> Shader os (ContextFormat RGBFloat ()) ViewContext (M44 VFloat)
-    getModelMtx b = V4 
-      <$> getUniform (const (b, 0))
-      <*> getUniform (const (b, 1))
-      <*> getUniform (const (b, 2))
-      <*> getUniform (const (b, 3))
 
 main :: IO ()
 main =    
   runContextT GLFW.newContext (ContextFormatColor RGB8) $ do    
     aspectBuffer :: Buffer os (Uniform (B Float)) <- newBuffer 1  
     square <- newSquare 
-    shader <- compileShader $ drawSquare aspectBuffer square
+    camera <- newCamera
+    shader <- compileShader $ drawSquare aspectBuffer camera square 
 
-    renderLoop aspectBuffer square $ \viewport -> do    
+    renderLoop aspectBuffer square camera $ \viewport -> do    
       clearContextColor 0.5   
       vertexArray <- newVertexArray $ squareBuffer square    
       shader $ ViewContext {
@@ -136,16 +181,21 @@ main =
         , viewPort = viewport
         }
 
-make3d :: Floating a => a -> M44 a -> V2 a -> V4 a
-make3d aspect modelMat (V2 x y) = 
+make3d :: Floating a => a -> M44 a -> M44 a -> V2 a -> V4 a
+make3d aspect viewMat modelMat (V2 x y) = 
   projMat !* (viewMat !* (modelMat !* V4 x y 0 1))
   where       
-    viewMat = cameraMat (V2 0 0) 0 0
     projMat = ortho (-aspect) aspect (-1) 1 1 (-1)
 
-renderLoop :: Buffer os (Uniform (B Float)) -> Square os -> (ViewPort -> Render os f ()) -> ContextT GLFW.GLFWWindow os f IO ()
-renderLoop aspectBuffer square rendering = do
+renderLoop :: 
+     AspectUniform os 
+  -> Square os 
+  -> Camera os 
+  -> (ViewPort -> Render os f ()) 
+  -> ContextT GLFW.GLFWWindow os f IO ()
+renderLoop aspectBuffer square camera rendering = do
   square' <- updateSquare 1 0 (squareRot square + 0.01) (V3 1 0 0) square
+  camera' <- updateCamera (-1) 0 1 camera
   (w, h) <- withContextWindow $ GLFW.getWindowSize . getGLFWWindow
   let viewport = ViewPort (V2 0 0) (V2 w h)
   writeBuffer aspectBuffer 0 [fromIntegral w / fromIntegral h]
@@ -153,12 +203,4 @@ renderLoop aspectBuffer square rendering = do
   swapContextBuffers    
   closeRequested <- GLFW.windowShouldClose    
   unless closeRequested $    
-    renderLoop aspectBuffer square' rendering  
-
--- | 2D camera matrix
-cameraMat :: Floating a => V2 a -> a -> a -> V4 (V4 a)
-cameraMat eye dist ang = 
-  V4 (V4 (cos ang) (- sin ang) 0 (-eye^._x))
-     (V4 (sin ang) (  cos ang) 0 (-eye^._y))
-     (V4 0         0           1 (-dist))
-     (V4 0 0 0 1)
+    renderLoop aspectBuffer square' camera' rendering  
