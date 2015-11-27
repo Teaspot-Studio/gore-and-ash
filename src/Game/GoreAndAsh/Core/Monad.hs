@@ -8,6 +8,7 @@ module Game.GoreAndAsh.Core.Monad(
 
 import Control.DeepSeq
 import Control.Monad.State.Strict
+import Data.Functor.Identity
 import GHC.Generics (Generic)
 
 -- | Basic game monad transformer
@@ -58,3 +59,8 @@ class Monad m => GameModule m s | m -> s, s -> m where
   runModule :: MonadIO m' => m a -> s -> m' (a, s)
   -- | Creates new state of module
   newModuleState :: MonadIO m' => m' s
+
+-- | Module that does nothing
+instance GameModule Identity () where
+  runModule i _ = return $ (runIdentity i, ())
+  newModuleState = return ()
