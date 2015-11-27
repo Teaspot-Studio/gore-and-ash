@@ -45,6 +45,9 @@ instance Monad m => Monad (GameMonadT m) where
     a <- ma
     runGameMonadT $ f a
 
+instance MonadFix m => MonadFix (GameMonadT m) where
+  mfix f = GameMonadT $ mfix (runGameMonadT . f)
+  
 -- | Runs game monad with given context
 evalGameMonad :: GameMonadT m a -> GameContext -> m (a, GameContext)
 evalGameMonad (GameMonadT m) ctx = runStateT m ctx

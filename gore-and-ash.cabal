@@ -44,7 +44,9 @@ executable gore-and-ash
                        Graphics.Camera
                        Graphics.Square
                        Math
-
+                       Game
+                       Render
+                       
   build-depends:       base >= 4.7 && < 5
                      , gore-and-ash
                      , GPipe >= 2.1.4
@@ -54,10 +56,14 @@ executable gore-and-ash
                      , linear >= 1.19
                      , transformers >= 0.4.2
                      , exception-transformers >= 0.4
+                     , netwire >= 5.0.1
+                     , deepseq >= 1.4
 
   default-extensions:  ScopedTypeVariables
                        RecordWildCards
                        TypeFamilies
                        RankNTypes
+                       Arrows
+                       DeriveGeneric
 
   ghc-options: -O2 -Wall -Werror -threaded

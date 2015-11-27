@@ -1,5 +1,5 @@
 module Graphics(
-    RenderState
+    RenderState(..)
   , runWindow
   , initResources
   , stepRenderState
