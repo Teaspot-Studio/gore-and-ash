@@ -1,15 +1,12 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Game.GoreAndAsh.Input.GLFW.Module(
-    GLFWState
-  , GLFWInputT
-  , MonadGLFWInput(..)
+    GLFWInputT(..)
   ) where
 
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Monad.Extra
 import Control.Monad.Fix 
-import Control.Monad.IO.Class
 import Control.Monad.State.Strict 
 import Graphics.UI.GLFW
 import qualified Data.HashMap.Strict as M 
@@ -18,7 +15,7 @@ import Game.GoreAndAsh
 import Game.GoreAndAsh.Input.GLFW.State
 
 -- | Monad transformer that handles input processing
-newtype GLFWInputT s m a = GLFWInputT { _runGLFWInputT :: StateT (GLFWState s) m a }
+newtype GLFWInputT s m a = GLFWInputT { runGLFWInputT :: StateT (GLFWState s) m a }
   deriving (Functor, Applicative, Monad, MonadState (GLFWState s), MonadFix)
 
 instance GameModule m s => GameModule (GLFWInputT s m) (GLFWState s) where 
@@ -62,24 +59,6 @@ bindKeyListener kch w = setKeyCallback w (Just f)
   where
     f :: Window -> Key -> Int -> KeyState -> ModifierKeys -> IO ()
     f _ k _ ks mds = atomically $ writeTChan kch (k, ks, mds)
-
--- | Module low-level API
-class Monad m => MonadGLFWInput m where 
-  keyStatusM :: Key -> m (Maybe (KeyState, ModifierKeys))
-
-instance Monad m => MonadGLFWInput (GLFWInputT s m) where 
-  keyStatusM k = do 
-    GLFWState{..} <- GLFWInputT get
-    return $ M.lookup k glfwKeys
-
-instance MonadGLFWInput m => MonadGLFWInput (GameMonadT m) where 
-  keyStatusM = lift . keyStatusM
-
-instance MonadTrans (GLFWInputT s) where
-  lift = GLFWInputT . lift 
-
-instance MonadIO m => MonadIO (GLFWInputT s m) where 
-  liftIO = GLFWInputT . liftIO 
 
 -- | Helper function to read all elements from channel
 readAllChan :: TChan a -> STM [a]

@@ -9,7 +9,6 @@ module Game.GoreAndAsh.Core.Monad(
 import Control.DeepSeq
 import Control.Monad.IO.Class
 import Control.Monad.State.Strict
-import Control.Monad.Trans.Class
 import Data.Functor.Identity
 import GHC.Generics (Generic)
 
