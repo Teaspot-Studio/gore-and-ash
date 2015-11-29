@@ -1,52 +1,24 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Game.GoreAndAsh.Input.GLFW.Module(
     GLFWState
   , GLFWInputT
   , MonadGLFWInput(..)
-  -- | Arrow API
-  , keyStatus
-  , keyStatusDyn
   ) where
 
 import Control.Concurrent
 import Control.Concurrent.STM
-import Control.Concurrent.STM.TChan
-import Control.DeepSeq
 import Control.Monad.Extra
 import Control.Monad.Fix 
 import Control.Monad.IO.Class
 import Control.Monad.State.Strict 
-import Data.Hashable
-import GHC.Generics (Generic)
 import Graphics.UI.GLFW
 import qualified Data.HashMap.Strict as M 
 
 import Game.GoreAndAsh
--- import Control.Wire 
-import Control.Wire.Unsafe.Event
-
--- | Channel to connect core and callback
-type KeyChannel = TChan (Key, KeyState, ModifierKeys)
-
--- | Module inner state
-data GLFWState s = GLFWState {
-  glfwNextState :: !s 
-, glfwKeys :: !(M.HashMap Key (KeyState, ModifierKeys))
-, glfwKeyChannel :: !KeyChannel
-} deriving (Generic)
-
-instance NFData s => NFData (GLFWState s) where 
-  rnf GLFWState {..} = 
-    glfwNextState `deepseq` 
-    glfwKeys `deepseq` 
-    glfwKeyChannel `seq` ()
-
-instance Hashable Key 
-instance NFData ModifierKeys
-instance NFData KeyState 
-instance NFData Key 
+import Game.GoreAndAsh.Input.GLFW.State
 
 -- | Monad transformer that handles input processing
-newtype GLFWInputT s m a = GLFWInputT { runGLFWInputT :: StateT (GLFWState s) m a }
+newtype GLFWInputT s m a = GLFWInputT { _runGLFWInputT :: StateT (GLFWState s) m a }
   deriving (Functor, Applicative, Monad, MonadState (GLFWState s), MonadFix)
 
 instance GameModule m s => GameModule (GLFWInputT s m) (GLFWState s) where 
@@ -118,18 +90,3 @@ readAllChan chan = fmap reverse $ go []
       case mc of 
         Nothing -> return acc
         Just a -> go (a:acc)
-
--- | Produces event when key state changes
-keyStatus :: MonadGLFWInput m => Key -> GameWire m a (Event (KeyState, ModifierKeys))
-keyStatus k = liftGameMonad (maybe2Event <$> keyStatusM k)
-
--- | Produces event when key state changes, get key as arrow argument
-keyStatusDyn :: MonadGLFWInput m => GameWire m Key (Event (KeyState, ModifierKeys))
-keyStatusDyn = liftGameMonad1 $ \k -> do 
-  ms <- keyStatusM k 
-  return $ maybe2Event ms 
-
--- | Simple transform from maybe to event
-maybe2Event :: Maybe a -> Event a 
-maybe2Event Nothing = NoEvent 
-maybe2Event (Just a) = Event a 
