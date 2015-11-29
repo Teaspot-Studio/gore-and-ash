@@ -25,3 +25,5 @@ library
                      
   default-extensions:  DeriveGeneric
                        GeneralizedNewtypeDeriving
+                       MultiParamTypeClasses
+                       UndecidableInstances
