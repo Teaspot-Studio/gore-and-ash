@@ -7,7 +7,9 @@ module Game.GoreAndAsh.Core.Monad(
   ) where
 
 import Control.DeepSeq
+import Control.Monad.IO.Class
 import Control.Monad.State.Strict
+import Control.Monad.Trans.Class
 import Data.Functor.Identity
 import GHC.Generics (Generic)
 
@@ -47,7 +49,13 @@ instance Monad m => Monad (GameMonadT m) where
 
 instance MonadFix m => MonadFix (GameMonadT m) where
   mfix f = GameMonadT $ mfix (runGameMonadT . f)
-  
+
+instance MonadTrans GameMonadT where 
+  lift = GameMonadT . lift
+
+instance MonadIO m => MonadIO (GameMonadT m) where 
+  liftIO = GameMonadT . liftIO
+
 -- | Runs game monad with given context
 evalGameMonad :: GameMonadT m a -> GameContext -> m (a, GameContext)
 evalGameMonad (GameMonadT m) ctx = runStateT m ctx
