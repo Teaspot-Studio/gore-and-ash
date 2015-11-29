@@ -12,9 +12,16 @@ category:            Web
 build-type:          Simple
 cabal-version:       >=1.10
 
-executable glfw-input
+library
   hs-source-dirs:      src
-  main-is:             Main.hs
+  exposed-modules:     Game.GoreAndAsh.Input.GLFW
+                       Game.GoreAndAsh.Input.GLFW.Module
+
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
                      , gore-and-ash
+                     , deepseq >= 1.4
+                     , mtl >= 2.2
+                     
+  default-extensions:  DeriveGeneric
+                       GeneralizedNewtypeDeriving
