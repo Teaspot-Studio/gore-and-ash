@@ -6,6 +6,7 @@ module Game.GoreAndAsh.Input.GLFW.Module(
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Monad.Extra
+import Control.Monad.IO.Class
 import Control.Monad.Fix 
 import Control.Monad.State.Strict 
 import Graphics.UI.GLFW
@@ -40,6 +41,12 @@ instance GameModule m s => GameModule (GLFWInputT s m) (GLFWState s) where
       , glfwKeyChannel = kc
       , glfwKeys = M.empty
       }
+
+instance MonadTrans (GLFWInputT s) where
+  lift = GLFWInputT . lift 
+
+instance MonadIO m => MonadIO (GLFWInputT s m) where 
+  liftIO = GLFWInputT . liftIO 
 
 -- | Thread that changes callbacks to current window
 binder :: KeyChannel -> IO ()

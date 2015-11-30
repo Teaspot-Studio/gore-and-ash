@@ -6,7 +6,6 @@ module Game.GoreAndAsh.Input.GLFW.API(
   , keyStatusDyn
   ) where
 
-import Control.Monad.IO.Class
 import Control.Monad.State.Strict 
 import Control.Wire.Unsafe.Event
 import Graphics.UI.GLFW
@@ -27,12 +26,6 @@ instance Monad m => MonadGLFWInput (GLFWInputT s m) where
 
 instance MonadGLFWInput m => MonadGLFWInput (GameMonadT m) where 
   keyStatusM = lift . keyStatusM
-
-instance MonadTrans (GLFWInputT s) where
-  lift = GLFWInputT . lift 
-
-instance MonadIO m => MonadIO (GLFWInputT s m) where 
-  liftIO = GLFWInputT . liftIO 
 
 -- | Produces event when key state changes
 keyStatus :: MonadGLFWInput m => Key -> GameWire m a (Event (KeyState, ModifierKeys))
