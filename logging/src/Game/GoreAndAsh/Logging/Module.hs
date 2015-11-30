@@ -1,11 +1,10 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Game.GoreAndAsh.Logging.Module(
-    LoggingT
+    LoggingT(..)
   ) where
 
 import Control.Monad.Fix 
 import Control.Monad.State.Strict
-import Data.Text
 import qualified Data.Sequence as S
 import qualified Data.Text.IO as T
 
@@ -13,7 +12,7 @@ import Game.GoreAndAsh
 import Game.GoreAndAsh.Logging.State
 
 newtype LoggingT s m a = LoggingT { runLoggingT :: StateT (LoggingState s) m a }
-  deriving (Functor, Applicative, Monad, MonadState (LoggingState s), MonadFix)
+  deriving (Functor, Applicative, Monad, MonadState (LoggingState s), MonadFix, MonadTrans, MonadIO)
 
 instance GameModule m s => GameModule (LoggingT s m) (LoggingState s) where 
   runModule (LoggingT m) s = do
@@ -24,7 +23,7 @@ instance GameModule m s => GameModule (LoggingT s m) (LoggingState s) where
       , loggingNextState = nextState 
       })
     where 
-      printAllMsgs LoggingState{..} = liftIO $ mapM T.putStrLn loggingMsgs      
+      printAllMsgs LoggingState{..} = liftIO $ mapM_ T.putStrLn loggingMsgs      
 
   newModuleState = do
     s <- newModuleState

@@ -26,9 +26,13 @@ library
                      , text >= 1.2.1
                      , deepseq >= 1.4
                      , mtl >= 2.2
+                     , text-show >= 2 
+                     , netwire >= 5.0.1
+                     , transformers >= 0.4.2
 
   default-extensions:  DeriveGeneric
                        GeneralizedNewtypeDeriving
                        RecordWildCards
                        MultiParamTypeClasses
                        UndecidableInstances
+                       OverloadedStrings

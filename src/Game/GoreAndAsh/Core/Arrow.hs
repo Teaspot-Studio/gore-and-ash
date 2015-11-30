@@ -13,10 +13,13 @@ module Game.GoreAndAsh.Core.Arrow(
   , liftGameMonad4Once
   -- | Event functions
   , once'
+  , mapE
+  , liftGameMonadEvent1
   ) where
 
 import Prelude hiding (id, (.))
 import Control.Wire
+import Control.Wire.Unsafe.Event
 import Game.GoreAndAsh.Core.Monad
 import Game.GoreAndAsh.Core.Session
 
@@ -100,3 +103,13 @@ once' :: Monad m => GameWire m a (Event b) -> GameWire m a (Event b)
 once' w = proc a -> do 
   e <- w -< a 
   drSwitch id -< (e, fmap (const never) e)
+
+-- | Mapping events as a wire
+mapE :: Monad m => (a -> b) -> GameWire m (Event a) (Event b)
+mapE f = arr $ \e -> case e of 
+  NoEvent -> NoEvent
+  Event a -> Event $ f a 
+
+-- | Lifting game monad action to event processing arrow
+liftGameMonadEvent1 :: Monad m => (a -> GameMonadT m b) -> GameWire m (Event a) (Event b)
+liftGameMonadEvent1 = onEventM
