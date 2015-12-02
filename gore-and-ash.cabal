@@ -34,36 +34,3 @@ library
                        ScopedTypeVariables
                        RecordWildCards
                        DeriveGeneric
-
-executable gore-and-ash
-  hs-source-dirs:      app
-  main-is:             Main.hs
-  default-language:    Haskell2010
-  
-  other-modules:       Graphics
-                       Graphics.Camera
-                       Graphics.Square
-                       Math
-                       Game
-                       Render
-                       
-  build-depends:       base >= 4.7 && < 5
-                     , gore-and-ash
-                     , GPipe >= 2.1.4
-                     , GPipe-GLFW >= 1.2.1
-                     , GLFW-b >= 1.4.7.3
-                     , lens >= 4.12.3
-                     , linear >= 1.19
-                     , transformers >= 0.4.2
-                     , exception-transformers >= 0.4
-                     , netwire >= 5.0.1
-                     , deepseq >= 1.4
-
-  default-extensions:  ScopedTypeVariables
-                       RecordWildCards
-                       TypeFamilies
-                       RankNTypes
-                       Arrows
-                       DeriveGeneric
-
-  ghc-options: -O2 -Wall -Werror -threaded

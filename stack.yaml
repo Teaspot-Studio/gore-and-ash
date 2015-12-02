@@ -11,6 +11,7 @@ packages:
     commit: c9f8034c4f24c4491db88782142e0fcdf8bba540
 - glfw-input
 - logging
+- testapp
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps: 
