@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Game(
     mainWire
   , Player(..)
@@ -5,17 +6,23 @@ module Game(
   , Game(..)
   ) where
 
-import Prelude hiding (id, (.))
-import Data.Functor.Identity
-import Game.GoreAndAsh
-import Control.Wire 
 import Control.DeepSeq
+import Control.Monad.Trans.Class
+import Control.Wire
+import Data.Text
+import Game.GoreAndAsh
 import GHC.Generics (Generic)
 import Linear
+import Prelude hiding (id, (.))
 
 import Game.GoreAndAsh.Logging
+import Game.GoreAndAsh.Input.GLFW 
 
-type AppWire a b = GameWire (LoggingT () Identity) a b
+type AppMonad = LoggingT (GLFWState ()) (GLFWInputT () Identity)
+type AppWire a b = GameWire AppMonad a b
+
+instance MonadGLFWInput AppMonad where
+  keyStatusM = lift . keyStatusM
 
 data Player = Player {
   playerPos :: !(V2 Float)
@@ -56,5 +63,5 @@ cameraWire initialCamera = loop $ proc (_, c_) -> do
 playerWire :: Player -> AppWire a Player 
 playerWire initialPlayer = loop $ proc (_, p_) -> do 
   p <- delay initialPlayer -< p_ 
-  traceEventShow . now -< "Hi, logging!"
+  traceEvent (pack . show) . keyPressed Key'W -< ()
   forceNF -< (p, p)

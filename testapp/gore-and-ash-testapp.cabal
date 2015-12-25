@@ -27,6 +27,7 @@ executable gore-and-ash
   build-depends:       base >= 4.7 && < 5
                      , gore-and-ash
                      , gore-and-ash-logging
+                     , gore-and-ash-glfw-input
                      , GPipe >= 2.1.4
                      , GPipe-GLFW >= 1.2.1
                      , GLFW-b >= 1.4.7.3
@@ -36,6 +37,7 @@ executable gore-and-ash
                      , exception-transformers >= 0.4
                      , netwire >= 5.0.1
                      , deepseq >= 1.4
+                     , text >= 1.2.1
 
   default-extensions:  ScopedTypeVariables
                        RecordWildCards
@@ -43,5 +45,7 @@ executable gore-and-ash
                        RankNTypes
                        Arrows
                        DeriveGeneric
+                       TypeSynonymInstances
+                       FlexibleInstances
 
   ghc-options: -O2 -Wall -Werror -threaded

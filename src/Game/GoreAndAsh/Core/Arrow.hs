@@ -14,6 +14,7 @@ module Game.GoreAndAsh.Core.Arrow(
   -- | Event functions
   , once'
   , mapE
+  , filterE
   , liftGameMonadEvent1
   ) where
 
