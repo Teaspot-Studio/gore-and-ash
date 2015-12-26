@@ -6,6 +6,7 @@ module Game.GoreAndAsh.GLFW.API(
   , keyStatusDyn
   , mouseButton
   , mouseButtonDyn
+  , mousePosition
   -- | Helpers
   , keyPressed
   , keyPressedDyn
@@ -17,6 +18,13 @@ module Game.GoreAndAsh.GLFW.API(
   , mouseButtonPressedDyn
   , mouseButtonReleased
   , mouseButtonReleasedDyn
+  , mousePositionChange
+  , mouseXChange
+  , mouseYChange
+  , mouseDelta
+  , mouseDeltaChange
+  , mouseDeltaXChange
+  , mouseDeltaYChange
   -- | Reexports
   , Key(..)
   , KeyState(..)
@@ -43,6 +51,8 @@ class Monad m => MonadGLFWInput m where
   keyStatusM :: Key -> m (Maybe (KeyState, ModifierKeys))
   -- | Returns state of given mouse button
   mouseButtonM :: MouseButton -> m (Maybe (MouseButtonState, ModifierKeys))
+  -- | Returns current position of mouse coursor
+  mousePosM :: m (Double, Double)
   -- | Setups current window for input catch
   setCurrentWindowM :: Maybe Window -> m ()
 
@@ -55,6 +65,8 @@ instance Monad m => MonadGLFWInput (GLFWInputT s m) where
     GLFWState{..} <- GLFWInputT get 
     return $ M.lookup b glfwMouseButtons
 
+  mousePosM = GLFWInputT $ glfwMousePos <$> get 
+
   setCurrentWindowM w = GLFWInputT $ do 
     s <- get 
     put $ s { 
@@ -65,6 +77,7 @@ instance Monad m => MonadGLFWInput (GLFWInputT s m) where
 instance MonadGLFWInput m => MonadGLFWInput (GameMonadT m) where 
   keyStatusM = lift . keyStatusM
   mouseButtonM = lift . mouseButtonM
+  mousePosM = lift mousePosM
   setCurrentWindowM = lift . setCurrentWindowM
 
 -- | Produces event when key state changes
@@ -143,3 +156,85 @@ mouseButtonReleased = mouseButtonStated MouseButtonState'Released
 -- | Version of mouseButtonReleased that takes button at runtime
 mouseButtonReleasedDyn :: MonadGLFWInput m => GameWire m MouseButton (Event ModifierKeys)
 mouseButtonReleasedDyn = mouseButtonStatedDyn MouseButtonState'Released
+
+-- | Returns current position of mouse
+mousePosition :: MonadGLFWInput m => GameWire m a (Double, Double)
+mousePosition = liftGameMonad mousePosM
+
+-- | Fires event when mouse position changes
+mousePositionChange :: MonadGLFWInput m => GameWire m a (Event (Double, Double))
+mousePositionChange = go 0 0
+  where
+    go !x !y = mkGen $ \_ _-> do 
+      (!x', !y') <- mousePosM
+      return $ if x /= x' || y /= y' 
+        then (Right $! Event (x', y'), go x' y')
+        else (Right NoEvent, go x y)
+
+-- | Fires event when mouse X axis changes
+mouseXChange :: MonadGLFWInput m => GameWire m a (Event Double)
+mouseXChange = go 0 
+  where
+    go !x = mkGen $ \_ _-> do 
+      (!x', _) <- mousePosM
+      return $ if x /= x'
+        then (Right $! Event x', go x')
+        else (Right NoEvent, go x)
+
+-- | Fires event when mouse Y axis changes
+mouseYChange :: MonadGLFWInput m => GameWire m a (Event Double)
+mouseYChange = go 0 
+  where
+    go !y = mkGen $ \_ _-> do 
+      (_, !y') <- mousePosM
+      return $ if y /= y'
+        then (Right $! Event y', go y')
+        else (Right NoEvent, go y)
+
+-- | Returns mouse delta moves
+mouseDelta :: MonadGLFWInput m => GameWire m a (Double, Double)
+mouseDelta = go 0 0
+  where 
+    go !x !y = mkGen $ \_ _ -> do 
+      (!x', !y') <- mousePosM
+      let dx = x' - x 
+          dy = y' - y
+          res = Right (dx, dy)
+      return $ dx `seq` dy `seq` (res, go x' y')
+
+-- | Fires when mouse moves, holds delta move
+mouseDeltaChange :: MonadGLFWInput m => GameWire m a (Event (Double, Double))
+mouseDeltaChange = go 0 0
+  where 
+    go !x !y = mkGen $ \_ _ -> do 
+      (!x', !y') <- mousePosM
+      let dx = x' - x 
+          dy = y' - y
+          res = Right $! Event (dx, dy)
+      return $ if x /= x' || y /= y' 
+        then dx `seq` dy `seq` (res, go x' y')
+        else (Right NoEvent, go x y)
+
+-- | Fires when mouse X axis changes, holds delta move
+mouseDeltaXChange :: MonadGLFWInput m => GameWire m a (Event Double)
+mouseDeltaXChange = go 0 
+  where 
+    go !x = mkGen $ \_ _ -> do 
+      (!x', _) <- mousePosM
+      let dx = x' - x 
+          res = Right $! Event dx
+      return $ if x /= x' 
+        then dx `seq` (res, go x')
+        else (Right NoEvent, go x)
+
+-- | Fires when mouse Y axis changes, holds delta move
+mouseDeltaYChange :: MonadGLFWInput m => GameWire m a (Event Double)
+mouseDeltaYChange = go 0 
+  where 
+    go !y = mkGen $ \_ _ -> do 
+      (_, !y') <- mousePosM
+      let dy = y' - y 
+          res = Right $! Event dy
+      return $ if y /= y'
+        then dy `seq` (res, go y')
+        else (Right NoEvent, go y)

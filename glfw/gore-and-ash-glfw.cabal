@@ -37,3 +37,4 @@ library
                        MultiParamTypeClasses
                        UndecidableInstances
                        RecordWildCards
+                       BangPatterns

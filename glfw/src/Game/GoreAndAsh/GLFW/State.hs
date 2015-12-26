@@ -2,6 +2,7 @@
 module Game.GoreAndAsh.GLFW.State(
     KeyChannel
   , ButtonChannel
+  , MouseChannel
   , GLFWState(..)
   ) where
 
@@ -16,6 +17,8 @@ import qualified Data.HashMap.Strict as M
 type KeyChannel = TChan (Key, KeyState, ModifierKeys)
 -- | Channel to connect core and callback with mouse button states
 type ButtonChannel = TChan (MouseButton, MouseButtonState, ModifierKeys)
+-- | Channel to connect core and callback with mouse position
+type MouseChannel = TVar (Double, Double)
 
 -- | Module inner state
 data GLFWState s = GLFWState {
@@ -24,6 +27,8 @@ data GLFWState s = GLFWState {
 , glfwKeyChannel :: !KeyChannel
 , glfwMouseButtons :: !(M.HashMap MouseButton (MouseButtonState, ModifierKeys))
 , glfwMouseButtonChannel :: !ButtonChannel
+, glfwMousePos :: !(Double, Double)
+, glfwMousePosChannel :: !MouseChannel
 , glfwWindow :: !(Maybe Window)
 , glfwPrevWindow :: !(Maybe Window)
 } deriving (Generic)
@@ -35,6 +40,8 @@ instance NFData s => NFData (GLFWState s) where
     glfwKeyChannel `seq` 
     glfwMouseButtons `deepseq` 
     glfwMouseButtonChannel `seq` 
+    glfwMousePos `deepseq`
+    glfwMousePosChannel `seq`
     glfwWindow `seq`
     glfwPrevWindow `seq` ()
 

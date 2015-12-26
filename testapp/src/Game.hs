@@ -24,6 +24,7 @@ type AppWire a b = GameWire AppMonad a b
 instance MonadGLFWInput AppMonad where
   keyStatusM = lift . keyStatusM
   mouseButtonM = lift . mouseButtonM
+  mousePosM = lift mousePosM
   setCurrentWindowM = lift . setCurrentWindowM 
   
 data Player = Player {
@@ -67,4 +68,5 @@ playerWire initialPlayer = loop $ proc (_, p_) -> do
   p <- delay initialPlayer -< p_ 
   traceEvent (pack . show) . keyPressed Key'W -< ()
   traceEvent (pack . show) . mouseButtonPressed MouseButton'1 -< ()
+  traceEvent (pack . show) . mousePositionChange -< ()
   forceNF -< (p, p)
