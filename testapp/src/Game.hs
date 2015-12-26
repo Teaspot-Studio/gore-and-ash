@@ -25,6 +25,7 @@ instance MonadGLFWInput AppMonad where
   keyStatusM = lift . keyStatusM
   mouseButtonM = lift . mouseButtonM
   mousePosM = lift mousePosM
+  mouseScrollM = lift mouseScrollM
   windowSizeM = lift windowSizeM
   setCurrentWindowM = lift . setCurrentWindowM 
   
@@ -71,4 +72,5 @@ playerWire initialPlayer = loop $ proc (_, p_) -> do
   traceEvent (pack . show) . mouseButtonPressed MouseButton'1 -< ()
   -- traceEvent (pack . show) . mousePositionChange -< ()
   traceEvent (pack . show) . windowSize -< ()
+  traceEvent (pack . show) . mouseScroll -< ()
   forceNF -< (p, p)

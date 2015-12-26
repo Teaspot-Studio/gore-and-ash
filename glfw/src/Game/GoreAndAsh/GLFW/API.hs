@@ -1,24 +1,24 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Game.GoreAndAsh.GLFW.API(
     MonadGLFWInput(..)
-  -- | Arrow API
+  -- | Keyboard API
   , keyStatus
   , keyStatusDyn
-  , mouseButton
-  , mouseButtonDyn
-  , mousePosition
-  , windowSize
-  -- | Helpers
   , keyPressed
   , keyPressedDyn
   , keyReleased
   , keyReleasedDyn
   , keyRepeating
   , keyRepeatingDyn
+  -- | Mouse buttons API
+  , mouseButton
+  , mouseButtonDyn
   , mouseButtonPressed
   , mouseButtonPressedDyn
   , mouseButtonReleased
   , mouseButtonReleasedDyn
+  -- | Cursor position
+  , mousePosition
   , mousePositionChange
   , mouseXChange
   , mouseYChange
@@ -26,6 +26,12 @@ module Game.GoreAndAsh.GLFW.API(
   , mouseDeltaChange
   , mouseDeltaXChange
   , mouseDeltaYChange
+  -- | Mouse scroll
+  , mouseScroll
+  , mouseScrollX
+  , mouseScrollY
+  -- | Window API
+  , windowSize
   -- | Reexports
   , Key(..)
   , KeyState(..)
@@ -57,6 +63,7 @@ import Game.GoreAndAsh.GLFW.Module
 --   keyStatusM = lift . keyStatusM
 --   mouseButtonM = lift . mouseButtonM
 --   mousePosM = lift mousePosM
+--   mouseScrollM = lift mouseScrollM
 --   windowSizeM = lift windowSizeM
 --   setCurrentWindowM = lift . setCurrentWindowM 
 -- @@
@@ -67,6 +74,8 @@ class Monad m => MonadGLFWInput m where
   mouseButtonM :: MouseButton -> m (Maybe (MouseButtonState, ModifierKeys))
   -- | Returns current position of mouse cursor
   mousePosM :: m (Double, Double)
+  -- | Returns current scroll value of mouse
+  mouseScrollM :: m (Double, Double)
   -- | Returns current size of window
   windowSizeM :: m (Maybe (Double, Double))
   -- | Setups current window for input catch
@@ -82,7 +91,7 @@ instance Monad m => MonadGLFWInput (GLFWInputT s m) where
     return $ M.lookup b glfwMouseButtons
 
   mousePosM = GLFWInputT $ glfwMousePos <$> get 
-
+  mouseScrollM = GLFWInputT $ glfwScroll <$> get 
   windowSizeM = GLFWInputT $ glfwWindowSize <$> get 
 
   setCurrentWindowM w = GLFWInputT $ do 
@@ -96,6 +105,7 @@ instance MonadGLFWInput m => MonadGLFWInput (GameMonadT m) where
   keyStatusM = lift . keyStatusM
   mouseButtonM = lift . mouseButtonM
   mousePosM = lift mousePosM
+  mouseScrollM = lift mouseScrollM
   windowSizeM = lift windowSizeM
   setCurrentWindowM = lift . setCurrentWindowM
 
@@ -269,3 +279,21 @@ windowSize = go 0 0
         Just (!x', !y') -> if x /= x' || y /= y' 
           then x' `seq` y' `seq` (Right $! Event (x', y'), go x' y')
           else (Right NoEvent, go x y)
+
+-- | Fires when user scrolls
+mouseScroll :: MonadGLFWInput m => GameWire m a (Event (Double, Double))
+mouseScroll = go 0 0 
+  where
+  go !x !y = mkGen $ \_ _ -> do 
+    (!x', !y') <- mouseScrollM
+    return $! if x /= x' || y /= y'
+      then (Right $! Event (x', y'), go x' y')
+      else (Right $! NoEvent, go x y)
+
+-- | Fires when user scrolls X axis
+mouseScrollX :: MonadGLFWInput m => GameWire m a (Event Double)
+mouseScrollX = mapE fst . mouseScroll
+
+-- | Fires when user scrolls Y axis
+mouseScrollY :: MonadGLFWInput m => GameWire m a (Event Double)
+mouseScrollY = mapE snd . mouseScroll 

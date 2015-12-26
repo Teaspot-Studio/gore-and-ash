@@ -4,6 +4,7 @@ module Game.GoreAndAsh.GLFW.State(
   , ButtonChannel
   , MouseChannel
   , WindowSizeChannel
+  , ScrollChannel
   , GLFWState(..)
   ) where
 
@@ -22,6 +23,8 @@ type ButtonChannel = TChan (MouseButton, MouseButtonState, ModifierKeys)
 type MouseChannel = TVar (Double, Double)
 -- | Channel to connect core and callback with window resizing 
 type WindowSizeChannel = TVar (Maybe (Double, Double))
+-- | Channel to connect core and callback with mouse scrolling
+type ScrollChannel = TVar (Double, Double)
 
 -- | Module inner state
 data GLFWState s = GLFWState {
@@ -36,6 +39,8 @@ data GLFWState s = GLFWState {
 , glfwPrevWindow :: !(Maybe Window)
 , glfwWindowSize :: !(Maybe (Double, Double))
 , glfwWindowSizeChannel :: !WindowSizeChannel
+, glfwScroll :: !(Double, Double)
+, glfwScrollChannel :: !ScrollChannel
 } deriving (Generic)
 
 instance NFData s => NFData (GLFWState s) where 
@@ -49,7 +54,10 @@ instance NFData s => NFData (GLFWState s) where
     glfwMousePosChannel `seq`
     glfwWindow `seq`
     glfwPrevWindow `seq` 
-    glfwWindowSize `deepseq` ()
+    glfwWindowSize `deepseq`
+    glfwWindowSizeChannel `seq`
+    glfwScroll `deepseq`
+    glfwScrollChannel `seq` ()
 
 instance Hashable Key 
 instance Hashable MouseButton
