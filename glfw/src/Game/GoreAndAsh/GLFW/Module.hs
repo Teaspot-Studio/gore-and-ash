@@ -21,10 +21,12 @@ newtype GLFWInputT s m a = GLFWInputT { runGLFWInputT :: StateT (GLFWState s) m 
 instance GameModule m s => GameModule (GLFWInputT s m) (GLFWState s) where 
   runModule (GLFWInputT m) s = do
     ((a, s'@GLFWState{..}), nextState) <- runModule (runStateT m s) (glfwNextState s)
-    bindWindow glfwPrevWindow glfwWindow glfwKeyChannel
+    bindWindow glfwPrevWindow glfwWindow glfwKeyChannel glfwMouseButtonChannel
     keys <- readAllKeys s'
+    buttons <- readAllButtons s'
     return (a, s' { 
         glfwKeys = keys
+      , glfwMouseButtons = buttons
       , glfwNextState = nextState 
       })
     where 
@@ -32,13 +34,20 @@ instance GameModule m s => GameModule (GLFWInputT s m) (GLFWState s) where
         keys <- atomically $ readAllChan glfwKeyChannel
         return $ M.fromList $ (\(k, ks, mds) -> (k, (ks, mds))) <$> keys
 
+      readAllButtons GLFWState{..} = liftIO $ do 
+        btns <- atomically $ readAllChan glfwMouseButtonChannel
+        return $ M.fromList $ (\(b, bs, mds) -> (b, (bs, mds))) <$> btns 
+
   newModuleState = do
     s <- newModuleState 
     kc <- liftIO newTChanIO
+    mbc <- liftIO newTChanIO
     return $ GLFWState {
         glfwNextState = s
       , glfwKeyChannel = kc
       , glfwKeys = M.empty
+      , glfwMouseButtonChannel = mbc 
+      , glfwMouseButtons = M.empty
       , glfwWindow = Nothing
       , glfwPrevWindow = Nothing
       }
@@ -50,17 +59,28 @@ instance MonadIO m => MonadIO (GLFWInputT s m) where
   liftIO = GLFWInputT . liftIO 
 
 -- | Updates handlers when current window changes
-bindWindow :: MonadIO m => Maybe Window -> Maybe Window -> KeyChannel -> m ()
-bindWindow prev cur kch = unless (prev == cur) $ liftIO $ do 
-  whenJust prev  $ \w -> setKeyCallback w Nothing
-  whenJust cur $ \w -> bindKeyListener kch w
+bindWindow :: MonadIO m => Maybe Window -> Maybe Window -> KeyChannel -> ButtonChannel -> m ()
+bindWindow prev cur kch mbch = unless (prev == cur) $ liftIO $ do 
+  whenJust prev  $ \w -> do
+    setKeyCallback w Nothing
+    setMouseButtonCallback w Nothing
+  whenJust cur $ \w -> do
+    bindKeyListener kch w
+    bindMouseButtonListener mbch w
 
--- | Bind callback that passes values to channel
+-- | Bind callback that passes keyboard info to channel
 bindKeyListener :: KeyChannel -> Window -> IO ()
 bindKeyListener kch w = setKeyCallback w (Just f)
   where
     f :: Window -> Key -> Int -> KeyState -> ModifierKeys -> IO ()
     f _ k _ ks mds = atomically $ writeTChan kch (k, ks, mds)
+
+-- | Bind callback that passes mouse button info to channel
+bindMouseButtonListener :: ButtonChannel -> Window -> IO ()
+bindMouseButtonListener mbch w = setMouseButtonCallback w (Just f)
+  where 
+    f :: Window -> MouseButton -> MouseButtonState -> ModifierKeys -> IO ()
+    f _ b bs mds = atomically $ writeTChan mbch (b, bs, mds)
 
 -- | Helper function to read all elements from channel
 readAllChan :: TChan a -> STM [a]
