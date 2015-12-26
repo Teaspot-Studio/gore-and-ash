@@ -22,12 +22,15 @@ data GameState m s a = GameState {
 }
 
 -- | Main loop of the game where each frame is calculated
-stepGame :: (GameModule m s, NFData s, MonadIO m') => GameState m s a -> m' (Maybe a, GameState m s a)
-stepGame GameState{..} = do 
+stepGame :: (GameModule m s, NFData s, MonadIO m') 
+  => GameState m s a -- ^ Current game state
+  -> GameMonadT m b -- ^ Some action to perform before frame
+  -> m' (Maybe a, GameState m s a)
+stepGame GameState{..} preFrame = do 
   (t, gameSession') <- stepGameSession gameSession
   -- Removing layers of abstraction
   let gameMonadAction = stepWire gameWire t $ Right ()
-      moduleAction = evalGameMonad gameMonadAction gameContext
+      moduleAction = evalGameMonad (preFrame >> gameMonadAction) gameContext
       ioAction = runModule moduleAction gameModuleState
   -- Final pattern matching
   (((ma, gameWire'), gameContext'), gameModuleState') <- ioAction

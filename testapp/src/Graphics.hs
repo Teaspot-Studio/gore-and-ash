@@ -11,6 +11,7 @@ import Control.Monad.IO.Class
 import Graphics.GPipe    
 import Graphics.GPipe.Context.GLFW.Unsafe
 import qualified Graphics.GPipe.Context.GLFW as GLFW
+import qualified Graphics.UI.GLFW as GLFW (Window)
 
 import Graphics.Camera
 import Graphics.Square 
@@ -28,6 +29,7 @@ data RenderState os = RenderState {
 , renderCamera :: Camera os 
 , renderShader :: ViewContext -> Render os (ContextFormat RGBFloat ()) ()
 , renderStop :: Bool
+, renderWindow :: Maybe GLFW.Window
 }
 
 -- ^ Test if user wants to stop rendering
@@ -48,6 +50,7 @@ initResources = do
       , renderCamera = camera 
       , renderShader = shader 
       , renderStop = False
+      , renderWindow = Nothing
       }
 
 -- | Draws one frame of render state
@@ -83,8 +86,10 @@ renderStep rs@RenderState{..} rendering = do
 
   -- | Update state
   closeRequested <- GLFW.windowShouldClose   
+  win <- withContextWindow $ return . getGLFWWindow
   return $ rs {
       renderSquare = square'
     , renderCamera = camera'
     , renderStop = closeRequested
+    , renderWindow = Just win
     }

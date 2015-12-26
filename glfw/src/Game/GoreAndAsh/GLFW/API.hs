@@ -31,15 +31,26 @@ import Game.GoreAndAsh.GLFW.Module
 
 -- | Module low-level API
 class Monad m => MonadGLFWInput m where 
+  -- | Returns state of given keyboard's key
   keyStatusM :: Key -> m (Maybe (KeyState, ModifierKeys))
+  -- | Setups current window for input catch
+  setCurrentWindowM :: Maybe Window -> m ()
 
 instance Monad m => MonadGLFWInput (GLFWInputT s m) where 
   keyStatusM k = do 
     GLFWState{..} <- GLFWInputT get
     return $ M.lookup k glfwKeys
 
+  setCurrentWindowM w = GLFWInputT $ do 
+    s <- get 
+    put $ s { 
+        glfwWindow = w 
+      , glfwPrevWindow = glfwWindow s 
+      }
+
 instance MonadGLFWInput m => MonadGLFWInput (GameMonadT m) where 
   keyStatusM = lift . keyStatusM
+  setCurrentWindowM = lift . setCurrentWindowM
 
 -- | Produces event when key state changes
 keyStatus :: MonadGLFWInput m => Key -> GameWire m a (Event (KeyState, ModifierKeys))

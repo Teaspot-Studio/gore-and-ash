@@ -19,13 +19,17 @@ data GLFWState s = GLFWState {
   glfwNextState :: !s 
 , glfwKeys :: !(M.HashMap Key (KeyState, ModifierKeys))
 , glfwKeyChannel :: !KeyChannel
+, glfwWindow :: !(Maybe Window)
+, glfwPrevWindow :: !(Maybe Window)
 } deriving (Generic)
 
 instance NFData s => NFData (GLFWState s) where 
   rnf GLFWState {..} = 
     glfwNextState `deepseq` 
     glfwKeys `deepseq` 
-    glfwKeyChannel `seq` ()
+    glfwKeyChannel `seq` 
+    glfwWindow `seq`
+    glfwPrevWindow `seq` ()
 
 instance Hashable Key 
 instance NFData ModifierKeys

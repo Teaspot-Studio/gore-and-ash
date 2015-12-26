@@ -3,7 +3,6 @@ module Game.GoreAndAsh.GLFW.Module(
     GLFWInputT(..)
   ) where
 
-import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Monad.Extra
 import Control.Monad.IO.Class
@@ -15,13 +14,14 @@ import qualified Data.HashMap.Strict as M
 import Game.GoreAndAsh
 import Game.GoreAndAsh.GLFW.State
 
--- | Monad transformer that handles input processing
+-- | Monad transformer that handles GLFW specific API
 newtype GLFWInputT s m a = GLFWInputT { runGLFWInputT :: StateT (GLFWState s) m a }
   deriving (Functor, Applicative, Monad, MonadState (GLFWState s), MonadFix)
 
 instance GameModule m s => GameModule (GLFWInputT s m) (GLFWState s) where 
   runModule (GLFWInputT m) s = do
-    ((a, s'), nextState) <- runModule (runStateT m s) (glfwNextState s)
+    ((a, s'@GLFWState{..}), nextState) <- runModule (runStateT m s) (glfwNextState s)
+    bindWindow glfwPrevWindow glfwWindow glfwKeyChannel
     keys <- readAllKeys s'
     return (a, s' { 
         glfwKeys = keys
@@ -35,11 +35,12 @@ instance GameModule m s => GameModule (GLFWInputT s m) (GLFWState s) where
   newModuleState = do
     s <- newModuleState 
     kc <- liftIO newTChanIO
-    _ <- liftIO $ forkIO $ binder kc
     return $ GLFWState {
         glfwNextState = s
       , glfwKeyChannel = kc
       , glfwKeys = M.empty
+      , glfwWindow = Nothing
+      , glfwPrevWindow = Nothing
       }
 
 instance MonadTrans (GLFWInputT s) where
@@ -48,29 +49,18 @@ instance MonadTrans (GLFWInputT s) where
 instance MonadIO m => MonadIO (GLFWInputT s m) where 
   liftIO = GLFWInputT . liftIO 
 
--- | Thread that changes callbacks to current window
-binder :: KeyChannel -> IO ()
-binder kch = go Nothing 
-  where 
-    go mw = do 
-      mw' <- getCurrentContext
-      case mw' of
-        Nothing -> putStrLn "!"
-        Just _ -> putStrLn "!!"
-      unless (mw == mw') $ do 
-        whenJust mw  $ \w -> setKeyCallback w Nothing
-        whenJust mw' $ \w -> bindKeyListener kch w
-        yield >> go mw'
-      yield >> go mw
+-- | Updates handlers when current window changes
+bindWindow :: MonadIO m => Maybe Window -> Maybe Window -> KeyChannel -> m ()
+bindWindow prev cur kch = unless (prev == cur) $ liftIO $ do 
+  whenJust prev  $ \w -> setKeyCallback w Nothing
+  whenJust cur $ \w -> bindKeyListener kch w
 
 -- | Bind callback that passes values to channel
 bindKeyListener :: KeyChannel -> Window -> IO ()
 bindKeyListener kch w = setKeyCallback w (Just f)
   where
     f :: Window -> Key -> Int -> KeyState -> ModifierKeys -> IO ()
-    f _ k _ ks mds = do
-      putStrLn $ show k
-      atomically $ writeTChan kch (k, ks, mds)
+    f _ k _ ks mds = atomically $ writeTChan kch (k, ks, mds)
 
 -- | Helper function to read all elements from channel
 readAllChan :: TChan a -> STM [a]

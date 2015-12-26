@@ -23,7 +23,8 @@ type AppWire a b = GameWire AppMonad a b
 
 instance MonadGLFWInput AppMonad where
   keyStatusM = lift . keyStatusM
-
+  setCurrentWindowM = lift . setCurrentWindowM 
+  
 data Player = Player {
   playerPos :: !(V2 Float)
 , playerColor :: !(V3 Float) 
