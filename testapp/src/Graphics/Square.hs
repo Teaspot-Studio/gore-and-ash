@@ -8,25 +8,26 @@ module Graphics.Square(
   ) where
 
 import Control.Lens
-import Control.Monad (unless)
+import Control.Monad (when)
 import Control.Monad.IO.Class 
 import Graphics.Camera
 import Graphics.GPipe 
 import Math
 
 data ViewContext = ViewContext {
-  viewArray :: PrimitiveArray Triangles (B2 Float)
-, viewPort :: ViewPort
+  viewArray :: !(PrimitiveArray Triangles (B2 Float))
+, viewPort :: !ViewPort
 }
 
 data Square os = Square {
-  squareBuffer :: Buffer os (B2 Float)
-, squareModelMtxUniform :: Buffer os (Uniform (B4 Float))
-, squareColorUniform :: Buffer os (Uniform (B3 Float))
-, squareWidth :: Float 
-, squarePos :: V2 Float
-, squareRot :: Float
-, squareColor :: V3 Float 
+  squareBuffer :: !(Buffer os (B2 Float))
+, squareModelMtxUniform :: !(Buffer os (Uniform (B4 Float)))
+, squareColorUniform :: !(Buffer os (Uniform (B3 Float)))
+, squareWidth :: !Float 
+, squarePos :: !(V2 Float)
+, squareRot :: !Float
+, squareColor :: !(V3 Float)
+, squareDirty :: !Bool
 }
 
 newSquare :: MonadIO m => ContextT w os f m (Square os) 
@@ -52,25 +53,19 @@ newSquare = do
     , squarePos = 0
     , squareRot = 0
     , squareColor = 0
+    , squareDirty = False
     }
 
 updateSquare :: MonadIO m => 
-     Float -- ^ Square width
-  -> V2 Float -- ^ Square pos
-  -> Float -- ^ Square rotation
-  -> V3 Float -- ^ Square color RGB
-  -> Square os -- ^ current square
+     Square os -- ^ current square
   -> ContextT w os f m (Square os) -- ^ New square 
-updateSquare w p r c sq@Square{..} = do 
-  unless (squareWidth == w && squarePos == p && squareRot == r) $ do
-    let (V4 r1 r2 r3 r4) = scale (V3 w w w) !*! rotationZ r !*! translate (V3 (p^._x) (p^._y) 0) 
+updateSquare sq@Square{..} = do 
+  when squareDirty $ do
+    let (V4 r1 r2 r3 r4) = scale (V3 squareWidth squareWidth squareWidth) !*! rotationZ squareRot !*! translate (V3 (squarePos^._x) (squarePos^._y) 0) 
     writeBuffer squareModelMtxUniform 0 [r1, r2, r3, r4]
-  unless (squareColor == c) $ writeBuffer squareColorUniform 0 [c]
+    writeBuffer squareColorUniform 0 [squareColor]
   return $ sq {
-      squareWidth = w 
-    , squarePos = p 
-    , squareRot = r 
-    , squareColor = c
+      squareDirty = False
     }
 
 type AspectUniform os = Buffer os (Uniform (B Float))

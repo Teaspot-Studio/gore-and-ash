@@ -9,6 +9,7 @@ module Game(
 import Control.DeepSeq
 import Control.Monad.Trans.Class
 import Control.Wire
+import Control.Wire.Unsafe.Event
 import Data.Text
 import Game.GoreAndAsh
 import GHC.Generics (Generic)
@@ -57,18 +58,30 @@ mainWire = Game
   <$> playerWire initialPlayer
   <*> cameraWire initialCamera 
   where 
-    initialCamera = Camera 0 0 0
+    initialCamera = Camera 0 0 (-1)
     initialPlayer = Player 0 (V3 1 0 0) 0
 
 cameraWire :: Camera -> AppWire a Camera 
 cameraWire initialCamera = loop $ proc (_, c_) -> do 
   c <- delay initialCamera -< c_
-  forceNF -< (c, c)
+  c2 <- moveCamera (V2 0 (-0.1)) Key'W 
+    . moveCamera (V2 0 0.1) Key'S 
+    . moveCamera (V2 0.1 0) Key'A
+    . moveCamera (V2 (-0.1) 0) Key'D -< c
+  forceNF -< (c2, c2)
+  where 
+    moveCamera :: V2 Float -> Key -> AppWire Camera Camera
+    moveCamera dv k = proc c -> do 
+      e <- keyPressed k -< ()
+      let newCam = c {
+            cameraPos = cameraPos c + dv 
+          }
+      returnA -< event c (const newCam) e
 
 playerWire :: Player -> AppWire a Player 
 playerWire initialPlayer = loop $ proc (_, p_) -> do 
   p <- delay initialPlayer -< p_ 
-  traceEvent (pack . show) . keyPressed Key'W -< ()
+  -- traceEvent (pack . show) . keyPressed Key'W -< ()
   traceEvent (pack . show) . mouseButtonPressed MouseButton'1 -< ()
   -- traceEvent (pack . show) . mousePositionChange -< ()
   traceEvent (pack . show) . windowSize -< ()

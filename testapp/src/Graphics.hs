@@ -72,8 +72,8 @@ renderStep :: (MonadException m, MonadIO m)
   -> ContextT GLFWWindow os f m (RenderState os) -- ^ New state
 renderStep rs@RenderState{..} rendering = do
   -- | Update buffers
-  square' <- updateSquare 1 0 (squareRot renderSquare + 0.01) (V3 1 0 0) renderSquare
-  camera' <- updateCamera (-1) 0 1 renderCamera
+  square' <- updateSquare renderSquare
+  camera' <- updateCamera renderCamera
   
   -- | Calculate viewport
   size@(V2 w h) <- getContextBuffersSize

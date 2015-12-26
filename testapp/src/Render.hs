@@ -18,6 +18,7 @@ renderGameSquare p s = s {
     GR.squarePos = GM.playerPos p
   , GR.squareRot = GM.playerRot p
   , GR.squareColor = GM.playerColor p
+  , GR.squareDirty = True
   } 
 
 renderGameCamera :: GM.Camera -> GR.Camera os -> GR.Camera os
@@ -25,5 +26,6 @@ renderGameCamera gc c = c {
     GR.cameraPos = GM.cameraPos gc
   , GR.cameraRot = GM.cameraRot gc
   , GR.cameraZoom = GM.cameraZoom gc
+  , GR.cameraDirty = True
   } 
 
