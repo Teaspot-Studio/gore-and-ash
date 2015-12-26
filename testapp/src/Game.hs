@@ -16,7 +16,7 @@ import Linear
 import Prelude hiding (id, (.))
 
 import Game.GoreAndAsh.Logging
-import Game.GoreAndAsh.Input.GLFW 
+import Game.GoreAndAsh.GLFW 
 
 type AppMonad = LoggingT (GLFWState ()) (GLFWInputT () Identity)
 type AppWire a b = GameWire AppMonad a b

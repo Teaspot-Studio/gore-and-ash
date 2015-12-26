@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-module Game.GoreAndAsh.Input.GLFW.Module(
+module Game.GoreAndAsh.GLFW.Module(
     GLFWInputT(..)
   ) where
 
@@ -13,7 +13,7 @@ import Graphics.UI.GLFW
 import qualified Data.HashMap.Strict as M 
 
 import Game.GoreAndAsh
-import Game.GoreAndAsh.Input.GLFW.State
+import Game.GoreAndAsh.GLFW.State
 
 -- | Monad transformer that handles input processing
 newtype GLFWInputT s m a = GLFWInputT { runGLFWInputT :: StateT (GLFWState s) m a }
@@ -54,6 +54,9 @@ binder kch = go Nothing
   where 
     go mw = do 
       mw' <- getCurrentContext
+      case mw' of
+        Nothing -> putStrLn "!"
+        Just _ -> putStrLn "!!"
       unless (mw == mw') $ do 
         whenJust mw  $ \w -> setKeyCallback w Nothing
         whenJust mw' $ \w -> bindKeyListener kch w
@@ -65,7 +68,9 @@ bindKeyListener :: KeyChannel -> Window -> IO ()
 bindKeyListener kch w = setKeyCallback w (Just f)
   where
     f :: Window -> Key -> Int -> KeyState -> ModifierKeys -> IO ()
-    f _ k _ ks mds = atomically $ writeTChan kch (k, ks, mds)
+    f _ k _ ks mds = do
+      putStrLn $ show k
+      atomically $ writeTChan kch (k, ks, mds)
 
 -- | Helper function to read all elements from channel
 readAllChan :: TChan a -> STM [a]

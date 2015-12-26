@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-module Game.GoreAndAsh.Input.GLFW.API(
+module Game.GoreAndAsh.GLFW.API(
     MonadGLFWInput(..)
   -- | Arrow API
   , keyStatus
@@ -26,8 +26,8 @@ import Graphics.UI.GLFW
 import qualified Data.HashMap.Strict as M 
 
 import Game.GoreAndAsh
-import Game.GoreAndAsh.Input.GLFW.State
-import Game.GoreAndAsh.Input.GLFW.Module 
+import Game.GoreAndAsh.GLFW.State
+import Game.GoreAndAsh.GLFW.Module 
 
 -- | Module low-level API
 class Monad m => MonadGLFWInput m where 

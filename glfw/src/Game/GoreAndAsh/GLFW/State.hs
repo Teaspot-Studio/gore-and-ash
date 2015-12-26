@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-module Game.GoreAndAsh.Input.GLFW.State(
+module Game.GoreAndAsh.GLFW.State(
     KeyChannel
   , GLFWState(..)
   ) where
