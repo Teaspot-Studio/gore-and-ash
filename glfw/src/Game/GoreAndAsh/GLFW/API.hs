@@ -7,6 +7,7 @@ module Game.GoreAndAsh.GLFW.API(
   , mouseButton
   , mouseButtonDyn
   , mousePosition
+  , windowSize
   -- | Helpers
   , keyPressed
   , keyPressedDyn
@@ -46,13 +47,28 @@ import Game.GoreAndAsh.GLFW.State
 import Game.GoreAndAsh.GLFW.Module 
 
 -- | Module low-level API
+-- To use it as module you should add monad transformer @GLFWInputT@ to your stack
+-- and define lifting instance, like that:
+--
+-- @@
+-- type AppMonad = LoggingT (GLFWState ()) (GLFWInputT () Identity)
+-- 
+-- instance MonadGLFWInput AppMonad where
+--   keyStatusM = lift . keyStatusM
+--   mouseButtonM = lift . mouseButtonM
+--   mousePosM = lift mousePosM
+--   windowSizeM = lift windowSizeM
+--   setCurrentWindowM = lift . setCurrentWindowM 
+-- @@
 class Monad m => MonadGLFWInput m where 
   -- | Returns state of given keyboard's key
   keyStatusM :: Key -> m (Maybe (KeyState, ModifierKeys))
   -- | Returns state of given mouse button
   mouseButtonM :: MouseButton -> m (Maybe (MouseButtonState, ModifierKeys))
-  -- | Returns current position of mouse coursor
+  -- | Returns current position of mouse cursor
   mousePosM :: m (Double, Double)
+  -- | Returns current size of window
+  windowSizeM :: m (Maybe (Double, Double))
   -- | Setups current window for input catch
   setCurrentWindowM :: Maybe Window -> m ()
 
@@ -67,6 +83,8 @@ instance Monad m => MonadGLFWInput (GLFWInputT s m) where
 
   mousePosM = GLFWInputT $ glfwMousePos <$> get 
 
+  windowSizeM = GLFWInputT $ glfwWindowSize <$> get 
+
   setCurrentWindowM w = GLFWInputT $ do 
     s <- get 
     put $ s { 
@@ -78,6 +96,7 @@ instance MonadGLFWInput m => MonadGLFWInput (GameMonadT m) where
   keyStatusM = lift . keyStatusM
   mouseButtonM = lift . mouseButtonM
   mousePosM = lift mousePosM
+  windowSizeM = lift windowSizeM
   setCurrentWindowM = lift . setCurrentWindowM
 
 -- | Produces event when key state changes
@@ -238,3 +257,15 @@ mouseDeltaYChange = go 0
       return $ if y /= y'
         then dy `seq` (res, go y')
         else (Right NoEvent, go y)
+
+-- | Fires when windows size is changed
+windowSize :: MonadGLFWInput m => GameWire m a (Event (Double, Double))
+windowSize = go 0 0 
+  where
+    go !x !y = mkGen $ \_ _ -> do 
+      ms <- windowSizeM
+      return $! case ms of 
+        Nothing -> (Right NoEvent, go x y)
+        Just (!x', !y') -> if x /= x' || y /= y' 
+          then x' `seq` y' `seq` (Right $! Event (x', y'), go x' y')
+          else (Right NoEvent, go x y)

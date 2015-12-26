@@ -21,15 +21,18 @@ newtype GLFWInputT s m a = GLFWInputT { runGLFWInputT :: StateT (GLFWState s) m 
 instance GameModule m s => GameModule (GLFWInputT s m) (GLFWState s) where 
   runModule (GLFWInputT m) s = do
     ((a, s'@GLFWState{..}), nextState) <- runModule (runStateT m s) (glfwNextState s)
-    bindWindow glfwPrevWindow glfwWindow glfwKeyChannel glfwMouseButtonChannel glfwMousePosChannel
+    bindWindow glfwPrevWindow glfwWindow glfwKeyChannel glfwMouseButtonChannel 
+      glfwMousePosChannel glfwWindowSizeChannel
     keys <- readAllKeys s'
     buttons <- readAllButtons s'
     mpos <- readMousePos s'
+    wsize <- readWindowSize s'
     return (a, s' { 
         glfwKeys = keys
       , glfwMouseButtons = buttons
       , glfwMousePos = mpos
       , glfwNextState = nextState 
+      , glfwWindowSize = wsize
       })
     where 
       readAllKeys GLFWState{..} = liftIO $ do
@@ -43,11 +46,15 @@ instance GameModule m s => GameModule (GLFWInputT s m) (GLFWState s) where
       readMousePos GLFWState{..} = liftIO $
         atomically $ readTVar glfwMousePosChannel
 
+      readWindowSize GLFWState{..} = liftIO $ 
+        atomically $ readTVar glfwWindowSizeChannel 
+
   newModuleState = do
     s <- newModuleState 
     kc <- liftIO newTChanIO
     mbc <- liftIO newTChanIO
     mpc <- liftIO $ newTVarIO (0, 0)
+    wsc <- liftIO $ newTVarIO Nothing
     return $ GLFWState {
         glfwNextState = s
       , glfwKeyChannel = kc
@@ -58,6 +65,8 @@ instance GameModule m s => GameModule (GLFWInputT s m) (GLFWState s) where
       , glfwMousePosChannel = mpc
       , glfwWindow = Nothing
       , glfwPrevWindow = Nothing
+      , glfwWindowSize = Nothing
+      , glfwWindowSizeChannel = wsc
       }
 
 instance MonadTrans (GLFWInputT s) where
@@ -68,16 +77,21 @@ instance MonadIO m => MonadIO (GLFWInputT s m) where
 
 -- | Updates handlers when current window changes
 bindWindow :: MonadIO m => Maybe Window -> Maybe Window 
-  -> KeyChannel -> ButtonChannel -> MouseChannel -> m ()
-bindWindow prev cur kch mbch mpch = unless (prev == cur) $ liftIO $ do 
-  whenJust prev  $ \w -> do
+  -> KeyChannel -> ButtonChannel -> MouseChannel -> WindowSizeChannel -> m ()
+bindWindow prev cur kch mbch mpch wsch = unless (prev == cur) $ liftIO $ do 
+  whenJust prev $ \w -> do
     setKeyCallback w Nothing
     setMouseButtonCallback w Nothing
     setCursorPosCallback w Nothing
+    setWindowSizeCallback w Nothing >> atomically (writeTVar wsch Nothing)
   whenJust cur $ \w -> do
     bindKeyListener kch w
     bindMouseButtonListener mbch w
     bindMousePosListener mpch w
+    bindWindowSizeListener wsch w
+    -- update window size
+    (!sx, !sy) <- getWindowSize w 
+    atomically . writeTVar wsch $! Just (fromIntegral sx, fromIntegral sy)
 
 -- | Bind callback that passes keyboard info to channel
 bindKeyListener :: KeyChannel -> Window -> IO ()
@@ -103,6 +117,15 @@ bindMousePosListener mpch w = setCursorPosCallback w (Just f)
       let x' = 2 * (x / fromIntegral sx - 0.5)
           y' = 2 * (0.5 - y / fromIntegral sy)
       atomically . writeTVar mpch $! x' `seq` y' `seq` (x', y')
+
+bindWindowSizeListener :: WindowSizeChannel -> Window -> IO ()
+bindWindowSizeListener wsch w = setWindowSizeCallback w (Just f)
+  where
+    f :: Window -> Int -> Int -> IO ()
+    f _ sx sy = do 
+      let sx' = fromIntegral sx 
+          sy' = fromIntegral sy
+      atomically . writeTVar wsch . Just $! sx' `seq` sy' `seq` (sx', sy')
 
 -- | Helper function to read all elements from channel
 readAllChan :: TChan a -> STM [a]

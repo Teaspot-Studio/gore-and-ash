@@ -3,6 +3,7 @@ module Game.GoreAndAsh.GLFW.State(
     KeyChannel
   , ButtonChannel
   , MouseChannel
+  , WindowSizeChannel
   , GLFWState(..)
   ) where
 
@@ -19,6 +20,8 @@ type KeyChannel = TChan (Key, KeyState, ModifierKeys)
 type ButtonChannel = TChan (MouseButton, MouseButtonState, ModifierKeys)
 -- | Channel to connect core and callback with mouse position
 type MouseChannel = TVar (Double, Double)
+-- | Channel to connect core and callback with window resizing 
+type WindowSizeChannel = TVar (Maybe (Double, Double))
 
 -- | Module inner state
 data GLFWState s = GLFWState {
@@ -31,6 +34,8 @@ data GLFWState s = GLFWState {
 , glfwMousePosChannel :: !MouseChannel
 , glfwWindow :: !(Maybe Window)
 , glfwPrevWindow :: !(Maybe Window)
+, glfwWindowSize :: !(Maybe (Double, Double))
+, glfwWindowSizeChannel :: !WindowSizeChannel
 } deriving (Generic)
 
 instance NFData s => NFData (GLFWState s) where 
@@ -43,7 +48,8 @@ instance NFData s => NFData (GLFWState s) where
     glfwMousePos `deepseq`
     glfwMousePosChannel `seq`
     glfwWindow `seq`
-    glfwPrevWindow `seq` ()
+    glfwPrevWindow `seq` 
+    glfwWindowSize `deepseq` ()
 
 instance Hashable Key 
 instance Hashable MouseButton
