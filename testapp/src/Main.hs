@@ -1,6 +1,6 @@
 module Main where  
-   
-import Control.Monad (unless)
+
+import Data.Proxy 
 import Game 
 import Game.GoreAndAsh
 import Game.GoreAndAsh.GLFW
@@ -8,7 +8,7 @@ import Graphics
 import Render 
 
 main :: IO ()
-main = runWindow $ do
+main = withModule (Proxy :: Proxy AppMonad) $ runWindow $ do
   rs <- initResources
   gs <- newGameState mainWire
   gameLoop rs gs
@@ -19,8 +19,10 @@ main = runWindow $ do
       let 
         rs3 = case mg of 
           Nothing -> rs2
-          Just g -> renderGame g rs2 
-      unless (isClosedRequest rs3) $ gameLoop rs3 gs'
+          Just g -> renderGame g rs2
+      if isClosedRequest rs3 
+        then cleanupGameState gs'
+        else gameLoop rs3 gs'
 
     preFrame rs = do 
       setCurrentWindowM $ renderWindow rs

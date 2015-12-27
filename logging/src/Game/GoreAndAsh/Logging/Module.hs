@@ -33,3 +33,4 @@ instance GameModule m s => GameModule (LoggingT s m) (LoggingState s) where
       }
 
   withModule _ = id
+  cleanupModule _ = return ()

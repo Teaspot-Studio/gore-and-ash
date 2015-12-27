@@ -3,8 +3,12 @@ module Game.GoreAndAsh.Network.Module(
     NetworkT(..)
   ) where
 
+import Control.Monad.Extra (whenJust)
 import Control.Monad.Fix
 import Control.Monad.State.Strict
+import Network.ENet
+import Network.ENet.Host 
+import Network.ENet.Peer 
 
 import Game.GoreAndAsh
 import Game.GoreAndAsh.Network.State 
@@ -23,6 +27,11 @@ instance GameModule m s => GameModule (NetworkT s m) (NetworkState s) where
     s <- newModuleState 
     return $ NetworkState {
         networkNextState = s
+      , networkHost = Nothing 
+      , networkPeers = []
       }
 
-  withModule _ = id
+  withModule _ = withENetDo
+  cleanupModule NetworkState{..} = do 
+    forM_ networkPeers $ \p -> disconnectNow p 0
+    whenJust networkHost destroy

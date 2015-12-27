@@ -4,6 +4,7 @@ module Game(
   , Player(..)
   , Camera(..)
   , Game(..)
+  , AppMonad
   ) where
 
 import Control.DeepSeq
@@ -18,8 +19,13 @@ import Prelude hiding (id, (.))
 
 import Game.GoreAndAsh.Logging
 import Game.GoreAndAsh.GLFW 
+import Game.GoreAndAsh.Network
 
-type AppMonad = LoggingT (GLFWState ()) (GLFWInputT () Identity)
+type Layer1 = NetworkT () Identity
+type Layer1State = NetworkState ()
+type Layer2 = GLFWInputT Layer1State Layer1
+type Layer2State = GLFWState (NetworkState ())
+type AppMonad = LoggingT Layer2State Layer2
 type AppWire a b = GameWire AppMonad a b
 
 instance MonadGLFWInput AppMonad where

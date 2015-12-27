@@ -78,6 +78,7 @@ instance GameModule m s => GameModule (GLFWInputT s m) (GLFWState s) where
       }
 
   withModule _ = id
+  cleanupModule _ = return ()
   
 instance MonadTrans (GLFWInputT s) where
   lift = GLFWInputT . lift 

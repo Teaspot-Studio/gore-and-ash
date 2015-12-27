@@ -72,10 +72,13 @@ class Monad m => GameModule m s | m -> s, s -> m where
   newModuleState :: MonadIO m' => m' s
   -- | Wrap action with module initialization and cleanup
   -- Could be `withSocketsDo` or another external library initalization
-  withModule :: Proxy s -> IO a -> IO a
+  withModule :: Proxy m -> IO a -> IO a
+  -- | Cleanup resources of the module, should be called on exit
+  cleanupModule :: s -> IO ()
 
 -- | Module that does nothing
 instance GameModule Identity () where
   runModule i _ = return $ (runIdentity i, ())
   newModuleState = return ()
   withModule _ = id
+  cleanupModule _ = return ()

@@ -2,6 +2,7 @@ module Game.GoreAndAsh.Core.State(
     GameState(..)
   , stepGame
   , newGameState
+  , cleanupGameState
   ) where
 
 import Prelude hiding (id, (.))
@@ -63,3 +64,9 @@ newGameState wire = do
     , gameContext = newGameContext
     , gameModuleState = moduleState
     }
+
+-- | Cleanups resources that is holded in game state
+cleanupGameState :: (GameModule m s, MonadIO m') 
+  => GameState m s a -- ^ Game state with resources
+  -> m' ()
+cleanupGameState = liftIO . cleanupModule . gameModuleState
