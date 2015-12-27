@@ -52,7 +52,7 @@ instance GameModule m s => GameModule (GLFWInputT s m) (GLFWState s) where
         atomically $ readTVar glfwWindowSizeChannel 
 
       readMouseScroll GLFWState{..} = liftIO $ 
-        atomically $ readTVar glfwScrollChannel
+        atomically $ readAllChan glfwScrollChannel
 
   newModuleState = do
     s <- newModuleState 
@@ -60,7 +60,7 @@ instance GameModule m s => GameModule (GLFWInputT s m) (GLFWState s) where
     mbc <- liftIO newTChanIO
     mpc <- liftIO $ newTVarIO (0, 0)
     wsc <- liftIO $ newTVarIO Nothing
-    sch <- liftIO $ newTVarIO (0, 0)
+    sch <- liftIO newTChanIO
     return $ GLFWState {
         glfwNextState = s
       , glfwKeyChannel = kc
@@ -73,7 +73,7 @@ instance GameModule m s => GameModule (GLFWInputT s m) (GLFWState s) where
       , glfwPrevWindow = Nothing
       , glfwWindowSize = Nothing
       , glfwWindowSizeChannel = wsc
-      , glfwScroll = (0, 0)
+      , glfwScroll = []
       , glfwScrollChannel = sch
       }
 
@@ -146,7 +146,7 @@ bindScrollListener :: ScrollChannel -> Window -> IO ()
 bindScrollListener sch w = setScrollCallback w (Just f)
   where 
     f :: Window -> Double -> Double -> IO ()
-    f _ !sx !sy = atomically . writeTVar sch $! (sx, sy)
+    f _ !sx !sy = atomically . writeTChan sch $! (sx, sy)
 
 -- | Helper function to read all elements from channel
 readAllChan :: TChan a -> STM [a]

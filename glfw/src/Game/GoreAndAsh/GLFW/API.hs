@@ -76,8 +76,8 @@ class Monad m => MonadGLFWInput m where
   mouseButtonM :: MouseButton -> m (Maybe (MouseButtonState, ModifierKeys))
   -- | Returns current position of mouse cursor
   mousePosM :: m (Double, Double)
-  -- | Returns current scroll value of mouse
-  mouseScrollM :: m (Double, Double)
+  -- | Returns current scroll values of mouse
+  mouseScrollM :: m [(Double, Double)]
   -- | Returns current size of window
   windowSizeM :: m (Maybe (Double, Double))
   -- | Setups current window for input catch
@@ -310,13 +310,11 @@ windowSize = go 0 0
 
 -- | Fires when user scrolls
 mouseScroll :: MonadGLFWInput m => GameWire m a (Event (Double, Double))
-mouseScroll = go 0 0 
-  where
-  go !x !y = mkGen $ \_ _ -> do 
-    (!x', !y') <- mouseScrollM
-    return $! if x /= x' || y /= y'
-      then (Right $! Event (x', y'), go x' y')
-      else (Right $! NoEvent, go x y)
+mouseScroll = mkGen_ $ \_ -> do 
+  ss <- mouseScrollM
+  return . Right $! case ss of 
+    [] -> NoEvent
+    ((!x', !y'):_) -> Event (x', y')
 
 -- | Fires when user scrolls X axis
 mouseScrollX :: MonadGLFWInput m => GameWire m a (Event Double)

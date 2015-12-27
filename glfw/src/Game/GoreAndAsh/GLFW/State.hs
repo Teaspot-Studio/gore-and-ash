@@ -24,7 +24,7 @@ type MouseChannel = TVar (Double, Double)
 -- | Channel to connect core and callback with window resizing 
 type WindowSizeChannel = TVar (Maybe (Double, Double))
 -- | Channel to connect core and callback with mouse scrolling
-type ScrollChannel = TVar (Double, Double)
+type ScrollChannel = TChan (Double, Double)
 
 -- | Module inner state
 data GLFWState s = GLFWState {
@@ -39,7 +39,7 @@ data GLFWState s = GLFWState {
 , glfwPrevWindow :: !(Maybe Window)
 , glfwWindowSize :: !(Maybe (Double, Double))
 , glfwWindowSizeChannel :: !WindowSizeChannel
-, glfwScroll :: !(Double, Double)
+, glfwScroll :: ![(Double, Double)]
 , glfwScrollChannel :: !ScrollChannel
 } deriving (Generic)
 

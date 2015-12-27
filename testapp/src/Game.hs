@@ -67,7 +67,8 @@ cameraWire initialCamera = loop $ proc (_, c_) -> do
   c2 <- moveCamera (V2 0 (-0.1)) Key'W 
     . moveCamera (V2 0 0.1) Key'S 
     . moveCamera (V2 0.1 0) Key'A
-    . moveCamera (V2 (-0.1) 0) Key'D -< c
+    . moveCamera (V2 (-0.1) 0) Key'D 
+    . zoomCamera 0.1 -< c
   forceNF -< (c2, c2)
   where 
     moveCamera :: V2 Float -> Key -> AppWire Camera Camera
@@ -77,6 +78,14 @@ cameraWire initialCamera = loop $ proc (_, c_) -> do
             cameraPos = cameraPos c + dv 
           }
       returnA -< event c (const newCam) e
+
+    zoomCamera :: Float -> AppWire Camera Camera 
+    zoomCamera z = proc c -> do 
+      e <- mouseScrollY -< ()
+      let newCam k = c {
+            cameraZoom = max (-3) $ min (-0.01) $ cameraZoom c + z * k
+          }
+      returnA -< event c (newCam . realToFrac) e 
 
 playerWire :: Player -> AppWire a Player 
 playerWire initialPlayer = loop $ proc (_, p_) -> do 
