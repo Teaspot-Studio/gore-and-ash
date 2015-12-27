@@ -4,6 +4,8 @@ module Game.GoreAndAsh.Core.Monad(
   , newGameContext
   , evalGameMonad
   , GameModule(..)
+  , IOState
+  , IdentityState
   ) where
 
 import Control.DeepSeq
@@ -76,9 +78,28 @@ class Monad m => GameModule m s | m -> s, s -> m where
   -- | Cleanup resources of the module, should be called on exit
   cleanupModule :: s -> IO ()
 
+-- | Endpoint of state chain for Identity monad
+data IdentityState = IdentityState deriving Generic
+
+instance NFData IdentityState
+
 -- | Module that does nothing
-instance GameModule Identity () where
-  runModule i _ = return $ (runIdentity i, ())
-  newModuleState = return ()
+instance GameModule Identity IdentityState where
+  runModule i _ = return $ (runIdentity i, IdentityState)
+  newModuleState = return IdentityState
+  withModule _ = id
+  cleanupModule _ = return ()
+
+-- | Endpoint of state chain for IO monad
+data IOState = IOState deriving Generic
+
+instance NFData IOState
+
+-- | Module that does IO action
+instance GameModule IO IOState where
+  runModule io _ = do 
+    a <- liftIO io
+    return (a, IOState)
+  newModuleState = return IOState
   withModule _ = id
   cleanupModule _ = return ()

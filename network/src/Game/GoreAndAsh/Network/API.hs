@@ -2,17 +2,36 @@ module Game.GoreAndAsh.Network.API(
     NetworkMonad(..)
   ) where
 
-import Control.Monad.Trans 
-
+import Control.Monad.State.Strict
+import Data.Monoid ((<>))
+import Data.Text
+import Foreign
 import Game.GoreAndAsh
--- import Game.GoreAndAsh.Network.State
+import Game.GoreAndAsh.Logging
 import Game.GoreAndAsh.Network.Module
+import Game.GoreAndAsh.Network.State
+import Network.ENet.Host
+import Network.Socket (SockAddr)
 
-class Monad m => NetworkMonad m where
-  networkDummy :: m ()
+class MonadIO m => NetworkMonad m where
+  networkBind :: LoggingMonad m => Maybe SockAddr -- ^ Address to listen, Nothing is client
+    -> Word -- ^ Maximum count of connections
+    -> Word -- ^ Number of channels to open
+    -> Word32 -- ^ Incoming max bandwidth
+    -> Word32 -- ^ Outcoming max bandwidth
+    -> m ()
 
-instance Monad m => NetworkMonad (NetworkT s m) where
-  networkDummy = return ()
+instance MonadIO m => NetworkMonad (NetworkT s m) where
+  networkBind addr conCount chanCount inBandth outBandth = do
+    nstate <- NetworkT get 
+    phost <- liftIO $ create addr (fromIntegral conCount) (fromIntegral chanCount) inBandth outBandth
+    if phost == nullPtr
+      then case addr of 
+        Nothing -> putMsgLnM "Network: failed to initalize client side"
+        Just a -> putMsgLnM $ "Network: failed to connect to " <> pack (show a)
+      else NetworkT $ put $ nstate {
+             networkHost = Just phost
+           }
 
-instance NetworkMonad m => NetworkMonad (GameMonadT m) where
-  networkDummy = lift networkDummy
+instance (LoggingMonad m, NetworkMonad m) => NetworkMonad (GameMonadT m) where
+  networkBind a mc mch ib ob = lift $ networkBind a mc mch ib ob

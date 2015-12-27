@@ -11,7 +11,7 @@ import Network.ENet.Host
 import Network.ENet.Peer 
 
 import Game.GoreAndAsh
-import Game.GoreAndAsh.Network.State 
+import Game.GoreAndAsh.Network.State
 
 newtype NetworkT s m a = NetworkT { runNetworkT :: StateT (NetworkState s) m a }
   deriving (Functor, Applicative, Monad, MonadState (NetworkState s), MonadFix, MonadTrans, MonadIO)

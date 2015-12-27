@@ -21,11 +21,17 @@ import Game.GoreAndAsh.Logging
 import Game.GoreAndAsh.GLFW 
 import Game.GoreAndAsh.Network
 
-type Layer1 = NetworkT () Identity
-type Layer1State = NetworkState ()
+-- | First layer is logging layer with endpoint state 
+type Layer1 = LoggingT IOState IO
+-- | State of first layer that is used within chain
+type Layer1State = LoggingState IOState
+-- | Next layer is GLFW handling layer with state of underneath layer
 type Layer2 = GLFWInputT Layer1State Layer1
-type Layer2State = GLFWState (NetworkState ())
-type AppMonad = LoggingT Layer2State Layer2
+-- | State of second layer with embedded state of underneath layer
+type Layer2State = GLFWState Layer1State
+-- | Final layer is network layer with state of underneath layers
+type AppMonad = NetworkT Layer2State Layer2
+-- | Arrow that is build over the monad stack
 type AppWire a b = GameWire AppMonad a b
 
 instance MonadGLFWInput AppMonad where
@@ -36,6 +42,10 @@ instance MonadGLFWInput AppMonad where
   windowSizeM = lift windowSizeM
   setCurrentWindowM = lift . setCurrentWindowM 
   
+instance LoggingMonad AppMonad where 
+  putMsgM = lift . lift . putMsgM
+  putMsgLnM = lift . lift . putMsgLnM
+
 data Player = Player {
   playerPos :: !(V2 Float)
 , playerColor :: !(V3 Float) 
