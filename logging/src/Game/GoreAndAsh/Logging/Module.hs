@@ -31,3 +31,5 @@ instance GameModule m s => GameModule (LoggingT s m) (LoggingState s) where
         loggingMsgs = S.empty
       , loggingNextState = s
       }
+
+  withModule _ = id

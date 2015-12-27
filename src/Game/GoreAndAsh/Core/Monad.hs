@@ -11,6 +11,7 @@ import Control.Monad.IO.Class
 import Control.Monad.State.Strict
 import Data.Functor.Identity
 import GHC.Generics (Generic)
+import Data.Proxy (Proxy)
 
 -- | Basic game monad transformer
 -- Here goes all core API that accessable from each 
@@ -69,8 +70,12 @@ class Monad m => GameModule m s | m -> s, s -> m where
   runModule :: MonadIO m' => m a -> s -> m' (a, s)
   -- | Creates new state of module
   newModuleState :: MonadIO m' => m' s
+  -- | Wrap action with module initialization and cleanup
+  -- Could be `withSocketsDo` or another external library initalization
+  withModule :: Proxy s -> IO a -> IO a
 
 -- | Module that does nothing
 instance GameModule Identity () where
   runModule i _ = return $ (runIdentity i, ())
   newModuleState = return ()
+  withModule _ = id

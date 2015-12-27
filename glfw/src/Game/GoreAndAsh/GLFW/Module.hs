@@ -77,6 +77,8 @@ instance GameModule m s => GameModule (GLFWInputT s m) (GLFWState s) where
       , glfwScrollChannel = sch
       }
 
+  withModule _ = id
+  
 instance MonadTrans (GLFWInputT s) where
   lift = GLFWInputT . lift 
 
