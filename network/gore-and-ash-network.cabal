@@ -15,5 +15,9 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Game.GoreAndAsh.Network
+                       Game.GoreAndAsh.Network.API
+                       Game.GoreAndAsh.Network.Module
+                       Game.GoreAndAsh.Network.State
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
+                     , henet >= 1.3.9.3
