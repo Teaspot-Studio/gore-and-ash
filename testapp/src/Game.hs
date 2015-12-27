@@ -72,7 +72,7 @@ cameraWire initialCamera = loop $ proc (_, c_) -> do
   where 
     moveCamera :: V2 Float -> Key -> AppWire Camera Camera
     moveCamera dv k = proc c -> do 
-      e <- keyPressed k -< ()
+      e <- keyPressing k -< ()
       let newCam = c {
             cameraPos = cameraPos c + dv 
           }

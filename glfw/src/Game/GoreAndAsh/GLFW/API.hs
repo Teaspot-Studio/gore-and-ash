@@ -10,6 +10,8 @@ module Game.GoreAndAsh.GLFW.API(
   , keyReleasedDyn
   , keyRepeating
   , keyRepeatingDyn
+  , keyPressing
+  , keyPressingDyn
   -- | Mouse buttons API
   , mouseButton
   , mouseButtonDyn
@@ -153,6 +155,32 @@ keyRepeating = keyStated KeyState'Repeating
 -- | Version of keyRepeating that takes key at runtime
 keyRepeatingDyn :: MonadGLFWInput m => GameWire m Key (Event ModifierKeys)
 keyRepeatingDyn = keyStatedDyn KeyState'Repeating
+
+-- | Fires event from moment of press until release of given key
+keyPressing :: MonadGLFWInput m => Key -> GameWire m a (Event ModifierKeys)
+keyPressing k = go NoEvent 
+  where
+    go !e = mkGen $ \_ _ -> do 
+      !mks <- keyStatusM k
+      return $! case mks of 
+        Nothing -> (Right e, go e)
+        Just (!ks, !mds) -> case ks of 
+          KeyState'Pressed -> (Right $! Event mds, go $! Event mds)
+          KeyState'Released -> (Right NoEvent, go NoEvent)
+          _ -> (Right e, go e)
+
+-- | Version of keyPressing that takes key at runtime
+keyPressingDyn :: MonadGLFWInput m => GameWire m Key (Event ModifierKeys)
+keyPressingDyn = go NoEvent 
+  where
+    go !e = mkGen $ \_ k -> do 
+      !mks <- keyStatusM k
+      return $! case mks of 
+        Nothing -> (Right e, go e)
+        Just (!ks, !mds) -> case ks of 
+          KeyState'Pressed -> (Right $! Event mds, go $! Event mds)
+          KeyState'Released -> (Right NoEvent, go NoEvent)
+          _ -> (Right e, go e)
 
 -- | Produces event when mouse button state changes
 mouseButton :: MonadGLFWInput m => MouseButton -> GameWire m a (Event (MouseButtonState, ModifierKeys))
