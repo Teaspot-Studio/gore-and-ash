@@ -1,0 +1,19 @@
+name:                gore-and-ash-network
+version:             0.1.0.0
+synopsis:            Network core plugin for gore-and-ash
+description:         Please see README.md
+homepage:            http://github.com/githubuser/gore-and-ash-network#readme
+license:             BSD3
+license-file:        LICENSE
+author:              Anton Gushcha
+maintainer:          ncrashed@gmail.com
+copyright:           2015 Anton Gushcha
+category:            Web
+build-type:          Simple
+cabal-version:       >=1.10
+
+library
+  hs-source-dirs:      src
+  exposed-modules:     Game.GoreAndAsh.Network
+  default-language:    Haskell2010
+  build-depends:       base >= 4.7 && < 5

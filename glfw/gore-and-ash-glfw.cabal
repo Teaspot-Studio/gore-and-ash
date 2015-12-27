@@ -5,10 +5,10 @@ description:         Please see README.md
 homepage:            http://github.com/githubuser/glfw#readme
 license:             BSD3
 license-file:        LICENSE
-author:              Author name here
-maintainer:          example@example.com
-copyright:           2010 Author Here
-category:            Web
+author:              Anton Gushcha
+maintainer:          ncrashed@gmail.com
+copyright:           2015 Anton Gushcha
+category:            Game
 build-type:          Simple
 cabal-version:       >=1.10
 
