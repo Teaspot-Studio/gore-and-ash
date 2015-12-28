@@ -1,8 +1,12 @@
 module Game.GoreAndAsh.Network.API(
     NetworkMonad(..)
+  , peersConnected
   ) where
 
+import Control.DeepSeq 
 import Control.Monad.State.Strict
+import Control.Wire.Core 
+import Control.Wire.Unsafe.Event 
 import Data.Monoid ((<>))
 import Data.Text
 import Foreign
@@ -21,6 +25,10 @@ class MonadIO m => NetworkMonad m where
     -> Word32 -- ^ Outcoming max bandwidth
     -> m ()
 
+  -- | Returns peers that were connected during last frame
+  peersConnectedM :: m [Peer]
+
+
 instance MonadIO m => NetworkMonad (NetworkT s m) where
   networkBind addr conCount chanCount inBandth outBandth = do
     nstate <- NetworkT get 
@@ -37,5 +45,18 @@ instance MonadIO m => NetworkMonad (NetworkT s m) where
             networkHost = Just phost
           }
 
+  peersConnectedM = do 
+    NetworkState{..} <- NetworkT get 
+    return networkConnectedPeers
+
 instance (LoggingMonad m, NetworkMonad m) => NetworkMonad (GameMonadT m) where
   networkBind a mc mch ib ob = lift $ networkBind a mc mch ib ob
+  peersConnectedM = lift peersConnectedM
+
+-- | Fires when one or several clients were connected
+peersConnected :: (LoggingMonad m, NetworkMonad m) => GameWire m a (Event [Peer])
+peersConnected = mkGen_ $ \_ -> do 
+  ps <- peersConnectedM
+  case ps of 
+    [] -> return $! Right NoEvent
+    _ -> return $! ps `deepseq` Right (Event ps)

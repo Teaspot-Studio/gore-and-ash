@@ -3,6 +3,7 @@ module Game.GoreAndAsh.Network.Module(
     NetworkT(..)
   ) where
 
+import Control.Monad ((<=<))
 import Control.Monad.Extra (whenJust)
 import Control.Monad.Fix
 import Control.Monad.State.Strict
@@ -10,8 +11,9 @@ import Game.GoreAndAsh
 import Game.GoreAndAsh.Network.State
 import Network.ENet
 import Network.ENet.Host 
-import Network.ENet.Peer 
 import Network.ENet.Packet (peek)
+import Network.ENet.Peer 
+import qualified Data.HashMap.Strict as H 
 import qualified Network.ENet.Bindings as B 
 
 newtype NetworkT s m a = NetworkT { runNetworkT :: StateT (NetworkState s) m a }
@@ -20,24 +22,33 @@ newtype NetworkT s m a = NetworkT { runNetworkT :: StateT (NetworkState s) m a }
 instance GameModule m s => GameModule (NetworkT s m) (NetworkState s) where
   runModule (NetworkT m) s = do 
     ((a, s'), nextState) <- runModule (runStateT m s) (networkNextState s)
-    s'' <- case networkHost s' of 
-      Nothing -> return s'
-      Just h -> processNetEvents s' h
+    s'' <- processEvents <=< moveConnected $ s'
     return (a, s'' {
         networkNextState = nextState
       })
-  
+    where 
+      processEvents s' = case networkHost s' of 
+        Nothing -> return s'
+        Just h -> processNetEvents s' h
+
+      moveConnected s' = return $ s' {
+          networkPeers = networkPeers s' `H.union` H.fromList ((, ()) <$> networkConnectedPeers s')
+        , networkConnectedPeers = []
+        }
+
   newModuleState = do 
     s <- newModuleState 
     return $ NetworkState {
         networkNextState = s
       , networkHost = Nothing 
-      , networkPeers = []
+      , networkPeers = H.empty
+      , networkConnectedPeers = []
       }
 
   withModule _ = withENetDo
   cleanupModule NetworkState{..} = do 
-    forM_ networkPeers $ \p -> disconnectNow p 0
+    forM_ (H.toList networkPeers) $ \(p, _) -> disconnectNow p 0
+    forM_ networkConnectedPeers $ \p -> disconnectNow p 0
     whenJust networkHost destroy
 
 -- | Poll all events from ENet
@@ -59,12 +70,12 @@ processNetEvents nst hst = liftIO $ untilNothing nst (service hst 0) handle
       B.Connect -> do 
         putStrLn "Network: Peer connected"
         return $ s {
-            networkPeers = peer : networkPeers 
+            networkConnectedPeers = peer : networkConnectedPeers 
           }
       B.Disconnect -> do 
         putStrLn $ "Network: Peer disconnected, code " ++ show edata
         return $ s {
-            networkPeers = filter (/= peer) networkPeers
+            networkPeers = peer `H.delete` networkPeers
           }
       B.Receive -> do 
         (Packet fs bs) <- peek packetPtr
