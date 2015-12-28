@@ -22,6 +22,12 @@ data GameState m s a = GameState {
 , gameModuleState :: !s
 }
 
+instance NFData s => NFData (GameState m s a) where
+  rnf GameState{..} = gameSession `seq`
+    gameWire `seq`
+    gameContext `deepseq`
+    gameModuleState `deepseq` ()
+    
 -- | Main loop of the game where each frame is calculated
 stepGame :: (GameModule m s, NFData s, MonadIO m') 
   => GameState m s a -- ^ Current game state
