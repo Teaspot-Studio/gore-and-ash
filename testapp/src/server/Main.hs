@@ -1,21 +1,48 @@
 module Main where 
 
-import Control.DeepSeq 
 import Control.Exception
+import Control.Monad.IO.Class
 import Data.Proxy 
 import Game 
 import Game.GoreAndAsh
+import Game.GoreAndAsh.Network
+import Network.BSD (getHostByName, hostAddress)
+import Network.Socket (SockAddr(..))
 import System.Exit
+import Data.IORef 
 
 main :: IO ()
 main = withModule (Proxy :: Proxy AppMonad) $ do
   gs <- newGameState mainWire
-  gameLoop gs `onCtrlC` (cleanupGameState gs >> exitSuccess)
+  gsRef <- newIORef gs
+  firstStep gs gsRef `onCtrlC` exitHandler gsRef
   where
-    gameLoop gs = do 
-      (mg, gs') <- stepGame gs (return ())
-      mg `deepseq` gs' `deepseq` gameLoop gs'
+    -- | What to do on emergency exit
+    exitHandler gsRef = do 
+      gs <- readIORef gsRef 
+      cleanupGameState gs
+      exitSuccess
 
+    -- | Resolve given hostname and port
+    getAddr s p = do
+      he <- getHostByName s
+      return $ SockAddrInet p $ hostAddress he
+
+    -- | Initialization step
+    firstStep gs gsRef = do 
+      (_, gs') <- stepGame gs $ do 
+        addr <- liftIO $ getAddr "localhost" 5556
+        networkBind (Just addr) 100 2 0 0
+      writeIORef gsRef gs'
+      gameLoop gs' gsRef
+
+    -- | Normal game loop
+    gameLoop gs gsRef = do 
+      (_, gs') <- stepGame gs (return ())
+      writeIORef gsRef gs'
+      gameLoop gs' gsRef
+
+-- | Executes given handler on Ctrl-C pressing
 onCtrlC :: IO a -> IO () -> IO a
 p `onCtrlC` q = catchJust isUserInterrupt p (const $ q >> p `onCtrlC` q)
   where

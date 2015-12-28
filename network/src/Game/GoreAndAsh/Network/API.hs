@@ -29,9 +29,13 @@ instance MonadIO m => NetworkMonad (NetworkT s m) where
       then case addr of 
         Nothing -> putMsgLnM "Network: failed to initalize client side"
         Just a -> putMsgLnM $ "Network: failed to connect to " <> pack (show a)
-      else NetworkT $ put $ nstate {
-             networkHost = Just phost
-           }
+      else do
+        putMsgLnM $ case addr of 
+          Nothing -> "Network: client network system initalized"
+          Just a -> "Network: binded to " <> pack (show a)
+        NetworkT $ put $ nstate {
+            networkHost = Just phost
+          }
 
 instance (LoggingMonad m, NetworkMonad m) => NetworkMonad (GameMonadT m) where
   networkBind a mc mch ib ob = lift $ networkBind a mc mch ib ob

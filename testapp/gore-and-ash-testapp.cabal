@@ -40,7 +40,8 @@ executable gore-and-ash-client
                      , netwire >= 5.0.1
                      , deepseq >= 1.4
                      , text >= 1.2.1
-
+                     , network >= 2.6.2.1
+                     
   default-extensions:  ScopedTypeVariables
                        RecordWildCards
                        TypeFamilies
@@ -73,6 +74,7 @@ executable gore-and-ash-server
                      , netwire >= 5.0.1
                      , deepseq >= 1.4
                      , text >= 1.2.1
+                     , network >= 2.6.2.1
 
   default-extensions:  ScopedTypeVariables
                        RecordWildCards
