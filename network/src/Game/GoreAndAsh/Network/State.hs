@@ -23,7 +23,7 @@ instance Hashable Peer where
     where 
       i :: Int
       i = fromIntegral $ ptrToIntPtr ptr
-      
+
 -- | Inner state of network layer
 data NetworkState s = NetworkState {
   networkHost :: !(Maybe Host)

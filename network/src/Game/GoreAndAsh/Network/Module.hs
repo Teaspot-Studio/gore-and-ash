@@ -3,7 +3,6 @@ module Game.GoreAndAsh.Network.Module(
     NetworkT(..)
   ) where
 
-import Control.Monad ((<=<))
 import Control.Monad.Extra (whenJust)
 import Control.Monad.Fix
 import Control.Monad.State.Strict

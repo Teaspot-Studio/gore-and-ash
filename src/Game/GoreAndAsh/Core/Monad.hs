@@ -23,7 +23,7 @@ newtype GameMonadT m a = GameMonadT {
   runGameMonadT :: StateT GameContext m a
 }
 
--- | Data that accessable to objects during
+-- | Data that is accessable to objects during
 -- game simulation step.
 data GameContext = GameContext {
   

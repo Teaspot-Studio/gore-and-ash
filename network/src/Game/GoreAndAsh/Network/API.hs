@@ -1,6 +1,7 @@
 module Game.GoreAndAsh.Network.API(
     NetworkMonad(..)
   , peersConnected
+  , peers
   ) where
 
 import Control.DeepSeq 
@@ -16,6 +17,7 @@ import Game.GoreAndAsh.Network.Module
 import Game.GoreAndAsh.Network.State
 import Network.ENet.Host
 import Network.Socket (SockAddr)
+import qualified Data.HashMap.Strict as H 
 
 class MonadIO m => NetworkMonad m where
   networkBind :: LoggingMonad m => Maybe SockAddr -- ^ Address to listen, Nothing is client
@@ -28,6 +30,14 @@ class MonadIO m => NetworkMonad m where
   -- | Returns peers that were connected during last frame
   peersConnectedM :: m [Peer]
 
+  -- | Initiate connection to the remote host
+  networkConnect :: LoggingMonad m => SockAddr -- ^ Address of host
+    -> Word -- ^ Count of channels to open
+    -> Word32 -- ^ Additional data (0 default)
+    -> m (Maybe ())
+
+  -- | Returns list of currently connected peers (servers on client side, clients on server side)
+  networkPeersM :: m [Peer]
 
 instance MonadIO m => NetworkMonad (NetworkT s m) where
   networkBind addr conCount chanCount inBandth outBandth = do
@@ -49,9 +59,29 @@ instance MonadIO m => NetworkMonad (NetworkT s m) where
     NetworkState{..} <- NetworkT get 
     return networkConnectedPeers
 
+  networkConnect addr chanCount datum = do 
+    nstate <- NetworkT get 
+    case networkHost nstate of 
+      Nothing -> do 
+        putMsgLnM $ "Network: cannot connect to " <> pack (show addr) <> ", system isn't initalized"
+        return $ Just ()
+      Just host -> do
+        peer <- liftIO $ connect host addr (fromIntegral chanCount) datum 
+        if peer == nullPtr
+          then do
+            putMsgLnM $ "Network: failed to connect to " <> pack (show addr)
+            return Nothing
+          else return $ Just ()
+
+  networkPeersM = do 
+    NetworkState{..} <- NetworkT get 
+    return $ H.keys networkPeers  
+
 instance (LoggingMonad m, NetworkMonad m) => NetworkMonad (GameMonadT m) where
   networkBind a mc mch ib ob = lift $ networkBind a mc mch ib ob
   peersConnectedM = lift peersConnectedM
+  networkConnect a b c = lift $ networkConnect a b c 
+  networkPeersM = lift networkPeersM
 
 -- | Fires when one or several clients were connected
 peersConnected :: (LoggingMonad m, NetworkMonad m) => GameWire m a (Event [Peer])
@@ -60,3 +90,7 @@ peersConnected = mkGen_ $ \_ -> do
   case ps of 
     [] -> return $! Right NoEvent
     _ -> return $! ps `deepseq` Right (Event ps)
+
+-- | Returns list of current peers (clients on server, servers on client)
+peers :: (LoggingMonad m, NetworkMonad m) => GameWire m a [Peer]
+peers = liftGameMonad networkPeersM
