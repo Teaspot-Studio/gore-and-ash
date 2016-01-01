@@ -13,7 +13,7 @@ import Control.DeepSeq
 import Control.Monad.IO.Class
 import Control.Monad.State.Strict
 import Data.Functor.Identity
-import Data.Proxy (Proxy)
+import Data.Proxy (Proxy(..))
 import GHC.Generics (Generic)
 
 -- | Basic game monad transformer

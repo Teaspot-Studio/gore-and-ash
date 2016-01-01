@@ -29,12 +29,13 @@ library
                      , deepseq >= 1.4
 
   default-extensions:  Arrows
-                       MultiParamTypeClasses
-                       FunctionalDependencies
-                       ScopedTypeVariables
-                       RecordWildCards
-                       DeriveGeneric
-                       TypeFamilies
                        DataKinds
+                       DeriveGeneric
+                       FlexibleInstances
+                       FunctionalDependencies
+                       MultiParamTypeClasses
+                       RecordWildCards
+                       ScopedTypeVariables
+                       TypeFamilies
                        TypeOperators
                        UndecidableInstances
