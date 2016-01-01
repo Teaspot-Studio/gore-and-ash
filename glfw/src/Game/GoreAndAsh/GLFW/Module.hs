@@ -19,6 +19,8 @@ newtype GLFWInputT s m a = GLFWInputT { runGLFWInputT :: StateT (GLFWState s) m 
   deriving (Functor, Applicative, Monad, MonadState (GLFWState s), MonadFix)
 
 instance GameModule m s => GameModule (GLFWInputT s m) (GLFWState s) where 
+  type ModuleState (GLFWInputT s m) = GLFWState s
+  
   runModule (GLFWInputT m) s = do
     ((a, s'@GLFWState{..}), nextState) <- runModule (runStateT m s) (glfwNextState s)
     bindWindow glfwPrevWindow glfwWindow glfwKeyChannel glfwMouseButtonChannel 

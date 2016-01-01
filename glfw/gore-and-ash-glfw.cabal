@@ -32,9 +32,13 @@ library
                      , extra >= 1.4.2
                      , netwire >= 5.0.1
 
-  default-extensions:  DeriveGeneric
+  default-extensions:  
+                       BangPatterns
+                       DeriveGeneric
+                       FlexibleInstances
                        GeneralizedNewtypeDeriving
                        MultiParamTypeClasses
-                       UndecidableInstances
+                       OverlappingInstances
                        RecordWildCards
-                       BangPatterns
+                       TypeFamilies
+                       UndecidableInstances

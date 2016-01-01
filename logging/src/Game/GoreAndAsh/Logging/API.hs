@@ -20,10 +20,10 @@ module Game.GoreAndAsh.Logging.API(
   , traceEventShow
   ) where
 
-import Prelude hiding (id, (.))
 import Control.Monad.State.Strict
 import Control.Wire
 import Data.Text
+import Prelude hiding (id, (.))
 import qualified Data.Sequence as S 
 import TextShow 
 
@@ -36,7 +36,7 @@ class Monad m => LoggingMonad m where
   putMsgM :: Text -> m ()
   putMsgLnM :: Text -> m ()
 
-instance Monad m => LoggingMonad (LoggingT s m) where
+instance {-# OVERLAPPING #-} Monad m => LoggingMonad (LoggingT s m) where
   putMsgM t = do 
     cntx <- get 
     let newMsgs = case S.viewr $ loggingMsgs cntx of 
@@ -48,10 +48,10 @@ instance Monad m => LoggingMonad (LoggingT s m) where
     cntx <- get 
     put $ cntx { loggingMsgs = loggingMsgs cntx S.|> t }
 
-instance LoggingMonad m => LoggingMonad (GameMonadT m) where 
+instance {-# OVERLAPPABLE #-} (Monad (mt m), LoggingMonad m, MonadTrans mt) => LoggingMonad (mt m) where 
   putMsgM = lift . putMsgM
   putMsgLnM = lift . putMsgLnM
-  
+
 -- | Put message to console on every frame without newline
 logA :: LoggingMonad m => GameWire m Text ()
 logA = liftGameMonad1 putMsgM

@@ -33,12 +33,15 @@ library
                      , hashable >= 1.2.3.3
                      , netwire >= 5.0.1
                      
-  default-extensions:  DeriveGeneric
-                       MultiParamTypeClasses
-                       UndecidableInstances
-                       GeneralizedNewtypeDeriving
-                       RecordWildCards
-                       OverloadedStrings
-                       TupleSections
-                       TypeSynonymInstances
+  default-extensions:  
+                       DeriveGeneric
                        FlexibleInstances
+                       GeneralizedNewtypeDeriving
+                       MultiParamTypeClasses
+                       OverlappingInstances
+                       OverloadedStrings
+                       RecordWildCards
+                       TupleSections
+                       TypeFamilies
+                       TypeSynonymInstances
+                       UndecidableInstances

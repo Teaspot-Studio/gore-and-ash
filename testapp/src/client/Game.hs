@@ -8,43 +8,16 @@ module Game(
   ) where
 
 import Control.DeepSeq
-import Control.Monad.Trans.Class
 import Control.Wire
 import Control.Wire.Unsafe.Event
 import Data.Text
-import Game.GoreAndAsh
 import GHC.Generics (Generic)
 import Linear
 import Prelude hiding (id, (.))
 
-import Game.GoreAndAsh.Logging
+import Game.Core
 import Game.GoreAndAsh.GLFW 
-import Game.GoreAndAsh.Network
-
--- | First layer is logging layer with endpoint state 
-type Layer1 = LoggingT IOState IO
--- | State of first layer that is used within chain
-type Layer1State = LoggingState IOState
--- | Next layer is GLFW handling layer with state of underneath layer
-type Layer2 = GLFWInputT Layer1State Layer1
--- | State of second layer with embedded state of underneath layer
-type Layer2State = GLFWState Layer1State
--- | Final layer is network layer with state of underneath layers
-type AppMonad = NetworkT Layer2State Layer2
--- | Arrow that is build over the monad stack
-type AppWire a b = GameWire AppMonad a b
-
-instance MonadGLFWInput AppMonad where
-  keyStatusM = lift . keyStatusM
-  mouseButtonM = lift . mouseButtonM
-  mousePosM = lift mousePosM
-  mouseScrollM = lift mouseScrollM
-  windowSizeM = lift windowSizeM
-  setCurrentWindowM = lift . setCurrentWindowM 
-  
-instance LoggingMonad AppMonad where 
-  putMsgM = lift . lift . putMsgM
-  putMsgLnM = lift . lift . putMsgLnM
+import Game.GoreAndAsh.Logging
 
 data Player = Player {
   playerPos :: !(V2 Float)

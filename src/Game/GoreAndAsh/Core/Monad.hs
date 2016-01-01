@@ -6,14 +6,15 @@ module Game.GoreAndAsh.Core.Monad(
   , GameModule(..)
   , IOState
   , IdentityState
+  , ModuleStack(..)
   ) where
 
 import Control.DeepSeq
 import Control.Monad.IO.Class
 import Control.Monad.State.Strict
 import Data.Functor.Identity
-import GHC.Generics (Generic)
 import Data.Proxy (Proxy)
+import GHC.Generics (Generic)
 
 -- | Basic game monad transformer
 -- Here goes all core API that accessable from each 
@@ -67,6 +68,8 @@ evalGameMonad (GameMonadT m) ctx = runStateT m ctx
 -- The class describes how the module is executed each game frame
 -- and how to pass its own state to the next state.
 class Monad m => GameModule m s | m -> s, s -> m where
+  -- | Defines what state has given module
+  type ModuleState m :: *
   -- | Executes module action with given state
   -- Produces new state that should be passed to next step
   runModule :: MonadIO m' => m a -> s -> m' (a, s)
@@ -78,6 +81,11 @@ class Monad m => GameModule m s | m -> s, s -> m where
   -- | Cleanup resources of the module, should be called on exit
   cleanupModule :: s -> IO ()
 
+-- | Type level function that constucts complex module stack from given list of modules
+type family ModuleStack (ms :: [* -> (* -> *) -> * -> *]) (endm :: * -> *) :: * -> * where
+  ModuleStack '[] curm = curm
+  ModuleStack (m ': ms) curm = ModuleStack ms (m (ModuleState curm) curm)
+
 -- | Endpoint of state chain for Identity monad
 data IdentityState = IdentityState deriving Generic
 
@@ -85,6 +93,7 @@ instance NFData IdentityState
 
 -- | Module that does nothing
 instance GameModule Identity IdentityState where
+  type ModuleState Identity = IdentityState
   runModule i _ = return $ (runIdentity i, IdentityState)
   newModuleState = return IdentityState
   withModule _ = id
@@ -97,6 +106,7 @@ instance NFData IOState
 
 -- | Module that does IO action
 instance GameModule IO IOState where
+  type ModuleState IO = IOState
   runModule io _ = do 
     a <- liftIO io
     return (a, IOState)

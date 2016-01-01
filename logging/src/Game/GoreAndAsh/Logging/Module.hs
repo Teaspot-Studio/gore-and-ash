@@ -15,6 +15,7 @@ newtype LoggingT s m a = LoggingT { runLoggingT :: StateT (LoggingState s) m a }
   deriving (Functor, Applicative, Monad, MonadState (LoggingState s), MonadFix, MonadTrans, MonadIO)
 
 instance GameModule m s => GameModule (LoggingT s m) (LoggingState s) where 
+  type ModuleState (LoggingT s m) = LoggingState s
   runModule (LoggingT m) s = do
     ((a, s'), nextState) <- runModule (runStateT m s) (loggingNextState s)
     printAllMsgs s'

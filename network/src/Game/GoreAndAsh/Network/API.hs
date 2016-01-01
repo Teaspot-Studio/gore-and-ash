@@ -39,7 +39,7 @@ class MonadIO m => NetworkMonad m where
   -- | Returns list of currently connected peers (servers on client side, clients on server side)
   networkPeersM :: m [Peer]
 
-instance MonadIO m => NetworkMonad (NetworkT s m) where
+instance {-# OVERLAPPING #-} MonadIO m => NetworkMonad (NetworkT s m) where
   networkBind addr conCount chanCount inBandth outBandth = do
     nstate <- NetworkT get 
     phost <- liftIO $ create addr (fromIntegral conCount) (fromIntegral chanCount) inBandth outBandth
@@ -77,7 +77,7 @@ instance MonadIO m => NetworkMonad (NetworkT s m) where
     NetworkState{..} <- NetworkT get 
     return $ H.keys networkPeers  
 
-instance (LoggingMonad m, NetworkMonad m) => NetworkMonad (GameMonadT m) where
+instance {-# OVERLAPPABLE #-} (Monad (mt m), MonadIO (mt m), LoggingMonad m, NetworkMonad m, MonadTrans mt) => NetworkMonad (mt m) where 
   networkBind a mc mch ib ob = lift $ networkBind a mc mch ib ob
   peersConnectedM = lift peersConnectedM
   networkConnect a b c = lift $ networkConnect a b c 

@@ -19,6 +19,8 @@ newtype NetworkT s m a = NetworkT { runNetworkT :: StateT (NetworkState s) m a }
   deriving (Functor, Applicative, Monad, MonadState (NetworkState s), MonadFix, MonadTrans, MonadIO)
 
 instance GameModule m s => GameModule (NetworkT s m) (NetworkState s) where
+  type ModuleState (NetworkT s m) = NetworkState s
+  
   runModule (NetworkT m) s = do 
     ((a, s'), nextState) <- runModule (runStateT m s) (networkNextState s)
     s'' <- processEvents <=< moveConnected $ s'

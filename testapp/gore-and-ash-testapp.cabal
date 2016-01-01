@@ -23,6 +23,7 @@ executable gore-and-ash-client
                        Graphics.Square
                        Math
                        Game
+                       Game.Core
                        Render
                        
   build-depends:       base >= 4.7 && < 5
@@ -42,15 +43,17 @@ executable gore-and-ash-client
                      , text >= 1.2.1
                      , network >= 2.6.2.1
                      
-  default-extensions:  ScopedTypeVariables
+  default-extensions:  
+                       Arrows
+                       DataKinds
+                       DeriveGeneric
+                       FlexibleInstances
+                       GeneralizedNewtypeDeriving
+                       MultiParamTypeClasses
+                       RankNTypes
                        RecordWildCards
                        TypeFamilies
-                       RankNTypes
-                       Arrows
-                       DeriveGeneric
-                       TypeSynonymInstances
-                       FlexibleInstances
-                       FlexibleContexts
+                       
 
   ghc-options: -O2 -Wall -Werror -threaded
 
@@ -76,14 +79,15 @@ executable gore-and-ash-server
                      , text >= 1.2.1
                      , network >= 2.6.2.1
 
-  default-extensions:  ScopedTypeVariables
+  default-extensions:  
+                       Arrows
+                       DataKinds
+                       DeriveGeneric
+                       FlexibleInstances
+                       GeneralizedNewtypeDeriving
+                       MultiParamTypeClasses
+                       RankNTypes
                        RecordWildCards
                        TypeFamilies
-                       RankNTypes
-                       Arrows
-                       DeriveGeneric
-                       TypeSynonymInstances
-                       FlexibleInstances
-                       FlexibleContexts
-
+                       
   ghc-options: -O2 -Wall -Werror -threaded

@@ -34,3 +34,7 @@ library
                        ScopedTypeVariables
                        RecordWildCards
                        DeriveGeneric
+                       TypeFamilies
+                       DataKinds
+                       TypeOperators
+                       UndecidableInstances

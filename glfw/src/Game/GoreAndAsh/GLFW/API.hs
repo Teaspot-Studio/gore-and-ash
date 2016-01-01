@@ -83,7 +83,7 @@ class Monad m => MonadGLFWInput m where
   -- | Setups current window for input catch
   setCurrentWindowM :: Maybe Window -> m ()
 
-instance Monad m => MonadGLFWInput (GLFWInputT s m) where 
+instance {-# OVERLAPPING #-} Monad m => MonadGLFWInput (GLFWInputT s m) where 
   keyStatusM k = do 
     GLFWState{..} <- GLFWInputT get
     return $ M.lookup k glfwKeys
@@ -103,7 +103,7 @@ instance Monad m => MonadGLFWInput (GLFWInputT s m) where
       , glfwPrevWindow = glfwWindow s 
       }
 
-instance MonadGLFWInput m => MonadGLFWInput (GameMonadT m) where 
+instance {-# OVERLAPPABLE #-} (Monad (mt m), MonadGLFWInput m, MonadTrans mt) => MonadGLFWInput (mt m) where 
   keyStatusM = lift . keyStatusM
   mouseButtonM = lift . mouseButtonM
   mousePosM = lift mousePosM

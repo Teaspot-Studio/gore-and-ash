@@ -30,9 +30,14 @@ library
                      , netwire >= 5.0.1
                      , transformers >= 0.4.2
 
-  default-extensions:  DeriveGeneric
+  default-extensions:  
+                       DataKinds
+                       DeriveGeneric
+                       FlexibleInstances
                        GeneralizedNewtypeDeriving
-                       RecordWildCards
                        MultiParamTypeClasses
-                       UndecidableInstances
+                       OverlappingInstances
                        OverloadedStrings
+                       RecordWildCards
+                       TypeFamilies
+                       UndecidableInstances
