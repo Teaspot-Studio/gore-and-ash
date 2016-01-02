@@ -23,7 +23,9 @@ executable gore-and-ash-client
                        Graphics.Square
                        Math
                        Game
+                       Game.Camera
                        Game.Core
+                       Game.Player
                        Render
                        
   build-depends:       base >= 4.7 && < 5
