@@ -12,8 +12,11 @@ module Game.GoreAndAsh.Actor.API(
   , makeFixedActor
   , runActor
   , runActor'
+  , stateActor
+  , stateActorM
   ) where
 
+import Control.Monad.Fix 
 import Control.Monad.State.Strict
 import Control.Wire
 import Data.Dynamic
@@ -167,3 +170,23 @@ runActor' :: ActorMonad m
   => GameActor m i a b -- ^ Actor creator
   -> GameWire m a b -- ^ Usual wire
 runActor' actor = arr fst . runActor actor
+
+-- | Helper to create stateful actors, same as @stateWire@
+stateActor :: (ActorMonad m, MonadFix m, ActorMessage i, Typeable (ActorMessageType i))
+  => b -- ^ Inital value of state
+  -> (i -> b -> ActorMessageType i -> b) -- ^ Handler for messages
+  -> (i -> GameWire m (a, b) b) -- ^ Handler that transforms current state
+  -> GameActor m i a b -- ^ Resulting actor incapsulating @b@ in itself
+stateActor bi f w = makeActor $ \i -> stateWire bi $ proc (a, b) -> do 
+  b' <- actorProcessMessages i (f i) -< b
+  w i -< (a, b')
+
+-- | Helper to create stateful actors, same as @stateWire@, monadic version of @stateActor@
+stateActorM :: (ActorMonad m, MonadFix m, ActorMessage i, Typeable (ActorMessageType i))
+  => b -- ^ Inital value of state
+  -> (i -> b -> ActorMessageType i -> GameMonadT m b) -- ^ Handler for messages
+  -> (i -> GameWire m (a, b) b) -- ^ Handler that transforms current state
+  -> GameActor m i a b -- ^ Resulting actor incapsulating @b@ in itself
+stateActorM bi f w = makeActor $ \i -> stateWire bi $ proc (a, b) -> do 
+  b' <- actorProcessMessagesM i (f i) -< b
+  w i -< (a, b')

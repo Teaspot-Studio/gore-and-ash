@@ -16,13 +16,16 @@ module Game.GoreAndAsh.Core.Arrow(
   , mapE
   , filterE
   , liftGameMonadEvent1
+  -- | Helpers
+  , stateWire
   ) where
 
-import Prelude hiding (id, (.))
+import Control.Monad.Fix
 import Control.Wire
 import Control.Wire.Unsafe.Event
 import Game.GoreAndAsh.Core.Monad
 import Game.GoreAndAsh.Core.Session
+import Prelude hiding (id, (.))
 
 -- | Game wire with given API @m@ and input value @a@ and output value @b@
 type GameWire m a b = Wire GameTime () (GameMonadT m) a b
@@ -114,3 +117,10 @@ mapE f = arr $ \e -> case e of
 -- | Lifting game monad action to event processing arrow
 liftGameMonadEvent1 :: Monad m => (a -> GameMonadT m b) -> GameWire m (Event a) (Event b)
 liftGameMonadEvent1 = onEventM
+
+-- | Loops output of wire to it input, first parameter is start value of state
+stateWire :: MonadFix m => b -> GameWire m (a, b) b -> GameWire m a b
+stateWire ib w = loop $ proc (a, b_) -> do 
+  b <- delay ib -< b_ -- either it will hang
+  b2 <- w -< (a, b)
+  returnA -< (b2, b2)

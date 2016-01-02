@@ -4,6 +4,7 @@ import Control.Exception
 import Control.Monad.IO.Class
 import Data.Proxy 
 import Game 
+import Game.Core
 import Game.GoreAndAsh
 import Game.GoreAndAsh.Network
 import Network.BSD (getHostByName, hostAddress)

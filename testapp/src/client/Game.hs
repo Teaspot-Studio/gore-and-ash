@@ -13,6 +13,8 @@ import GHC.Generics (Generic)
 import Linear
 import Prelude hiding (id, (.))
 
+import Game.GoreAndAsh.Actor 
+
 import Game.Camera 
 import Game.Core
 import Game.Player
@@ -26,8 +28,8 @@ instance NFData Game
 
 mainWire :: AppWire a Game
 mainWire = Game
-  <$> playerWire initialPlayer
-  <*> cameraWire initialCamera 
+  <$> runActor' (playerWire initialPlayer)
+  <*> runActor' (cameraWire initialCamera)
   where 
     initialCamera = Camera 0 0 (-1)
     initialPlayer = Player 0 (V3 1 0 0) 0

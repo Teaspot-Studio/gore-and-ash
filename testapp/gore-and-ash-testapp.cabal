@@ -51,6 +51,7 @@ executable gore-and-ash-client
                        Arrows
                        DataKinds
                        DeriveGeneric
+                       FlexibleContexts
                        FlexibleInstances
                        GeneralizedNewtypeDeriving
                        MultiParamTypeClasses
@@ -70,9 +71,11 @@ executable gore-and-ash-server
   other-modules:       Math
                        Game
                        Game.Core
+                       Game.Player
                        
   build-depends:       base >= 4.7 && < 5
                      , gore-and-ash
+                     , gore-and-ash-actor
                      , gore-and-ash-logging
                      , gore-and-ash-network
                      , lens >= 4.12.3
@@ -89,6 +92,7 @@ executable gore-and-ash-server
                        Arrows
                        DataKinds
                        DeriveGeneric
+                       FlexibleContexts
                        FlexibleInstances
                        GeneralizedNewtypeDeriving
                        MultiParamTypeClasses
