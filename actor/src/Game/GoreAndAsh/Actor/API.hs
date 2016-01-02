@@ -2,7 +2,9 @@ module Game.GoreAndAsh.Actor.API(
     ActorMonad(..)
   -- | Message API
   , actorSend
+  , actorSendMany
   , actorSendDyn
+  , actorSendManyDyn
   , actorProcessMessages
   , actorProcessMessagesM
   -- | Actor API
@@ -17,7 +19,7 @@ import Control.Wire
 import Data.Dynamic
 import Data.Maybe (isJust, catMaybes)
 import Prelude hiding (id, (.))
-import qualified Data.Foldable as F 
+import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as H 
 import qualified Data.Sequence as S 
 
@@ -96,10 +98,20 @@ actorSend :: (ActorMonad m, ActorMessage i, Typeable (ActorMessageType i))
   => i -> GameWire m (Event (ActorMessageType i)) (Event ())
 actorSend i = liftGameMonadEvent1 $ actorSendM i
 
+-- | Sends many messages to statically known actor
+actorSendMany :: (ActorMonad m, ActorMessage i, Typeable (ActorMessageType i), F.Foldable t)
+  => i -> GameWire m (Event (t (ActorMessageType i))) (Event ())
+actorSendMany i = liftGameMonadEvent1 $ F.mapM_ (actorSendM i)
+
 -- | Sends message to actor with incoming id
 actorSendDyn :: (ActorMonad m, ActorMessage i, Typeable (ActorMessageType i)) 
   => GameWire m (Event (i, ActorMessageType i)) (Event ())
 actorSendDyn = liftGameMonadEvent1 $ \(i, m) -> actorSendM i m
+
+-- | Sends many messages, dynamic version of actorSendMany which takes actor id as arrow input
+actorSendManyDyn :: (ActorMonad m, ActorMessage i, Typeable (ActorMessageType i), F.Foldable t)
+  => GameWire m (Event (t (i, ActorMessageType i))) (Event ())
+actorSendManyDyn = liftGameMonadEvent1 $ F.mapM_ (uncurry actorSendM)
 
 -- | Helper to process all messages from message queue and update a state
 actorProcessMessages :: (ActorMonad m, ActorMessage i, Typeable (ActorMessageType i))
