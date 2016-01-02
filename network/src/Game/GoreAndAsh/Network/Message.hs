@@ -38,7 +38,7 @@ messageTypeToBits t = case t of
 data Message = Message {
   messageType :: !MessageType
 , messagePayload :: !BS.ByteString
-} deriving (Generic)
+} deriving (Show, Generic)
 
 instance NFData Message 
 
