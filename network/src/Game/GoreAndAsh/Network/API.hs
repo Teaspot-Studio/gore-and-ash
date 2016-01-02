@@ -1,6 +1,8 @@
 module Game.GoreAndAsh.Network.API(
     NetworkMonad(..)
   , peersConnected
+  , peersDisconnected
+  , peerDisconnected
   , currentPeers
   , peerMessages
   , peerSend
@@ -41,6 +43,9 @@ class MonadIO m => NetworkMonad m where
   -- | Returns peers that were connected during last frame
   peersConnectedM :: m [Peer]
 
+  -- | Returns peers that were disconnected during last frame
+  peersDisconnectedM :: m [Peer]
+
   -- | Initiate connection to the remote host
   networkConnect :: LoggingMonad m => SockAddr -- ^ Address of host
     -> Word -- ^ Count of channels to open
@@ -79,6 +84,10 @@ instance {-# OVERLAPPING #-} MonadIO m => NetworkMonad (NetworkT s m) where
     NetworkState{..} <- NetworkT get 
     return networkConnectedPeers
 
+  peersDisconnectedM = do 
+    NetworkState{..} <- NetworkT get 
+    return networkDisconnectedPeers
+
   networkConnect addr chanCount datum = do 
     nstate <- NetworkT get 
     case networkHost nstate of 
@@ -111,6 +120,7 @@ instance {-# OVERLAPPING #-} MonadIO m => NetworkMonad (NetworkT s m) where
 instance {-# OVERLAPPABLE #-} (Monad (mt m), MonadIO (mt m), LoggingMonad m, NetworkMonad m, MonadTrans mt) => NetworkMonad (mt m) where 
   networkBind a mc mch ib ob = lift $ networkBind a mc mch ib ob
   peersConnectedM = lift peersConnectedM
+  peersDisconnectedM = lift peersDisconnectedM
   networkConnect a b c = lift $ networkConnect a b c 
   peerMessagesM a b = lift $ peerMessagesM a b 
   peerSendM a b c = lift $ peerSendM a b c
@@ -124,6 +134,22 @@ peersConnected = mkGen_ $ \_ -> do
   return $! case ps of 
     [] -> Right NoEvent
     _ -> ps `deepseq` Right (Event ps)
+
+-- | Fires when one of connected peers is disconnected for some reason
+peersDisconnected :: (LoggingMonad m, NetworkMonad m) => GameWire m a (Event [Peer])
+peersDisconnected = mkGen_ $ \_ -> do 
+  ps <- peersDisconnectedM 
+  return $! case ps of 
+    [] -> Right NoEvent
+    _ -> ps `deepseq` Right (Event ps)
+
+-- | Fires when statically known peer is disconnected
+peerDisconnected :: (LoggingMonad m, NetworkMonad m) => Peer -> GameWire m a (Event ())
+peerDisconnected p = mkGen_ $ \_ -> do 
+  ps <- peersDisconnectedM 
+  return $! case F.find (p ==) ps of 
+    Nothing -> Right NoEvent
+    Just _ -> Right $! Event ()
 
 -- | Returns list of current peers (clients on server, servers on client)
 currentPeers :: (LoggingMonad m, NetworkMonad m) => GameWire m a [Peer]

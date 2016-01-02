@@ -35,6 +35,7 @@ data NetworkState s = NetworkState {
   networkHost :: !(Maybe Host)
 , networkPeers :: !(H.HashMap Peer ())
 , networkConnectedPeers :: ![Peer]
+, networkDisconnectedPeers :: ![Peer]
 , networkMessages :: !(H.HashMap (Peer, B.ChannelID) (S.Seq Message))
 , networkDetailedLogging :: !Bool
 , networkNextState :: !s

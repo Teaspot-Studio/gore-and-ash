@@ -13,6 +13,7 @@ import Network.ENet
 import Network.ENet.Host 
 import Network.ENet.Packet (peek)
 import Network.ENet.Peer 
+import qualified Data.Foldable as F 
 import qualified Data.HashMap.Strict as H 
 import qualified Data.Sequence as S
 import qualified Network.ENet.Bindings as B 
@@ -25,7 +26,7 @@ instance GameModule m s => GameModule (NetworkT s m) (NetworkState s) where
   
   runModule (NetworkT m) s = do 
     ((a, s'), nextState) <- runModule (runStateT m s) (networkNextState s)
-    s'' <- processEvents <=< clearMessages <=< moveConnected $ s'
+    s'' <- processEvents <=< clearMessages <=< moveDisconnected <=< moveConnected $ s'
     return (a, s'' {
         networkNextState = nextState
       })
@@ -37,6 +38,11 @@ instance GameModule m s => GameModule (NetworkT s m) (NetworkState s) where
       moveConnected s' = return $ s' {
           networkPeers = networkPeers s' `H.union` H.fromList ((, ()) <$> networkConnectedPeers s')
         , networkConnectedPeers = []
+        }
+
+      moveDisconnected s' = return $ s' {
+          networkPeers = F.foldl' (flip H.delete) (networkPeers s') $ networkDisconnectedPeers s'
+        , networkDisconnectedPeers = []
         }
 
       clearMessages s' = return $ s' {
@@ -52,6 +58,7 @@ instance GameModule m s => GameModule (NetworkT s m) (NetworkState s) where
       , networkMessages = H.empty
       , networkDetailedLogging = False
       , networkConnectedPeers = []
+      , networkDisconnectedPeers = []
       }
 
   withModule _ = withENetDo
@@ -84,7 +91,7 @@ processNetEvents nst hst = liftIO $ untilNothing nst (service hst 0) handle
       B.Disconnect -> do 
         when networkDetailedLogging $ putStrLn $ "Network: Peer disconnected, code " ++ show edata
         return $ s {
-            networkPeers = peer `H.delete` networkPeers
+            networkDisconnectedPeers = peer : networkDisconnectedPeers
           }
       B.Receive -> do 
         p@(Packet fs bs) <- peek packetPtr
