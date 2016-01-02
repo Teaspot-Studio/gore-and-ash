@@ -7,6 +7,7 @@ import Control.Monad.Extra (whenJust)
 import Control.Monad.Fix
 import Control.Monad.State.Strict
 import Game.GoreAndAsh
+import Game.GoreAndAsh.Network.Message
 import Game.GoreAndAsh.Network.State
 import Network.ENet
 import Network.ENet.Host 
@@ -49,6 +50,7 @@ instance GameModule m s => GameModule (NetworkT s m) (NetworkState s) where
       , networkHost = Nothing 
       , networkPeers = H.empty
       , networkMessages = H.empty
+      , networkDetailedLogging = False
       , networkConnectedPeers = []
       }
 
@@ -72,24 +74,25 @@ processNetEvents nst hst = liftIO $ untilNothing nst (service hst 0) handle
 
     handle s@NetworkState{..} (B.Event et peer ch edata packetPtr) = case et of
       B.None -> do
-        putStrLn "Network: Event none"
+        when networkDetailedLogging $ putStrLn "Network: Event none"
         return s
       B.Connect -> do 
-        putStrLn "Network: Peer connected"
+        when networkDetailedLogging $ putStrLn "Network: Peer connected"
         return $ s {
             networkConnectedPeers = peer : networkConnectedPeers 
           }
       B.Disconnect -> do 
-        putStrLn $ "Network: Peer disconnected, code " ++ show edata
+        when networkDetailedLogging $ putStrLn $ "Network: Peer disconnected, code " ++ show edata
         return $ s {
             networkPeers = peer `H.delete` networkPeers
           }
       B.Receive -> do 
         p@(Packet fs bs) <- peek packetPtr
-        putStrLn $ "Network: Received message at channel " ++ show ch ++ ": "
+        let msg = packetToMessage p
+        when networkDetailedLogging $ putStrLn $ "Network: Received message at channel " ++ show ch ++ ": "
           ++ show fs ++ ", payload: " ++ show bs
         return $ s {
             networkMessages = case H.lookup (peer, ch) networkMessages of
-              Nothing -> H.insert (peer, ch) (S.singleton p) networkMessages
-              Just ps -> H.insert (peer, ch) (ps S.|> p) networkMessages
+              Nothing -> H.insert (peer, ch) (S.singleton msg) networkMessages
+              Just msgs -> H.insert (peer, ch) (msgs S.|> msg) networkMessages
           }

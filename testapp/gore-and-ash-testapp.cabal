@@ -42,10 +42,8 @@ executable gore-and-ash-client
                      , deepseq >= 1.4
                      , text >= 1.2.1
                      , network >= 2.6.2.1
-                     
-                     , henet >= 1.3.9.3
-                     , bitset >= 1.5
                      , bytestring >= 0.10.6.0
+                     
   default-extensions:  
                        Arrows
                        DataKinds
@@ -82,10 +80,8 @@ executable gore-and-ash-server
                      , deepseq >= 1.4
                      , text >= 1.2.1
                      , network >= 2.6.2.1
-
-                     , henet >= 1.3.9.3
-                     , bitset >= 1.5
                      , bytestring >= 0.10.6.0
+
   default-extensions:  
                        Arrows
                        DataKinds

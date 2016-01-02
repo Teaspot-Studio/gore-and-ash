@@ -4,7 +4,6 @@ module Game.GoreAndAsh.Network.State(
   , Host
   , Peer
   , B.ChannelID(..)
-  , Packet(..)
   ) where
 
 import Control.DeepSeq 
@@ -15,6 +14,8 @@ import Network.ENet
 import qualified Data.HashMap.Strict as H 
 import qualified Data.Sequence as S
 import qualified Network.ENet.Bindings as B
+
+import Game.GoreAndAsh.Network.Message 
 
 -- | Server side connection
 type Host = Ptr B.Host 
@@ -35,7 +36,8 @@ data NetworkState s = NetworkState {
   networkHost :: !(Maybe Host)
 , networkPeers :: !(H.HashMap Peer ())
 , networkConnectedPeers :: ![Peer]
-, networkMessages :: !(H.HashMap (Peer, B.ChannelID) (S.Seq Packet))
+, networkMessages :: !(H.HashMap (Peer, B.ChannelID) (S.Seq Message))
+, networkDetailedLogging :: !Bool
 , networkNextState :: !s
 } deriving (Generic)
 
@@ -46,6 +48,3 @@ instance NFData s => NFData (NetworkState s)
 
 instance NFData B.ChannelID where 
   rnf (B.ChannelID i) = i `seq` ()
-
-instance NFData Packet where 
-  rnf (Packet f b) = f `deepseq` b `deepseq` ()

@@ -24,6 +24,7 @@ main = withModule (Proxy :: Proxy AppMonad) $ runWindow $ do
 
     firstLoop rs gs = do 
       (_, gs') <- stepGame gs $ do 
+        networkSetDetailedLoggingM False
         networkBind Nothing 1 2 0 0
         addr <- liftIO $ getAddr "localhost" 5556
         networkConnect addr 2 0

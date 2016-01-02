@@ -31,6 +31,7 @@ main = withModule (Proxy :: Proxy AppMonad) $ do
     -- | Initialization step
     firstStep gs gsRef = do 
       (_, gs') <- stepGame gs $ do 
+        networkSetDetailedLoggingM False
         addr <- liftIO $ getAddr "localhost" 5556
         networkBind (Just addr) 100 2 0 0
       writeIORef gsRef gs'

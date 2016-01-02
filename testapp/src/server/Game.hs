@@ -17,8 +17,6 @@ import Game.Core
 import Game.GoreAndAsh
 import Game.GoreAndAsh.Network 
 
-import qualified Network.ENet.Bindings as B 
-import qualified Data.BitSet.Generic as B
 import qualified Data.ByteString as BS
 
 data Player = Player {
@@ -50,8 +48,8 @@ playerWire initialPlayer = loop $ proc (_, p_) -> do
 
   forceNF -< (p, p)
   where
-    mkPacket _ = Packet (B.singleton B.Reliable) BS.empty
+    mkMessage _ = Message ReliableMessage BS.empty
 
     peersWire peers = proc _ -> do 
-      sequenceA ((\p -> peerSend p (ChannelID 0)) <$> peers) . mapE mkPacket . now -< ()
+      sequenceA ((\p -> peerSend p (ChannelID 0)) <$> peers) . mapE mkMessage . now -< ()
       returnA -< ()
