@@ -13,6 +13,9 @@ import qualified Data.Sequence as S
 -- | Inner state of actor module
 data ActorState s = ActorState {
   -- | Stores messages for actor with specified id
+  -- Message has type of Dynamic as message manager doesn't know anything about message types.
+  -- We don't need to serialization protocol due passing via memory. Type safety is forced 
+  -- with Messagable type class with type family (see Actor.Message module).
   actorBoxes :: !(H.HashMap Int (S.Seq Dynamic))
   -- | Next empty id of actor
 , actorNextId :: !Int
