@@ -28,6 +28,7 @@ executable gore-and-ash-client
                        
   build-depends:       base >= 4.7 && < 5
                      , gore-and-ash
+                     , gore-and-ash-actor
                      , gore-and-ash-logging
                      , gore-and-ash-glfw
                      , gore-and-ash-network

@@ -10,14 +10,10 @@ packages:
 - location:
     git: https://github.com/Teaspot-Studio/netwire.git
     commit: c9f8034c4f24c4491db88782142e0fcdf8bba540
-- location:
-    git: https://github.com/Teaspot-Studio/bitset.git
-    commit: 5bb58562ff99c551fa9643321c95a6ba27977596
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
-- henet-1.3.9.3
-- typesafe-endian-0.1.0.1
+- netwire-5.0.1
 
 # Override default flag values for local packages and extra-deps
 flags: {}
