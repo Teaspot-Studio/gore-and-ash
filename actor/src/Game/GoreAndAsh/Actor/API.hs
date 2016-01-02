@@ -1,9 +1,15 @@
 module Game.GoreAndAsh.Actor.API(
     ActorMonad(..)
+  -- | Message API
   , actorSend
   , actorSendDyn
   , actorProcessMessages
   , actorProcessMessagesM
+  -- | Actor API
+  , makeActor
+  , makeFixedActor
+  , runActor
+  , runActor'
   ) where
 
 import Control.Monad.State.Strict
@@ -16,9 +22,10 @@ import qualified Data.HashMap.Strict as H
 import qualified Data.Sequence as S 
 
 import Game.GoreAndAsh
+import Game.GoreAndAsh.Actor.Indexed
 import Game.GoreAndAsh.Actor.Message
-import Game.GoreAndAsh.Actor.State
 import Game.GoreAndAsh.Actor.Module
+import Game.GoreAndAsh.Actor.State
 
 -- | Low level API for module
 class Monad m => ActorMonad m where 
@@ -111,3 +118,40 @@ actorProcessMessagesM :: (ActorMonad m, ActorMessage i, Typeable (ActorMessageTy
 actorProcessMessagesM i f = liftGameMonad1 $ \a -> do 
   msgs <- actorGetMessagesM i 
   foldM f a msgs
+
+-- | Registers new index for wire and makes an actor wire
+makeActor :: (ActorMonad m, ActorMessage i) 
+  => (i -> GameWire m a b) -- ^ Body wire
+  -> GameActor m i a b -- ^ Operation that makes actual actor
+makeActor wbody = do 
+  i <- actorRegisterM
+  return $! GameWireIndexed i (wbody i)
+
+-- | Registers new actor with fixed id, can fail if there is already registered actor 
+-- for that id
+makeFixedActor :: (ActorMonad m, ActorMessage i) 
+  => i -- ^ Manual id of actor
+  -> (i -> GameWire m a b) -- ^ Body wire
+  -> GameMonadT m (Maybe (GameWireIndexed m i a b)) -- ^ Operation that makes actual actor
+makeFixedActor i wbody = do 
+  f <- actorRegisteredM i
+  return $! if f then Nothing
+    else Just $! GameWireIndexed i (wbody i)
+
+-- | If need no dynamic switching, you can use the function to embed index wire just at time
+runActor :: ActorMonad m 
+  => GameActor m i a b -- ^ Actor creator
+  -> GameWire m a (b, i) -- ^ Usual wire that also returns id of inner indexed wire
+runActor actor = switch makeWire
+  where
+  -- | Switches immidieatly to created wire, thats why error is used for
+  -- value that should be returned in case where there is no event.
+  makeWire = proc _ -> do 
+    e <- mapE (\iw -> arr (, indexedId iw) . indexedWire iw) . now . liftGameMonadOnce actor -< ()
+    returnA -< (error "runActor: impossible", e)
+
+-- | Same as runActor, but doesn't return id of actor
+runActor' :: ActorMonad m 
+  => GameActor m i a b -- ^ Actor creator
+  -> GameWire m a b -- ^ Usual wire
+runActor' actor = arr fst . runActor actor
