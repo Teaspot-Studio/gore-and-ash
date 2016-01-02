@@ -4,6 +4,7 @@ module Game.GoreAndAsh.Network.API(
   , currentPeers
   , peerMessages
   , peerSend
+  , peerSendMany
   ) where
 
 import Control.DeepSeq 
@@ -23,6 +24,7 @@ import Network.ENet.Host
 import Network.ENet.Packet as P
 import Network.ENet.Peer
 import Network.Socket (SockAddr)
+import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as H 
 import qualified Data.Sequence as S 
 import Control.Exception (bracket)
@@ -128,13 +130,17 @@ currentPeers :: (LoggingMonad m, NetworkMonad m) => GameWire m a [Peer]
 currentPeers = liftGameMonad networkPeersM
 
 -- | Returns sequence of packets that were recieved during last frame from given peer and channel id
-peerMessages :: (LoggingMonad m, NetworkMonad m) => Peer -> ChannelID -> GameWire m a (Event (S.Seq Message)) 
+peerMessages :: (LoggingMonad m, NetworkMonad m) => Peer -> ChannelID -> GameWire m a (Event [Message]) 
 peerMessages p ch = mkGen_ $ \_ -> do 
   msgs <- peerMessagesM p ch
   return $! if S.null msgs 
     then Right NoEvent
-    else msgs `deepseq` Right (Event msgs)
+    else let msgs' = F.toList msgs in msgs' `deepseq` Right (Event msgs')
 
 -- | Send message to given peer with given channel id
 peerSend :: (LoggingMonad m, NetworkMonad m) => Peer -> ChannelID -> GameWire m (Event Message) (Event ())
 peerSend peer chid = liftGameMonadEvent1 $ peerSendM peer chid 
+
+-- | Send several messages to given peer with given channel id
+peerSendMany :: (LoggingMonad m, NetworkMonad m) => Peer -> ChannelID -> GameWire m (Event [Message]) (Event ())
+peerSendMany peer chid = liftGameMonadEvent1 $ mapM_ (peerSendM peer chid) 
