@@ -13,7 +13,10 @@ import GHC.Generics (Generic)
 import Linear
 import Prelude hiding (id, (.))
 
+import Game.GoreAndAsh
 import Game.GoreAndAsh.Actor 
+import Game.GoreAndAsh.Logging
+import Game.GoreAndAsh.Network
 
 import Game.Camera 
 import Game.Core
@@ -26,10 +29,24 @@ data Game = Game {
 
 instance NFData Game 
 
-mainWire :: AppWire a Game
-mainWire = Game
-  <$> runActor' (playerWire initialPlayer)
-  <*> runActor' (cameraWire initialCamera)
+mainWire :: AppWire a (Maybe Game)
+mainWire = waitConnection
   where 
     initialCamera = Camera 0 0 (-1)
-    initialPlayer = Player 0 (V3 1 0 0) 0
+    initialPlayer peer = Player 0 (V3 1 0 0) 0 peer
+
+    waitConnection = proc a -> do 
+      e <- mapE head . peersConnected -< ()
+      traceEvent (const "Connected to server") -< e
+      rSwitch (pure Nothing) -< (a, untilDisconnected <$> e)
+
+    untilDisconnected peer = proc a -> do 
+      e <- peerDisconnected peer -< ()
+      traceEvent (const "Disconnected from server") -< e
+      rSwitch (playGame peer) -< (a, const disconnected <$> e)
+
+    playGame peer = Just <$> (Game
+      <$> runActor' (playerWire $ initialPlayer peer)
+      <*> runActor' (cameraWire initialCamera))
+
+    disconnected = pure Nothing

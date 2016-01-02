@@ -17,11 +17,13 @@ import Game.Core
 import Game.GoreAndAsh.Actor
 import Game.GoreAndAsh.GLFW 
 import Game.GoreAndAsh.Logging
+import Game.GoreAndAsh.Network
 
 data Player = Player {
   playerPos :: !(V2 Float)
 , playerColor :: !(V3 Float) 
-, playerRot :: !Float  
+, playerRot :: !Float
+, playerPeer :: !Peer 
 } deriving (Generic)
 
 instance NFData Player 

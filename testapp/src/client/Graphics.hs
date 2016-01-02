@@ -3,6 +3,7 @@ module Graphics(
   , runWindow
   , initResources
   , stepRenderState
+  , renderEmptyScreen
   , isClosedRequest
   ) where
 
@@ -64,6 +65,13 @@ stepRenderState s@RenderState{..} = renderStep s $ \viewport -> do
       viewArray = toPrimitiveArray TriangleStrip vertexArray
     , viewPort = viewport
     }
+
+-- | Draws empty frame
+renderEmptyScreen :: (MonadException m, MonadIO m) 
+  => RenderState os -- ^ Render state to draw
+  -> ContextT GLFWWindow os (ContextFormat RGBFloat ()) m (RenderState os) -- ^ New render state
+renderEmptyScreen s@RenderState{..} = renderStep s $ \_ -> do    
+  clearContextColor 0.0
 
 -- ^ Perform one step of rendering, update all buffers and draw a frame
 renderStep :: (MonadException m, MonadIO m) 

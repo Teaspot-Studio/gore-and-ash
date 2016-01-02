@@ -1,5 +1,6 @@
 module Main where  
 
+import Control.Monad (join)
 import Control.Monad.IO.Class
 import Data.Proxy 
 import Game 
@@ -32,14 +33,12 @@ main = withModule (Proxy :: Proxy AppMonad) $ runWindow $ do
 
     gameLoop rs gs = do 
       (mg, gs') <- stepGame gs (preFrame rs)
-      rs2 <- stepRenderState rs
-      let 
-        rs3 = case mg of 
-          Nothing -> rs2
-          Just g -> renderGame g rs2
-      if isClosedRequest rs3 
+      rs2 <- case join mg of 
+        Nothing -> renderEmptyScreen rs
+        Just g -> renderGame g <$> stepRenderState rs
+      if isClosedRequest rs2 
         then cleanupGameState gs'
-        else gameLoop rs3 gs'
+        else gameLoop rs2 gs'
 
     preFrame rs = do 
       setCurrentWindowM $ renderWindow rs

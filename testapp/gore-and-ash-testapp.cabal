@@ -55,6 +55,7 @@ executable gore-and-ash-client
                        FlexibleInstances
                        GeneralizedNewtypeDeriving
                        MultiParamTypeClasses
+                       OverloadedStrings
                        RankNTypes
                        RecordWildCards
                        TypeFamilies
@@ -96,6 +97,7 @@ executable gore-and-ash-server
                        FlexibleInstances
                        GeneralizedNewtypeDeriving
                        MultiParamTypeClasses
+                       OverloadedStrings
                        RankNTypes
                        RecordWildCards
                        TypeFamilies
