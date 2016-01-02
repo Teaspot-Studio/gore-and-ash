@@ -1,13 +1,16 @@
 module Game.GoreAndAsh.Network.API(
     NetworkMonad(..)
   , peersConnected
-  , peers
+  , currentPeers
+  , peerMessages
+  , peerSend
   ) where
 
 import Control.DeepSeq 
 import Control.Monad.State.Strict
 import Control.Wire.Core 
 import Control.Wire.Unsafe.Event 
+import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Data.Text
 import Foreign
@@ -16,10 +19,15 @@ import Game.GoreAndAsh.Logging
 import Game.GoreAndAsh.Network.Module
 import Game.GoreAndAsh.Network.State
 import Network.ENet.Host
+import Network.ENet.Packet as P
+import Network.ENet.Peer
 import Network.Socket (SockAddr)
 import qualified Data.HashMap.Strict as H 
+import qualified Data.Sequence as S 
+import Control.Exception (bracket)
 
 class MonadIO m => NetworkMonad m where
+  -- | Start listening for messages, should be called once
   networkBind :: LoggingMonad m => Maybe SockAddr -- ^ Address to listen, Nothing is client
     -> Word -- ^ Maximum count of connections
     -> Word -- ^ Number of channels to open
@@ -35,6 +43,12 @@ class MonadIO m => NetworkMonad m where
     -> Word -- ^ Count of channels to open
     -> Word32 -- ^ Additional data (0 default)
     -> m (Maybe ())
+
+  -- | Returns received packets for given peer and channel
+  peerMessagesM :: Peer -> ChannelID -> m (S.Seq Packet)
+
+  -- | Sends a packet to given peer on given channel
+  peerSendM :: Peer -> ChannelID -> Packet -> m ()
 
   -- | Returns list of currently connected peers (servers on client side, clients on server side)
   networkPeersM :: m [Peer]
@@ -73,6 +87,12 @@ instance {-# OVERLAPPING #-} MonadIO m => NetworkMonad (NetworkT s m) where
             return Nothing
           else return $ Just ()
 
+  peerMessagesM peer ch = do
+    msgs <- networkMessages <$> NetworkT get
+    return . fromMaybe S.empty $! H.lookup (peer, ch) msgs
+
+  peerSendM peer ch p = liftIO $ bracket (P.poke p) P.destroy $ send peer ch
+
   networkPeersM = do 
     NetworkState{..} <- NetworkT get 
     return $ H.keys networkPeers  
@@ -81,16 +101,30 @@ instance {-# OVERLAPPABLE #-} (Monad (mt m), MonadIO (mt m), LoggingMonad m, Net
   networkBind a mc mch ib ob = lift $ networkBind a mc mch ib ob
   peersConnectedM = lift peersConnectedM
   networkConnect a b c = lift $ networkConnect a b c 
+  peerMessagesM a b = lift $ peerMessagesM a b 
+  peerSendM a b c = lift $ peerSendM a b c
   networkPeersM = lift networkPeersM
 
 -- | Fires when one or several clients were connected
 peersConnected :: (LoggingMonad m, NetworkMonad m) => GameWire m a (Event [Peer])
 peersConnected = mkGen_ $ \_ -> do 
   ps <- peersConnectedM
-  case ps of 
-    [] -> return $! Right NoEvent
-    _ -> return $! ps `deepseq` Right (Event ps)
+  return $! case ps of 
+    [] -> Right NoEvent
+    _ -> ps `deepseq` Right (Event ps)
 
 -- | Returns list of current peers (clients on server, servers on client)
-peers :: (LoggingMonad m, NetworkMonad m) => GameWire m a [Peer]
-peers = liftGameMonad networkPeersM
+currentPeers :: (LoggingMonad m, NetworkMonad m) => GameWire m a [Peer]
+currentPeers = liftGameMonad networkPeersM
+
+-- | Returns sequence of packets that were recieved during last frame from given peer and channel id
+peerMessages :: (LoggingMonad m, NetworkMonad m) => Peer -> ChannelID -> GameWire m a (Event (S.Seq Packet)) 
+peerMessages p ch = mkGen_ $ \_ -> do 
+  msgs <- peerMessagesM p ch
+  return $! if S.null msgs 
+    then Right NoEvent
+    else msgs `deepseq` Right (Event msgs)
+
+-- | Send packet to given peer with given channel id
+peerSend :: (LoggingMonad m, NetworkMonad m) => Peer -> ChannelID -> GameWire m (Event Packet) (Event ())
+peerSend peer chid = liftGameMonadEvent1 $ peerSendM peer chid 

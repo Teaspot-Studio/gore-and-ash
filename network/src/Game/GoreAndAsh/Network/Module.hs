@@ -13,6 +13,7 @@ import Network.ENet.Host
 import Network.ENet.Packet (peek)
 import Network.ENet.Peer 
 import qualified Data.HashMap.Strict as H 
+import qualified Data.Sequence as S
 import qualified Network.ENet.Bindings as B 
 
 newtype NetworkT s m a = NetworkT { runNetworkT :: StateT (NetworkState s) m a }
@@ -23,7 +24,7 @@ instance GameModule m s => GameModule (NetworkT s m) (NetworkState s) where
   
   runModule (NetworkT m) s = do 
     ((a, s'), nextState) <- runModule (runStateT m s) (networkNextState s)
-    s'' <- processEvents <=< moveConnected $ s'
+    s'' <- processEvents <=< clearMessages <=< moveConnected $ s'
     return (a, s'' {
         networkNextState = nextState
       })
@@ -37,12 +38,17 @@ instance GameModule m s => GameModule (NetworkT s m) (NetworkState s) where
         , networkConnectedPeers = []
         }
 
+      clearMessages s' = return $ s' {
+          networkMessages = H.empty
+        }
+
   newModuleState = do 
     s <- newModuleState 
     return $ NetworkState {
         networkNextState = s
       , networkHost = Nothing 
       , networkPeers = H.empty
+      , networkMessages = H.empty
       , networkConnectedPeers = []
       }
 
@@ -79,7 +85,11 @@ processNetEvents nst hst = liftIO $ untilNothing nst (service hst 0) handle
             networkPeers = peer `H.delete` networkPeers
           }
       B.Receive -> do 
-        (Packet fs bs) <- peek packetPtr
+        p@(Packet fs bs) <- peek packetPtr
         putStrLn $ "Network: Received message at channel " ++ show ch ++ ": "
           ++ show fs ++ ", payload: " ++ show bs
-        return s
+        return $ s {
+            networkMessages = case H.lookup (peer, ch) networkMessages of
+              Nothing -> H.insert (peer, ch) (S.singleton p) networkMessages
+              Just ps -> H.insert (peer, ch) (ps S.|> p) networkMessages
+          }
