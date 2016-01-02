@@ -1,9 +1,11 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Game.GoreAndAsh.Actor.Module(
     ActorT(..)
   ) where
 
 import Control.Monad.Fix 
 import Control.Monad.State.Strict
+import qualified Data.HashMap.Strict as H 
 
 import Game.GoreAndAsh
 import Game.GoreAndAsh.Actor.State
@@ -22,7 +24,9 @@ instance GameModule m s => GameModule (ActorT s m) (ActorState s) where
   newModuleState = do
     s <- newModuleState
     return $ ActorState {
-        actorNextState = s
+        actorBoxes = H.empty
+      , actorNextId = 0
+      , actorNextState = s
       }
 
   withModule _ = id

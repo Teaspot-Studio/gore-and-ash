@@ -4,5 +4,6 @@ module Game.GoreAndAsh.Actor(
 
 import Game.GoreAndAsh.Actor.API as X
 import Game.GoreAndAsh.Actor.Indexed as X
+import Game.GoreAndAsh.Actor.Message as X
 import Game.GoreAndAsh.Actor.Module as X
 import Game.GoreAndAsh.Actor.State as X

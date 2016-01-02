@@ -6,7 +6,7 @@ module Game.GoreAndAsh.Core.Monad(
   , GameModule(..)
   , IOState
   , IdentityState
-  , ModuleStack(..)
+  , ModuleStack
   ) where
 
 import Control.DeepSeq

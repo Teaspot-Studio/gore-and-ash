@@ -10,7 +10,6 @@ import Control.DeepSeq
 import Data.Hashable
 import Foreign
 import GHC.Generics (Generic)
-import Network.ENet
 import qualified Data.HashMap.Strict as H 
 import qualified Data.Sequence as S
 import qualified Network.ENet.Bindings as B

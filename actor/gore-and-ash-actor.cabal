@@ -17,6 +17,7 @@ library
   exposed-modules:     Game.GoreAndAsh.Actor
                        Game.GoreAndAsh.Actor.API
                        Game.GoreAndAsh.Actor.Indexed
+                       Game.GoreAndAsh.Actor.Message
                        Game.GoreAndAsh.Actor.Module
                        Game.GoreAndAsh.Actor.State
 
@@ -27,13 +28,16 @@ library
                      , deepseq >= 1.4
                      , mtl >= 2.2
                      , netwire >= 5.0.1
+                     , unordered-containers >= 0.2.5.1
+                     , containers >= 0.5.6.2
 
   default-extensions:  
+                       BangPatterns
                        DeriveGeneric
+                       FlexibleContexts
                        FlexibleInstances
                        GeneralizedNewtypeDeriving
                        MultiParamTypeClasses
-                       OverlappingInstances
                        RecordWildCards
                        TypeFamilies
                        UndecidableInstances
