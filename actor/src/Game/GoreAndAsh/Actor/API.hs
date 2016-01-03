@@ -173,11 +173,11 @@ runActor' actor = arr fst . runActor actor
 
 -- | Helper to create stateful actors, same as @stateWire@
 stateActor :: (ActorMonad m, MonadFix m, ActorMessage i, Typeable (ActorMessageType i))
-  => b -- ^ Inital value of state
+  => (i -> b) -- ^ Inital value of state
   -> (i -> b -> ActorMessageType i -> b) -- ^ Handler for messages
   -> (i -> GameWire m (a, b) b) -- ^ Handler that transforms current state
   -> GameActor m i a b -- ^ Resulting actor incapsulating @b@ in itself
-stateActor bi f w = makeActor $ \i -> stateWire bi $ proc (a, b) -> do 
+stateActor bi f w = makeActor $ \i -> stateWire (bi i) $ proc (a, b) -> do 
   b' <- actorProcessMessages i (f i) -< b
   w i -< (a, b')
 

@@ -20,7 +20,8 @@ import Game.GoreAndAsh.Logging
 import Game.GoreAndAsh.Network
 
 data Player = Player {
-  playerPos :: !(V2 Float)
+  playerId :: !PlayerId
+, playerPos :: !(V2 Float)
 , playerColor :: !(V3 Float) 
 , playerRot :: !Float
 , playerPeer :: !Peer 
@@ -28,7 +29,7 @@ data Player = Player {
 
 instance NFData Player 
 
-newtype PlayerId = PlayerId { unPlayerId :: Int } deriving Generic 
+newtype PlayerId = PlayerId { unPlayerId :: Int } deriving (Eq, Show, Generic)
 instance NFData PlayerId 
 
 data PlayerMessage = PlayerMessageStub deriving (Typeable, Generic)
@@ -39,7 +40,7 @@ instance ActorMessage PlayerId where
   toCounter = unPlayerId
   fromCounter = PlayerId 
 
-playerWire :: Player -> AppActor PlayerId a Player 
+playerWire :: (PlayerId -> Player) -> AppActor PlayerId a Player 
 playerWire initialPlayer = stateActor initialPlayer process $ \_ -> proc (_, p) -> do 
   -- traceEvent (pack . show) . keyPressed Key'W -< ()
   traceEvent (pack . show) . mouseButtonPressed MouseButton'1 -< ()

@@ -3,6 +3,7 @@ module Game.GoreAndAsh.Actor(
   ) where
 
 import Game.GoreAndAsh.Actor.API as X
+import Game.GoreAndAsh.Actor.Collection as X
 import Game.GoreAndAsh.Actor.Indexed as X
 import Game.GoreAndAsh.Actor.Message as X
 import Game.GoreAndAsh.Actor.Module as X

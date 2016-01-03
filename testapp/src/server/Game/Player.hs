@@ -2,11 +2,12 @@ module Game.Player(
     Player(..)
   , PlayerId(..)
   , PlayerMessage
-  , playerWire
+  , playerActor
   ) where
 
 import Control.DeepSeq
 import Control.Wire
+import Data.Hashable
 import Data.Typeable 
 import GHC.Generics (Generic)
 import Linear
@@ -20,15 +21,18 @@ import Game.GoreAndAsh.Network
 import qualified Data.ByteString as BS
 
 data Player = Player {
-  playerPos :: !(V2 Float)
+  playerId :: !PlayerId
+, playerPos :: !(V2 Float)
 , playerColor :: !(V3 Float) 
 , playerRot :: !Float  
+, playerPeer :: !Peer
 } deriving (Generic)
 
 instance NFData Player 
 
-newtype PlayerId = PlayerId { unPlayerId :: Int } deriving Generic 
+newtype PlayerId = PlayerId { unPlayerId :: Int } deriving (Eq, Show, Generic) 
 instance NFData PlayerId 
+instance Hashable PlayerId 
 
 data PlayerMessage = PlayerMessageStub deriving (Typeable, Generic)
 instance NFData PlayerMessage 
@@ -38,8 +42,8 @@ instance ActorMessage PlayerId where
   toCounter = unPlayerId
   fromCounter = PlayerId 
 
-playerWire :: Player -> AppActor PlayerId a Player 
-playerWire initialPlayer = stateActor initialPlayer process $ \_ -> proc (_, p) -> do 
+playerActor :: (PlayerId -> Player) -> AppActor PlayerId a Player 
+playerActor initialPlayer = stateActor initialPlayer process $ \_ -> proc (_, p) -> do 
   peers <- peersConnected -< ()
   rSwitch (pure ()) -< ((), peersWire <$> peers)
 

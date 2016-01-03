@@ -46,7 +46,10 @@ executable gore-and-ash-client
                      , text >= 1.2.1
                      , network >= 2.6.2.1
                      , bytestring >= 0.10.6.0
-                     
+                     , text-show >= 2
+                     , unordered-containers >= 0.2.5.1
+                     , hashable >= 1.2.3.3
+
   default-extensions:  
                        Arrows
                        DataKinds
@@ -88,6 +91,9 @@ executable gore-and-ash-server
                      , text >= 1.2.1
                      , network >= 2.6.2.1
                      , bytestring >= 0.10.6.0
+                     , text-show >= 2
+                     , unordered-containers >= 0.2.5.1
+                     , hashable >= 1.2.3.3
 
   default-extensions:  
                        Arrows
@@ -100,6 +106,7 @@ executable gore-and-ash-server
                        OverloadedStrings
                        RankNTypes
                        RecordWildCards
+                       ScopedTypeVariables
                        TypeFamilies
                        
   ghc-options: -O2 -Wall -Werror -threaded

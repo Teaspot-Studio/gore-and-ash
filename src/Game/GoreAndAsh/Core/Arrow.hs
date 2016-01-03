@@ -15,6 +15,8 @@ module Game.GoreAndAsh.Core.Arrow(
   , once'
   , mapE
   , filterE
+  , filterJustE
+  , filterJustLE
   , liftGameMonadEvent1
   -- | Helpers
   , stateWire
@@ -23,9 +25,11 @@ module Game.GoreAndAsh.Core.Arrow(
 import Control.Monad.Fix
 import Control.Wire
 import Control.Wire.Unsafe.Event
+import Data.Maybe (fromJust, isJust)
+import Prelude hiding (id, (.))
+
 import Game.GoreAndAsh.Core.Monad
 import Game.GoreAndAsh.Core.Session
-import Prelude hiding (id, (.))
 
 -- | Game wire with given API @m@ and input value @a@ and output value @b@
 type GameWire m a b = Wire GameTime () (GameMonadT m) a b
@@ -113,6 +117,14 @@ mapE :: Monad m => (a -> b) -> GameWire m (Event a) (Event b)
 mapE f = arr $ \e -> case e of 
   NoEvent -> NoEvent
   Event a -> Event $ f a 
+
+-- | Filters only Just events
+filterJustE :: Monad m => GameWire m (Event (Maybe a)) (Event a)
+filterJustE = mapE fromJust . filterE isJust
+
+-- | Filters only Just events in foldable struct
+filterJustLE :: Monad m => GameWire m (Event [Maybe a]) (Event [a])
+filterJustLE = mapE (fmap fromJust . filter isJust)
 
 -- | Lifting game monad action to event processing arrow
 liftGameMonadEvent1 :: Monad m => (a -> GameMonadT m b) -> GameWire m (Event a) (Event b)

@@ -18,14 +18,15 @@ import Game.GoreAndAsh.Actor
 import Game.GoreAndAsh.GLFW
 
 data Camera = Camera {
-  cameraPos :: !(V2 Float)
+  cameraId :: !CameraId
+, cameraPos :: !(V2 Float)
 , cameraRot :: !Float 
 , cameraZoom :: !Float
 } deriving (Generic)
 
 instance NFData Camera 
 
-newtype CameraId = CameraId { unCameraId :: Int } deriving Generic 
+newtype CameraId = CameraId { unCameraId :: Int } deriving (Eq, Show, Generic)
 instance NFData CameraId 
 
 data CameraMessage = CameraMessageStub deriving (Typeable, Generic)
@@ -36,7 +37,7 @@ instance ActorMessage CameraId where
   toCounter = unCameraId
   fromCounter = CameraId 
 
-cameraWire :: Camera -> AppActor CameraId a Camera 
+cameraWire :: (CameraId -> Camera) -> AppActor CameraId a Camera 
 cameraWire initialCamera = stateActor initialCamera process $ \_ -> proc (_, c) -> do 
   c2 <- moveCamera (V2 0 (-0.1)) Key'W 
     . moveCamera (V2 0 0.1) Key'S 
