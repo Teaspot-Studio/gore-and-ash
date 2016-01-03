@@ -7,7 +7,6 @@ import Control.Monad.Extra (whenJust)
 import Control.Monad.Fix
 import Control.Monad.State.Strict
 import Game.GoreAndAsh
-import Game.GoreAndAsh.Network.Message
 import Game.GoreAndAsh.Network.State
 import Network.ENet
 import Network.ENet.Host 
@@ -94,12 +93,11 @@ processNetEvents nst hst = liftIO $ untilNothing nst (service hst 0) handle
             networkDisconnectedPeers = peer : networkDisconnectedPeers
           }
       B.Receive -> do 
-        p@(Packet fs bs) <- peek packetPtr
-        let msg = packetToMessage p
+        (Packet fs bs) <- peek packetPtr
         when networkDetailedLogging $ putStrLn $ "Network: Received message at channel " ++ show ch ++ ": "
           ++ show fs ++ ", payload: " ++ show bs
         return $ s {
             networkMessages = case H.lookup (peer, ch) networkMessages of
-              Nothing -> H.insert (peer, ch) (S.singleton msg) networkMessages
-              Just msgs -> H.insert (peer, ch) (msgs S.|> msg) networkMessages
+              Nothing -> H.insert (peer, ch) (S.singleton bs) networkMessages
+              Just msgs -> H.insert (peer, ch) (msgs S.|> bs) networkMessages
           }

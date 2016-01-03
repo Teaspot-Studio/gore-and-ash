@@ -10,6 +10,7 @@ module Game.GoreAndAsh.Network.API(
   ) where
 
 import Control.DeepSeq 
+import Control.Exception (bracket)
 import Control.Monad.State.Strict
 import Control.Wire.Core 
 import Control.Wire.Unsafe.Event 
@@ -26,10 +27,10 @@ import Network.ENet.Host
 import Network.ENet.Packet as P
 import Network.ENet.Peer
 import Network.Socket (SockAddr)
+import qualified Data.ByteString as BS 
 import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as H 
 import qualified Data.Sequence as S 
-import Control.Exception (bracket)
 
 class MonadIO m => NetworkMonad m where
   -- | Start listening for messages, should be called once
@@ -53,7 +54,7 @@ class MonadIO m => NetworkMonad m where
     -> m (Maybe ())
 
   -- | Returns received packets for given peer and channel
-  peerMessagesM :: Peer -> ChannelID -> m (S.Seq Message)
+  peerMessagesM :: Peer -> ChannelID -> m (S.Seq BS.ByteString)
 
   -- | Sends a packet to given peer on given channel
   peerSendM :: Peer -> ChannelID -> Message -> m ()
@@ -156,12 +157,13 @@ currentPeers :: (LoggingMonad m, NetworkMonad m) => GameWire m a [Peer]
 currentPeers = liftGameMonad networkPeersM
 
 -- | Returns sequence of packets that were recieved during last frame from given peer and channel id
-peerMessages :: (LoggingMonad m, NetworkMonad m) => Peer -> ChannelID -> GameWire m a (Event [Message]) 
+peerMessages :: (LoggingMonad m, NetworkMonad m) => Peer -> ChannelID -> GameWire m a (Event [BS.ByteString]) 
 peerMessages p ch = mkGen_ $ \_ -> do 
   msgs <- peerMessagesM p ch
   return $! if S.null msgs 
     then Right NoEvent
-    else let msgs' = F.toList msgs in msgs' `deepseq` Right (Event msgs')
+    else let msgs' = F.toList msgs 
+      in msgs' `deepseq` Right (Event msgs')
 
 -- | Send message to given peer with given channel id
 peerSend :: (LoggingMonad m, NetworkMonad m) => Peer -> ChannelID -> GameWire m (Event Message) (Event ())

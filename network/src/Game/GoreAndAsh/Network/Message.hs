@@ -2,7 +2,6 @@ module Game.GoreAndAsh.Network.Message(
     Message(..)
   , MessageType(..)
   , messageToPacket
-  , packetToMessage
   ) where
 
 import Control.DeepSeq
@@ -19,7 +18,6 @@ data MessageType =
   | UnsequencedMessage -- ^ Unreliable and unsequenced (not sort while receiving)
   | UnreliableFragmentedMessage -- ^ Unreliable, sequenced sent with fragments sent within unreliable method
   | UnsequencedFragmentedMessage -- ^ Unreliable, unsequenced with fragments sent within unreliable method
-  | ReceivedMessage -- ^ Message type is dropped as it is incoming message
   deriving (Eq, Ord, Bounded, Enum, Show, Generic)
 
 instance NFData MessageType 
@@ -32,7 +30,6 @@ messageTypeToBits t = case t of
   UnsequencedFragmentedMessage -> B.UnreliableFragment `B.insert` B.singleton B.Unsequenced
   UnreliableMessage -> B.empty
   UnreliableFragmentedMessage -> B.singleton B.UnreliableFragment
-  ReceivedMessage -> B.empty
 
 -- | Message that has individual options about reliability 
 data Message = Message {
@@ -45,7 +42,3 @@ instance NFData Message
 -- | Convert message to internal ENet packet
 messageToPacket :: Message -> Packet 
 messageToPacket (Message mt p) = Packet (messageTypeToBits mt) p
-
--- | Convert arrived ENet packet to message type (not intended to use to send messages as message type is dropped)
-packetToMessage :: Packet -> Message 
-packetToMessage (Packet _ p) = Message ReceivedMessage p

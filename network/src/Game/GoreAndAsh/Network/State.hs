@@ -10,11 +10,10 @@ import Control.DeepSeq
 import Data.Hashable
 import Foreign
 import GHC.Generics (Generic)
+import qualified Data.ByteString as BS 
 import qualified Data.HashMap.Strict as H 
 import qualified Data.Sequence as S
 import qualified Network.ENet.Bindings as B
-
-import Game.GoreAndAsh.Network.Message 
 
 -- | Server side connection
 type Host = Ptr B.Host 
@@ -36,7 +35,7 @@ data NetworkState s = NetworkState {
 , networkPeers :: !(H.HashMap Peer ())
 , networkConnectedPeers :: ![Peer]
 , networkDisconnectedPeers :: ![Peer]
-, networkMessages :: !(H.HashMap (Peer, B.ChannelID) (S.Seq Message))
+, networkMessages :: !(H.HashMap (Peer, B.ChannelID) (S.Seq BS.ByteString))
 , networkDetailedLogging :: !Bool
 , networkNextState :: !s
 } deriving (Generic)
