@@ -6,6 +6,7 @@ import Data.Proxy
 import Game 
 import Game.Core
 import Game.GoreAndAsh
+import Game.GoreAndAsh.Actor
 import Game.GoreAndAsh.Network
 import Network.BSD (getHostByName, hostAddress)
 import Network.Socket (SockAddr(..))
@@ -14,7 +15,7 @@ import Data.IORef
 
 main :: IO ()
 main = withModule (Proxy :: Proxy AppMonad) $ do
-  gs <- newGameState mainWire
+  gs <- newGameState $ runActor' mainWire
   gsRef <- newIORef gs
   firstStep gs gsRef `onCtrlC` exitHandler gsRef
   where

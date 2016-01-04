@@ -3,10 +3,17 @@ module Game.RemotePlayer(
   , remotePlayerActor
   ) where
 
+import Control.Wire
 import Control.DeepSeq
 import GHC.Generics 
+import Linear
 
+import Game.Core
 import Game.Player 
+import Game.Player.Shared
+
+import Game.GoreAndAsh.Network 
+import Game.GoreAndAsh.Sync
 
 data RemotePlayer = RemotePlayer {
   remotePlayerId :: !PlayerId 
@@ -33,7 +40,7 @@ remotePlayerActor peer pid = actorMaker $ proc (_, p) -> do
       }
 
     process :: RemotePlayer -> PlayerMessage -> RemotePlayer 
-    process _ p = p 
+    process p _ = p 
 
     netProcess :: ChannelID -> RemotePlayer -> PlayerNetMessage -> RemotePlayer 
     netProcess _ p msg = case msg of 

@@ -2,6 +2,7 @@ module Game.GoreAndAsh.Core.State(
     GameState(..)
   , stepGame
   , newGameState
+  , newGameStateM
   , cleanupGameState
   ) where
 
@@ -69,6 +70,25 @@ newGameState wire = do
     , gameWire = wire 
     , gameContext = newGameContext
     , gameModuleState = moduleState
+    }
+
+-- | Creates new game state, monadic version that allows some
+-- initialization steps in game monad
+-- The function is helpful if you want to make an global actor from
+-- your main wire.
+newGameStateM :: (GameModule m s, MonadIO m') => 
+    GameMonadT m (GameWire m () a) -- ^ Action that makes wire to execute
+  -> m' (GameState m s a)
+newGameStateM mwire = do 
+  moduleState <- newModuleState
+  let moduleAction = evalGameMonad mwire newGameContext
+      ioAction = runModule moduleAction moduleState
+  ((wire, gameContext'), moduleState') <- ioAction
+  return $! GameState {
+      gameSession = newGameSession
+    , gameWire = wire
+    , gameContext = gameContext'
+    , gameModuleState = moduleState'
     }
 
 -- | Cleanups resources that is holded in game state

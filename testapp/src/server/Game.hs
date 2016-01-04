@@ -14,6 +14,7 @@ import qualified Data.HashMap.Strict as H
 
 import Game.Core
 import Game.Player
+import Game.Shared
 
 import Game.GoreAndAsh
 import Game.GoreAndAsh.Actor 
@@ -24,19 +25,27 @@ type PlayerMap = H.HashMap PlayerId Player
 type PlayerPeerMap = H.HashMap Peer PlayerId 
 
 data Game = Game {
-  gamePlayers :: !PlayerMap
+  gameId :: !GameId
+, gamePlayers :: !PlayerMap
 , gamePlayerPeers :: !PlayerPeerMap
 } deriving (Generic)
 
 instance NFData Game 
 
-mainWire :: AppWire a Game
-mainWire = stateWire initGame $ proc (_, g) -> do 
+mainWire :: AppActor GameId a Game
+mainWire = actorMaker $ proc (_, g) -> do 
   forceNF . processPlayers -< g
   where 
+    -- | Static id of global game space
+    gid = GameId 0 
+
+    actorMaker = stateActorFixed gid initGame processMessages
+    processMessages g _ = g 
+
     -- | Game at start of the simulation
     initGame = Game {
-        gamePlayers = H.empty
+        gameId = gid
+      , gamePlayers = H.empty
       , gamePlayerPeers = H.empty
       }
 
