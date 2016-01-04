@@ -19,9 +19,9 @@ import Game.GoreAndAsh.GLFW
 
 data Camera = Camera {
   cameraId :: !CameraId
-, cameraPos :: !(V2 Float)
-, cameraRot :: !Float 
-, cameraZoom :: !Float
+, cameraPos :: !(V2 Double)
+, cameraRot :: !Double 
+, cameraZoom :: !Double
 } deriving (Generic)
 
 instance NFData Camera 
@@ -49,7 +49,7 @@ cameraWire initialCamera = stateActor initialCamera process $ \_ -> proc (_, c) 
     process :: CameraId -> Camera -> CameraMessage -> Camera 
     process _ c _ = c 
 
-    moveCamera :: V2 Float -> Key -> AppWire Camera Camera
+    moveCamera :: V2 Double -> Key -> AppWire Camera Camera
     moveCamera dv k = proc c -> do 
       e <- keyPressing k -< ()
       let newCam = c {
@@ -57,7 +57,7 @@ cameraWire initialCamera = stateActor initialCamera process $ \_ -> proc (_, c) 
           }
       returnA -< event c (const newCam) e
 
-    zoomCamera :: Float -> AppWire Camera Camera 
+    zoomCamera :: Double -> AppWire Camera Camera 
     zoomCamera z = proc c -> do 
       e <- mouseScrollY -< ()
       let newCam k = c {

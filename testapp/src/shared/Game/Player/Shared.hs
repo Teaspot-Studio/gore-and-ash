@@ -7,10 +7,10 @@ import Data.Serialize
 import GHC.Generics (Generic)
 
 data PlayerNetMessage = 
-    NetMsgPlayerPos !Float !Float
-  | NetMsgPlayerRot !Float
-  | NetMsgPlayerColor !Float !Float !Float
-  | NetMsgPlayerSpeed !Float
+    NetMsgPlayerPos !Double !Double
+  | NetMsgPlayerRot !Double
+  | NetMsgPlayerColor !Double !Double !Double
+  | NetMsgPlayerSpeed !Double
   deriving (Generic)
 
 instance NFData PlayerNetMessage

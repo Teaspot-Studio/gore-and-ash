@@ -15,17 +15,17 @@ renderGame Game{..} rs = rs {
 
 renderGameSquare :: GM.Player -> GR.Square os -> GR.Square os
 renderGameSquare p s = s {
-    GR.squarePos = GM.playerPos p
-  , GR.squareRot = GM.playerRot p
-  , GR.squareColor = GM.playerColor p
+    GR.squarePos = realToFrac <$> GM.playerPos p
+  , GR.squareRot = realToFrac $ GM.playerRot p
+  , GR.squareColor = realToFrac <$> GM.playerColor p
   , GR.squareDirty = True
   } 
 
 renderGameCamera :: GM.Camera -> GR.Camera os -> GR.Camera os
 renderGameCamera gc c = c {
-    GR.cameraPos = GM.cameraPos gc
-  , GR.cameraRot = GM.cameraRot gc
-  , GR.cameraZoom = GM.cameraZoom gc
+    GR.cameraPos = realToFrac <$> GM.cameraPos gc
+  , GR.cameraRot = realToFrac $ GM.cameraRot gc
+  , GR.cameraZoom = realToFrac $ GM.cameraZoom gc
   , GR.cameraDirty = True
   } 
 

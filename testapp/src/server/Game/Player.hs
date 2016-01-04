@@ -25,9 +25,9 @@ import qualified Data.ByteString as BS
 
 data Player = Player {
   playerId :: !PlayerId
-, playerPos :: !(V2 Float)
-, playerColor :: !(V3 Float) 
-, playerRot :: !Float  
+, playerPos :: !(V2 Double)
+, playerColor :: !(V3 Double) 
+, playerRot :: !Double  
 , playerPeer :: !Peer
 } deriving (Generic)
 

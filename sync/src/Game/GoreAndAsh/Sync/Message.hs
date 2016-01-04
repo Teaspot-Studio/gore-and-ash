@@ -24,7 +24,7 @@ import qualified Data.Foldable as F
 import Game.GoreAndAsh
 import Game.GoreAndAsh.Actor
 import Game.GoreAndAsh.Logging
-import Game.GoreAndAsh.Network 
+import Game.GoreAndAsh.Network
 
 -- | Extension for actor message, messages that are sent to remote host
 class ActorMessage i => NetworkMessage i where
@@ -50,11 +50,9 @@ peerIndexedMessages p chid i = filterE (not . null)
       Right m -> Just m
 
     hasId :: BS.ByteString -> Bool
-    hasId bs 
-      | BS.length bs < 8 = False
-      | otherwise = case decode $ BS.take 8 bs of
-        Left _ -> False 
-        Right (w64 :: Word64) -> fromIntegral w64 == toCounter i
+    hasId bs = case decode bs of
+      Left _ -> False 
+      Right (w64 :: Word64, _ :: BS.ByteString) -> fromIntegral w64 == toCounter i
 
 -- | Encodes a message for specific actor type and send it to remote host
 -- Note: mid-level API is not safe to use with low-level at same time as
@@ -69,7 +67,7 @@ peerSendIndexedM :: (NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize
   -> m ()
 peerSendIndexedM p chid i mt msg = do 
   let w64 = fromIntegral (toCounter i) :: Word64
-      msg' = Message mt $ encode w64 <> encode msg
+      msg' = Message mt $ encode (w64, encode msg)
   peerSendM p chid msg'
 
 -- | Encodes a message for specific actor type and send it to remote host, arrow version

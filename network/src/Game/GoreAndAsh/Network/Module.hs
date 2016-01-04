@@ -93,7 +93,7 @@ processNetEvents nst hst = liftIO $ untilNothing nst (service hst 0) handle
             networkDisconnectedPeers = peer : networkDisconnectedPeers
           }
       B.Receive -> do 
-        (Packet fs bs) <- peek packetPtr
+        (Packet !fs !bs) <- peek packetPtr
         when networkDetailedLogging $ putStrLn $ "Network: Received message at channel " ++ show ch ++ ": "
           ++ show fs ++ ", payload: " ++ show bs
         return $ s {

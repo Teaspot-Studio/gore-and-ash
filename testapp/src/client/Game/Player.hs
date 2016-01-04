@@ -25,10 +25,10 @@ import Game.Player.Shared
 
 data Player = Player {
   playerId :: !PlayerId
-, playerPos :: !(V2 Float)
-, playerColor :: !(V3 Float) 
-, playerRot :: !Float
-, playerSpeed :: !Float
+, playerPos :: !(V2 Double)
+, playerColor :: !(V3 Double) 
+, playerRot :: !Double
+, playerSpeed :: !Double
 , playerPeer :: !Peer 
 } deriving (Generic)
 
@@ -78,7 +78,7 @@ playerWire initialPlayer = actorMaker $ \i -> proc (_, p) -> do
       . movePlayer pid peer (V2 0 1) Key'Down
       . movePlayer pid peer (V2 0 (-1)) Key'Up
 
-    movePlayer :: PlayerId -> Peer -> V2 Float -> Key -> AppWire Player Player
+    movePlayer :: PlayerId -> Peer -> V2 Double -> Key -> AppWire Player Player
     movePlayer pid peer dv k = proc p -> do 
       e <- keyPressing k -< ()
       let newPlayer = p {

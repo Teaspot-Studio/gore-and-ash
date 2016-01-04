@@ -10,10 +10,9 @@ module Game.GoreAndAsh.Network.API(
   ) where
 
 import Control.DeepSeq 
-import Control.Exception (bracket)
 import Control.Monad.State.Strict
 import Control.Wire.Core 
-import Control.Wire.Unsafe.Event 
+import Control.Wire.Unsafe.Event
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Data.Text
@@ -30,7 +29,7 @@ import Network.Socket (SockAddr)
 import qualified Data.ByteString as BS 
 import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as H 
-import qualified Data.Sequence as S 
+import qualified Data.Sequence as S
 
 class MonadIO m => NetworkMonad m where
   -- | Start listening for messages, should be called once
@@ -107,8 +106,7 @@ instance {-# OVERLAPPING #-} MonadIO m => NetworkMonad (NetworkT s m) where
     msgs <- networkMessages <$> NetworkT get
     return . fromMaybe S.empty $! H.lookup (peer, ch) msgs
 
-  peerSendM peer ch msg = liftIO $ bracket (P.poke p) P.destroy $ send peer ch
-    where p = messageToPacket msg
+  peerSendM peer ch msg = liftIO $ send peer ch =<< P.poke (messageToPacket msg)
 
   networkPeersM = do 
     NetworkState{..} <- NetworkT get 

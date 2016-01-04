@@ -49,3 +49,4 @@ library
                        TypeFamilies
                        TypeSynonymInstances
                        UndecidableInstances
+                       BangPatterns
