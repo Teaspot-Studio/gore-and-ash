@@ -5,6 +5,7 @@ module Game.Core(
   ) where
 
 import Control.DeepSeq
+import Control.Monad.Catch
 import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Control.Wire
@@ -27,7 +28,7 @@ instance NFData AppState
 
 -- | Wrapper around type family
 newtype AppMonad a = AppMonad (AppStack a)
-  deriving (Functor, Applicative, Monad, MonadFix, MonadIO, MonadGLFWInput, LoggingMonad, NetworkMonad, ActorMonad)
+  deriving (Functor, Applicative, Monad, MonadFix, MonadIO, MonadGLFWInput, LoggingMonad, NetworkMonad, ActorMonad, MonadCatch, MonadThrow)
 
 instance GameModule AppMonad AppState where 
   type ModuleState AppMonad = AppState

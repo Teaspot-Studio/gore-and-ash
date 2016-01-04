@@ -27,6 +27,7 @@ executable gore-and-ash-client
                        Game.Core
                        Game.Player
                        Game.Player.Shared
+                       Game.RemotePlayer
                        Render
                        
   build-depends:       base >= 4.7 && < 5
@@ -52,6 +53,7 @@ executable gore-and-ash-client
                      , unordered-containers >= 0.2.5.1
                      , hashable >= 1.2.3.3
                      , cereal >= 0.4.1.1
+                     , exceptions >= 0.8.0.2
 
   default-extensions:  
                        Arrows
@@ -100,7 +102,8 @@ executable gore-and-ash-server
                      , unordered-containers >= 0.2.5.1
                      , hashable >= 1.2.3.3
                      , cereal >= 0.4.1.1
-
+                     , exceptions >= 0.8.0.2
+                     
   default-extensions:  
                        Arrows
                        DataKinds

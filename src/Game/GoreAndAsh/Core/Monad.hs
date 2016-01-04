@@ -10,6 +10,7 @@ module Game.GoreAndAsh.Core.Monad(
   ) where
 
 import Control.DeepSeq
+import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Control.Monad.State.Strict
 import Data.Functor.Identity
@@ -22,7 +23,7 @@ import GHC.Generics (Generic)
 -- be included in inner `m` monad.
 newtype GameMonadT m a = GameMonadT { 
   runGameMonadT :: StateT GameContext m a
-}
+} deriving (MonadThrow, MonadCatch, MonadMask)
 
 -- | Data that is accessable to objects during
 -- game simulation step.

@@ -31,7 +31,8 @@ library
                      , hashable >= 1.2.3
                      , extra >= 1.4.2
                      , netwire >= 5.0.1
-
+                     , exceptions >= 0.8.0.2
+                     
   default-extensions:  
                        BangPatterns
                        DeriveGeneric

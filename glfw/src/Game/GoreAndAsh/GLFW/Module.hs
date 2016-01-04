@@ -4,6 +4,7 @@ module Game.GoreAndAsh.GLFW.Module(
   ) where
 
 import Control.Concurrent.STM
+import Control.Monad.Catch
 import Control.Monad.Extra
 import Control.Monad.IO.Class
 import Control.Monad.Fix 
@@ -16,7 +17,7 @@ import Game.GoreAndAsh.GLFW.State
 
 -- | Monad transformer that handles GLFW specific API
 newtype GLFWInputT s m a = GLFWInputT { runGLFWInputT :: StateT (GLFWState s) m a }
-  deriving (Functor, Applicative, Monad, MonadState (GLFWState s), MonadFix)
+  deriving (Functor, Applicative, Monad, MonadState (GLFWState s), MonadFix, MonadThrow, MonadCatch, MonadMask)
 
 instance GameModule m s => GameModule (GLFWInputT s m) (GLFWState s) where 
   type ModuleState (GLFWInputT s m) = GLFWState s

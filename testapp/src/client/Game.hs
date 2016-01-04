@@ -53,7 +53,7 @@ mainWire = waitConnection
       rSwitch (playGame peer) -< (a, const disconnected <$> e)
 
     playGame peer = Just <$> (Game
-      <$> runActor' (playerWire $ initialPlayer peer)
+      <$> runActor' (playerActor $ initialPlayer peer)
       <*> runActor' (cameraWire initialCamera))
 
     disconnected = pure Nothing

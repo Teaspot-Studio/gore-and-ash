@@ -1,5 +1,6 @@
 module Game.GoreAndAsh.Actor.API(
     ActorMonad(..)
+  , ActorException(..)
   -- | Message API
   , actorSend
   , actorSendMany
@@ -14,13 +15,17 @@ module Game.GoreAndAsh.Actor.API(
   , runActor'
   , stateActor
   , stateActorM
+  , stateActorFixed
+  , stateActorFixedM
   ) where
 
+import Control.Monad.Catch
 import Control.Monad.Fix 
 import Control.Monad.State.Strict
 import Control.Wire
 import Data.Dynamic
 import Data.Maybe (isJust, catMaybes)
+import GHC.Generics 
 import Prelude hiding (id, (.))
 import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as H 
@@ -32,10 +37,20 @@ import Game.GoreAndAsh.Actor.Message
 import Game.GoreAndAsh.Actor.Module
 import Game.GoreAndAsh.Actor.State
 
+-- | Exceptions thrown by ActorMonad
+data ActorException = 
+  ActorIdConflict Int -- ^ Tried to register already presented actor
+  deriving (Show, Generic)
+
+instance Exception ActorException
+
 -- | Low level API for module
-class Monad m => ActorMonad m where 
+class MonadThrow m => ActorMonad m where 
   -- | Registers new actor in message system
   actorRegisterM :: ActorMessage i => m i 
+  
+  -- | Registers specific id, throws ActorException if there is id clash
+  actorRegisterFixedM :: ActorMessage i => i -> m ()
 
   -- | Deletes actor with given id
   actorDeleteM :: ActorMessage i => i -> m ()
@@ -52,7 +67,7 @@ class Monad m => ActorMonad m where
   actorGetMessagesM :: (ActorMessage i, Typeable (ActorMessageType i))
     => i -> m [ActorMessageType i]
 
-instance {-# OVERLAPPING #-} Monad m => ActorMonad (ActorT s m) where
+instance {-# OVERLAPPING #-} MonadThrow m => ActorMonad (ActorT s m) where
   actorRegisterM = do 
     astate <- ActorT get 
     let (i, astate') = pushActorNextId astate 
@@ -60,6 +75,15 @@ instance {-# OVERLAPPING #-} Monad m => ActorMonad (ActorT s m) where
         actorBoxes = H.insert i S.empty $! actorBoxes astate'
       }
     return $! fromCounter i 
+
+  actorRegisterFixedM i = do 
+    astate <- ActorT get
+    let c = toCounter i
+    case H.lookup c (actorBoxes astate) of 
+      Just _ -> throwM . ActorIdConflict $! c
+      Nothing -> ActorT . put $! astate {
+          actorBoxes = H.insert c S.empty $! actorBoxes astate
+        }
 
   actorDeleteM i = do 
     astate <- ActorT get 
@@ -89,8 +113,9 @@ instance {-# OVERLAPPING #-} Monad m => ActorMonad (ActorT s m) where
         }
         return . catMaybes . F.toList $! fromDynamic <$> msgs
 
-instance {-# OVERLAPPABLE #-} (Monad (mt m), ActorMonad m, MonadTrans mt) => ActorMonad (mt m) where 
+instance {-# OVERLAPPABLE #-} (MonadThrow (mt m), ActorMonad m, MonadTrans mt) => ActorMonad (mt m) where 
   actorRegisterM = lift actorRegisterM
+  actorRegisterFixedM = lift . actorRegisterFixedM
   actorDeleteM = lift . actorDeleteM
   actorRegisteredM = lift . actorRegisteredM
   actorSendM a b = lift $ actorSendM a b
@@ -142,16 +167,15 @@ makeActor wbody = do
   i <- actorRegisterM
   return $! GameWireIndexed i (wbody i)
 
--- | Registers new actor with fixed id, can fail if there is already registered actor 
--- for that id
+-- | Registers new actor with fixed id, can fail with ActorException if there is already 
+-- registered actor for that id
 makeFixedActor :: (ActorMonad m, ActorMessage i) 
   => i -- ^ Manual id of actor
-  -> (i -> GameWire m a b) -- ^ Body wire
-  -> GameMonadT m (Maybe (GameWireIndexed m i a b)) -- ^ Operation that makes actual actor
+  -> GameWire m a b -- ^ Body wire
+  -> GameActor m i a b -- ^ Operation that makes actual actor
 makeFixedActor i wbody = do 
-  f <- actorRegisteredM i
-  return $! if f then Nothing
-    else Just $! GameWireIndexed i (wbody i)
+  actorRegisterFixedM i
+  return $! GameWireIndexed i wbody
 
 -- | If need no dynamic switching, you can use the function to embed index wire just at time
 runActor :: ActorMonad m 
@@ -183,10 +207,32 @@ stateActor bi f w = makeActor $ \i -> stateWire (bi i) $ proc (a, b) -> do
 
 -- | Helper to create stateful actors, same as @stateWire@, monadic version of @stateActor@
 stateActorM :: (ActorMonad m, MonadFix m, ActorMessage i, Typeable (ActorMessageType i))
-  => b -- ^ Inital value of state
+  => (i -> b) -- ^ Inital value of state
   -> (i -> b -> ActorMessageType i -> GameMonadT m b) -- ^ Handler for messages
   -> (i -> GameWire m (a, b) b) -- ^ Handler that transforms current state
   -> GameActor m i a b -- ^ Resulting actor incapsulating @b@ in itself
-stateActorM bi f w = makeActor $ \i -> stateWire bi $ proc (a, b) -> do 
+stateActorM bi f w = makeActor $ \i -> stateWire (bi i) $ proc (a, b) -> do 
   b' <- actorProcessMessagesM i (f i) -< b
   w i -< (a, b')
+
+-- | Helper to create stateful actors, same as @stateWire@
+stateActorFixed :: (ActorMonad m, MonadFix m, ActorMessage i, Typeable (ActorMessageType i))
+  => i -- ^ Fixed id
+  -> b -- ^ Inital value of state
+  -> (b -> ActorMessageType i -> b) -- ^ Handler for messages
+  -> GameWire m (a, b) b -- ^ Handler that transforms current state
+  -> GameActor m i a b -- ^ Resulting actor incapsulating @b@ in itself
+stateActorFixed i bi f w = makeFixedActor i $ stateWire bi $ proc (a, b) -> do 
+  b' <- actorProcessMessages i f -< b
+  w -< (a, b')
+
+-- | Helper to create stateful actors, same as @stateWire@, monadic version
+stateActorFixedM :: (ActorMonad m, MonadFix m, ActorMessage i, Typeable (ActorMessageType i))
+  => i -- ^ Fixed id
+  -> b -- ^ Inital value of state
+  -> (b -> ActorMessageType i -> GameMonadT m b) -- ^ Handler for messages, monadic
+  -> GameWire m (a, b) b -- ^ Handler that transforms current state
+  -> GameActor m i a b -- ^ Resulting actor incapsulating @b@ in itself
+stateActorFixedM i bi f w = makeFixedActor i $ stateWire bi $ proc (a, b) -> do 
+  b' <- actorProcessMessagesM i f -< b
+  w -< (a, b')

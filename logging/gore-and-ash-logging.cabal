@@ -29,7 +29,8 @@ library
                      , text-show >= 2 
                      , netwire >= 5.0.1
                      , transformers >= 0.4.2
-
+                     , exceptions >= 0.8.0.2
+                     
   default-extensions:  
                        DataKinds
                        DeriveGeneric

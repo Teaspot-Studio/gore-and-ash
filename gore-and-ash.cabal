@@ -27,12 +27,14 @@ library
                      , transformers >= 0.4
                      , netwire >= 5.0.1
                      , deepseq >= 1.4
+                     , exceptions >= 0.8.0.2
 
   default-extensions:  Arrows
                        DataKinds
                        DeriveGeneric
                        FlexibleInstances
                        FunctionalDependencies
+                       GeneralizedNewtypeDeriving
                        MultiParamTypeClasses
                        RecordWildCards
                        ScopedTypeVariables

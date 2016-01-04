@@ -3,6 +3,7 @@ module Game.GoreAndAsh.Logging.Module(
     LoggingT(..)
   ) where
 
+import Control.Monad.Catch
 import Control.Monad.Fix 
 import Control.Monad.State.Strict
 import qualified Data.Sequence as S
@@ -12,7 +13,7 @@ import Game.GoreAndAsh
 import Game.GoreAndAsh.Logging.State
 
 newtype LoggingT s m a = LoggingT { runLoggingT :: StateT (LoggingState s) m a }
-  deriving (Functor, Applicative, Monad, MonadState (LoggingState s), MonadFix, MonadTrans, MonadIO)
+  deriving (Functor, Applicative, Monad, MonadState (LoggingState s), MonadFix, MonadTrans, MonadIO, MonadThrow, MonadCatch, MonadMask)
 
 instance GameModule m s => GameModule (LoggingT s m) (LoggingState s) where 
   type ModuleState (LoggingT s m) = LoggingState s

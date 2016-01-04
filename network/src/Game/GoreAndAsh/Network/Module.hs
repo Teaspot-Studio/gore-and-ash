@@ -3,6 +3,7 @@ module Game.GoreAndAsh.Network.Module(
     NetworkT(..)
   ) where
 
+import Control.Monad.Catch
 import Control.Monad.Extra (whenJust)
 import Control.Monad.Fix
 import Control.Monad.State.Strict
@@ -18,7 +19,7 @@ import qualified Data.Sequence as S
 import qualified Network.ENet.Bindings as B 
 
 newtype NetworkT s m a = NetworkT { runNetworkT :: StateT (NetworkState s) m a }
-  deriving (Functor, Applicative, Monad, MonadState (NetworkState s), MonadFix, MonadTrans, MonadIO)
+  deriving (Functor, Applicative, Monad, MonadState (NetworkState s), MonadFix, MonadTrans, MonadIO, MonadThrow, MonadCatch, MonadMask)
 
 instance GameModule m s => GameModule (NetworkT s m) (NetworkState s) where
   type ModuleState (NetworkT s m) = NetworkState s
@@ -68,7 +69,7 @@ instance GameModule m s => GameModule (NetworkT s m) (NetworkState s) where
 
 -- | Poll all events from ENet
 processNetEvents :: MonadIO m => NetworkState s -> Host -> m (NetworkState s)
-processNetEvents nst hst = liftIO $ untilNothing nst (service hst 0) handle
+processNetEvents nst hst = liftIO $ untilNothing nst (service hst 0) handleEvent
   where
     untilNothing acc f h = do 
       ma <- f 
@@ -78,7 +79,7 @@ processNetEvents nst hst = liftIO $ untilNothing nst (service hst 0) handle
           acc' <- h acc a
           untilNothing acc' f h
 
-    handle s@NetworkState{..} (B.Event et peer ch edata packetPtr) = case et of
+    handleEvent s@NetworkState{..} (B.Event et peer ch edata packetPtr) = case et of
       B.None -> do
         when networkDetailedLogging $ putStrLn "Network: Event none"
         return s

@@ -2,13 +2,12 @@ module Game.Player(
     Player(..)
   , PlayerId(..)
   , PlayerMessage(..)
-  , playerWire
+  , playerActor
   ) where
 
 import Control.DeepSeq
 import Control.Wire
 import Control.Wire.Unsafe.Event
---import Data.Text
 import Data.Typeable 
 import GHC.Generics (Generic)
 import Linear
@@ -17,7 +16,6 @@ import Prelude hiding (id, (.))
 import Game.Core
 import Game.GoreAndAsh.Actor
 import Game.GoreAndAsh.GLFW 
---import Game.GoreAndAsh.Logging
 import Game.GoreAndAsh.Network
 import Game.GoreAndAsh.Sync
 
@@ -48,14 +46,8 @@ instance ActorMessage PlayerId where
 instance NetworkMessage PlayerId where 
   type NetworkMessageType PlayerId = PlayerNetMessage
   
-playerWire :: (PlayerId -> Player) -> AppActor PlayerId a Player 
-playerWire initialPlayer = actorMaker $ \i -> proc (_, p) -> do 
-  -- traceEvent (pack . show) . keyPressed Key'W -< ()
-  --traceEvent (pack . show) . mouseButtonPressed MouseButton'1 -< ()
-  -- traceEvent (pack . show) . mousePositionChange -< ()
-  --traceEvent (pack . show) . windowSize -< ()
-  --traceEvent (pack . show) . mouseScroll -< ()
-
+playerActor :: (PlayerId -> Player) -> AppActor PlayerId a Player 
+playerActor initialPlayer = actorMaker $ \i -> proc (_, p) -> do 
   forceNF . controlPlayer i (playerPeer $ initialPlayer i) -< p
   where
     actorMaker = netStateActor initialPlayer process 
