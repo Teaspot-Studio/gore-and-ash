@@ -4,11 +4,18 @@ module Game.GoreAndAsh.Sync.Message(
   , peerSendIndexedM
   , peerSendIndexed
   , peerSendIndexedMany
+  , peerProcessIndexed
+  , peerProcessIndexedM
+  , netStateActor
+  , netStateActorM
   ) where
 
+import Control.Monad.Fix 
 import Control.Wire
+import Control.Wire.Unsafe.Event
 import Data.Maybe 
 import Data.Serialize
+import Data.Typeable 
 import Data.Word
 import Prelude hiding ((.), id)
 import qualified Data.ByteString as BS 
@@ -88,3 +95,51 @@ peerSendIndexedMany :: (NetworkMonad m, LoggingMonad m, NetworkMessage i, Serial
   -> MessageType -- ^ Strategy of the message (reliable, unordered etc.)
   -> GameWire m (Event (t (NetworkMessageType i))) (Event ())
 peerSendIndexedMany p chid i mt = liftGameMonadEvent1 . F.mapM_ $ peerSendIndexedM p chid i mt
+
+-- | Same as @peerIndexedMessages@, but transforms input state with given handler
+peerProcessIndexed :: (NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
+  => Peer -- ^ Which peer we are listening
+  -> ChannelID -- ^ Which channel we are listening
+  -> i -- ^ ID of actor
+  -> (a -> NetworkMessageType i -> a) -- ^ Handler of message
+  -> GameWire m a a -- ^ Updates @a@ with given handler for messages
+peerProcessIndexed p chid i f = proc a -> do 
+  emsgs <- peerIndexedMessages p chid i -< ()
+  returnA -< event a (F.foldl' f a) emsgs
+
+-- | Same as @peerIndexedMessages@, but transforms input state with given handler, monadic version
+peerProcessIndexedM :: (NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
+  => Peer -- ^ Which peer we are listening
+  -> ChannelID -- ^ Which channel we are listening
+  -> i -- ^ ID of actor
+  -> (a -> NetworkMessageType i -> GameMonadT m a) -- ^ Handler of message
+  -> GameWire m a a -- ^ Updates @a@ with given handler for messages
+peerProcessIndexedM p chid i f = proc a -> do 
+  emsgs <- peerIndexedMessages p chid i -< ()
+  liftGameMonad2 (\emsgs a -> event (return a) (F.foldlM f a) emsgs) -< (emsgs, a) 
+
+-- | Helper to create stateful actors, same as @stateActor@
+netStateActor :: (ActorMonad m, NetworkMonad m, LoggingMonad m, MonadFix m, NetworkMessage i, Typeable (ActorMessageType i), Serialize (NetworkMessageType i))
+  => (i -> b) -- ^ Inital value of state
+  -> (i -> b -> ActorMessageType i -> b) -- ^ Handler for messages
+  -> (b -> Peer) -- ^ Way to get peer value from inital getter
+  -> Word8 -- ^ Channels count to listen
+  -> (i -> ChannelID -> b -> NetworkMessageType i -> b) -- ^ Handler for network messages
+  -> (i -> GameWire m (a, b) b) -- ^ Handler that transforms current state
+  -> GameActor m i a b -- ^ Resulting actor incapsulating @b@ in itself
+netStateActor bi f getPeer channels fn w = stateActor bi f $ \i -> proc (a, b) -> do 
+  b' <- chainWires ((\ch -> peerProcessIndexed (getPeer $ bi i) ch i (fn i ch)) . ChannelID <$> [0 .. channels-1]) -< b
+  w i -< (a, b')
+
+-- | Helper to create stateful actors, same as @stateActor@
+netStateActorM :: (ActorMonad m, NetworkMonad m, LoggingMonad m, MonadFix m, NetworkMessage i, Typeable (ActorMessageType i), Serialize (NetworkMessageType i))
+  => (i -> b) -- ^ Inital value of state
+  -> (i -> b -> ActorMessageType i -> b) -- ^ Handler for messages
+  -> (b -> Peer) -- ^ Way to get peer value from inital getter
+  -> Word8 -- ^ Channels count to listen
+  -> (i -> ChannelID -> b -> NetworkMessageType i -> GameMonadT m b) -- ^ Handler for network messages
+  -> (i -> GameWire m (a, b) b) -- ^ Handler that transforms current state
+  -> GameActor m i a b -- ^ Resulting actor incapsulating @b@ in itself
+netStateActorM bi f getPeer channels fn w = stateActor bi f $ \i -> proc (a, b) -> do 
+  b' <- chainWires ((\ch -> peerProcessIndexedM (getPeer $ bi i) ch i (fn i ch)) . ChannelID <$> [0 .. channels-1]) -< b
+  w i -< (a, b')

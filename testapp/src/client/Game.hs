@@ -32,8 +32,15 @@ instance NFData Game
 mainWire :: AppWire a (Maybe Game)
 mainWire = waitConnection
   where 
-    initialCamera i = Camera i 0 0 (-1)
-    initialPlayer peer i = Player i 0 (V3 1 0 0) 0 peer
+    initialCamera i = Camera i 0 0 (-0.1)
+    initialPlayer peer i = Player {
+        playerId = i 
+      , playerPos = 0
+      , playerColor = V3 1 0 0
+      , playerRot = 0
+      , playerSpeed = 0.5
+      , playerPeer = peer
+      }
 
     waitConnection = proc a -> do 
       e <- mapE head . peersConnected -< ()

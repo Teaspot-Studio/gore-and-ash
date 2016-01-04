@@ -20,6 +20,7 @@ module Game.GoreAndAsh.Core.Arrow(
   , liftGameMonadEvent1
   -- | Helpers
   , stateWire
+  , chainWires
   ) where
 
 import Control.Monad.Fix
@@ -136,3 +137,8 @@ stateWire ib w = loop $ proc (a, b_) -> do
   b <- delay ib -< b_ -- either it will hang
   b2 <- w -< (a, b)
   returnA -< (b2, b2)
+
+-- | Sequence compose list of wires (right to left order)
+chainWires :: Monad m => [GameWire m a a] -> GameWire m a a 
+chainWires [] = id 
+chainWires (w:ws) = w . chainWires ws

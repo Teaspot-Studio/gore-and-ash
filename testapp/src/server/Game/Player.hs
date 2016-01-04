@@ -17,6 +17,9 @@ import Game.Core
 import Game.GoreAndAsh
 import Game.GoreAndAsh.Actor
 import Game.GoreAndAsh.Network 
+import Game.GoreAndAsh.Sync
+
+import Game.Player.Shared
 
 import qualified Data.ByteString as BS
 
@@ -42,16 +45,29 @@ instance ActorMessage PlayerId where
   toCounter = unPlayerId
   fromCounter = PlayerId 
 
+instance NetworkMessage PlayerId where 
+  type NetworkMessageType PlayerId = PlayerNetMessage
+
 playerActor :: (PlayerId -> Player) -> AppActor PlayerId a Player 
-playerActor initialPlayer = stateActor initialPlayer process $ \_ -> proc (_, p) -> do 
+playerActor initialPlayer = actorMaker $ \_ -> proc (_, p) -> do 
   peers <- peersConnected -< ()
   rSwitch (pure ()) -< ((), peersWire <$> peers)
 
   forceNF -< p
   where
+    actorMaker = netStateActor initialPlayer process 
+      playerPeer 1 netProcess
+
     process :: PlayerId -> Player -> PlayerMessage -> Player 
     process _ p _ = p 
 
+    netProcess :: PlayerId -> ChannelID -> Player -> PlayerNetMessage -> Player 
+    netProcess _ _ p msg = case msg of 
+      NetMsgPlayerPos x y -> p { playerPos = V2 x y }
+      NetMsgPlayerRot r -> p { playerRot = r }
+      NetMsgPlayerColor r g b -> p { playerColor = V3 r g b }
+      _ -> p 
+      
     mkMessage _ = Message ReliableMessage BS.empty
 
     peersWire peers = proc _ -> do 

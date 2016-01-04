@@ -7,7 +7,8 @@ module Game.Player(
 
 import Control.DeepSeq
 import Control.Wire
-import Data.Text
+import Control.Wire.Unsafe.Event
+--import Data.Text
 import Data.Typeable 
 import GHC.Generics (Generic)
 import Linear
@@ -16,14 +17,18 @@ import Prelude hiding (id, (.))
 import Game.Core
 import Game.GoreAndAsh.Actor
 import Game.GoreAndAsh.GLFW 
-import Game.GoreAndAsh.Logging
+--import Game.GoreAndAsh.Logging
 import Game.GoreAndAsh.Network
+import Game.GoreAndAsh.Sync
+
+import Game.Player.Shared
 
 data Player = Player {
   playerId :: !PlayerId
 , playerPos :: !(V2 Float)
 , playerColor :: !(V3 Float) 
 , playerRot :: !Float
+, playerSpeed :: !Float
 , playerPeer :: !Peer 
 } deriving (Generic)
 
@@ -40,14 +45,45 @@ instance ActorMessage PlayerId where
   toCounter = unPlayerId
   fromCounter = PlayerId 
 
+instance NetworkMessage PlayerId where 
+  type NetworkMessageType PlayerId = PlayerNetMessage
+  
 playerWire :: (PlayerId -> Player) -> AppActor PlayerId a Player 
-playerWire initialPlayer = stateActor initialPlayer process $ \_ -> proc (_, p) -> do 
+playerWire initialPlayer = actorMaker $ \i -> proc (_, p) -> do 
   -- traceEvent (pack . show) . keyPressed Key'W -< ()
-  traceEvent (pack . show) . mouseButtonPressed MouseButton'1 -< ()
+  --traceEvent (pack . show) . mouseButtonPressed MouseButton'1 -< ()
   -- traceEvent (pack . show) . mousePositionChange -< ()
-  traceEvent (pack . show) . windowSize -< ()
-  traceEvent (pack . show) . mouseScroll -< ()
-  forceNF -< p
+  --traceEvent (pack . show) . windowSize -< ()
+  --traceEvent (pack . show) . mouseScroll -< ()
+
+  forceNF . controlPlayer i (playerPeer $ initialPlayer i) -< p
   where
+    actorMaker = netStateActor initialPlayer process 
+      playerPeer 1 netProcess
+
     process :: PlayerId -> Player -> PlayerMessage -> Player 
     process _ p _ = p
+
+    netProcess :: PlayerId -> ChannelID -> Player -> PlayerNetMessage -> Player 
+    netProcess _ _ p msg = case msg of 
+      NetMsgPlayerPos x y -> p { playerPos = V2 x y }
+      NetMsgPlayerRot r -> p { playerRot = r }
+      NetMsgPlayerColor r g b -> p { playerColor = V3 r g b }
+      NetMsgPlayerSpeed v -> p { playerSpeed = v }
+ 
+    controlPlayer :: PlayerId -> Peer -> AppWire Player Player
+    controlPlayer pid peer = 
+        movePlayer pid peer (V2 1 0) Key'Left 
+      . movePlayer pid peer (V2 (-1) 0) Key'Right
+      . movePlayer pid peer (V2 0 1) Key'Down
+      . movePlayer pid peer (V2 0 (-1)) Key'Up
+
+    movePlayer :: PlayerId -> Peer -> V2 Float -> Key -> AppWire Player Player
+    movePlayer pid peer dv k = proc p -> do 
+      e <- keyPressing k -< ()
+      let newPlayer = p {
+            playerPos = playerPos p + dv * V2 (playerSpeed p) (playerSpeed p)
+          }
+          posMsg = let V2 x y = playerPos newPlayer in NetMsgPlayerPos x y
+      peerSendIndexed peer (ChannelID 0) pid UnreliableMessage -< const posMsg <$> e
+      returnA -< event p (const newPlayer) e

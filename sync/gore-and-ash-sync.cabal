@@ -27,6 +27,7 @@ library
                      , netwire >= 5.0.1
 
   default-extensions:  
+                       Arrows
                        FlexibleContexts
                        OverloadedStrings
                        ScopedTypeVariables

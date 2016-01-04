@@ -26,6 +26,7 @@ executable gore-and-ash-client
                        Game.Camera
                        Game.Core
                        Game.Player
+                       Game.Player.Shared
                        Render
                        
   build-depends:       base >= 4.7 && < 5
@@ -34,6 +35,7 @@ executable gore-and-ash-client
                      , gore-and-ash-logging
                      , gore-and-ash-glfw
                      , gore-and-ash-network
+                     , gore-and-ash-sync
                      , GPipe >= 2.1.4
                      , GPipe-GLFW >= 1.2.1
                      , GLFW-b >= 1.4.7.3
@@ -49,6 +51,7 @@ executable gore-and-ash-client
                      , text-show >= 2
                      , unordered-containers >= 0.2.5.1
                      , hashable >= 1.2.3.3
+                     , cereal >= 0.4.1.1
 
   default-extensions:  
                        Arrows
@@ -76,12 +79,14 @@ executable gore-and-ash-server
                        Game
                        Game.Core
                        Game.Player
+                       Game.Player.Shared
                        
   build-depends:       base >= 4.7 && < 5
                      , gore-and-ash
                      , gore-and-ash-actor
                      , gore-and-ash-logging
                      , gore-and-ash-network
+                     , gore-and-ash-sync
                      , lens >= 4.12.3
                      , linear >= 1.19
                      , transformers >= 0.4.2
@@ -94,6 +99,7 @@ executable gore-and-ash-server
                      , text-show >= 2
                      , unordered-containers >= 0.2.5.1
                      , hashable >= 1.2.3.3
+                     , cereal >= 0.4.1.1
 
   default-extensions:  
                        Arrows
