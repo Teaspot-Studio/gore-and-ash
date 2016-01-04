@@ -27,8 +27,7 @@ runWindow f = runContextT GLFW.newContext (ContextFormatColor RGB8) f
 data RenderState os = RenderState {
   renderAspectBuffer :: AspectUniform os
 , renderSquare :: Square os
-, renderCamera :: Camera os 
-, renderShader :: ViewContext -> Render os (ContextFormat RGBFloat ()) ()
+, renderCamera :: Camera os
 , renderStop :: Bool
 , renderWindow :: Maybe GLFW.Window
 }
@@ -42,14 +41,12 @@ initResources :: (MonadException m, MonadIO m)
   => ContextT w os f m (RenderState os)
 initResources = do 
     aspectBuffer <- newBuffer 1  
-    square <- newSquare 
     camera <- newCamera
-    shader <- compileShader $ drawSquare aspectBuffer camera square
+    square <- newSquare aspectBuffer camera 
     return $ RenderState {
         renderAspectBuffer = aspectBuffer
       , renderSquare = square 
       , renderCamera = camera 
-      , renderShader = shader 
       , renderStop = False
       , renderWindow = Nothing
       }
@@ -60,8 +57,8 @@ stepRenderState :: (MonadException m, MonadIO m)
   -> ContextT GLFWWindow os (ContextFormat RGBFloat ()) m (RenderState os) -- ^ New render state
 stepRenderState s@RenderState{..} = renderStep s $ \viewport -> do    
   clearContextColor 0.5   
-  vertexArray <- newVertexArray $ squareBuffer renderSquare    
-  renderShader $ ViewContext {
+  vertexArray <- newVertexArray $ (squareBuffer . squareBuffers) renderSquare    
+  squareShader renderSquare $ ViewContext {
       viewArray = toPrimitiveArray TriangleStrip vertexArray
     , viewPort = viewport
     }

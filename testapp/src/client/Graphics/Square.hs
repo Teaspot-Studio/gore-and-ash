@@ -1,5 +1,6 @@
 module Graphics.Square(
     Square(..)
+  , SquareBuffers(..)
   , ViewContext(..)
   , AspectUniform
   , newSquare
@@ -9,6 +10,7 @@ module Graphics.Square(
 
 import Control.Lens
 import Control.Monad (when)
+import Control.Monad.Exception
 import Control.Monad.IO.Class 
 import Graphics.Camera
 import Graphics.GPipe 
@@ -19,10 +21,15 @@ data ViewContext = ViewContext {
 , viewPort :: !ViewPort
 }
 
-data Square os = Square {
+data SquareBuffers os = SquareBuffers {  
   squareBuffer :: !(Buffer os (B2 Float))
 , squareModelMtxUniform :: !(Buffer os (Uniform (B4 Float)))
 , squareColorUniform :: !(Buffer os (Uniform (B3 Float)))
+}
+
+data Square os = Square {
+  squareBuffers :: !(SquareBuffers os)
+, squareShader :: ViewContext -> Render os (ContextFormat RGBFloat ()) ()
 , squareWidth :: !Float 
 , squarePos :: !(V2 Float)
 , squareRot :: !Float
@@ -30,8 +37,8 @@ data Square os = Square {
 , squareDirty :: !Bool
 }
 
-newSquare :: MonadIO m => ContextT w os f m (Square os) 
-newSquare = do 
+newSquare :: (MonadException m, MonadIO m) => AspectUniform os -> Camera os -> ContextT w os f m (Square os) 
+newSquare aspectBuffer camera = do 
   b <- newBuffer 4
   writeBuffer b 0 [V2 (-1) (-1), V2 1 (-1), V2 (-1) 1, V2 1 1]
   
@@ -45,10 +52,16 @@ newSquare = do
   cu <- newBuffer 1
   writeBuffer cu 0 [0]
 
+  let sbuffs = SquareBuffers {
+        squareBuffer = b
+      , squareModelMtxUniform = mu
+      , squareColorUniform = cu
+      }
+  shader <- compileShader $ drawSquare aspectBuffer camera sbuffs
+
   return Square {
-      squareBuffer = b
-    , squareModelMtxUniform = mu
-    , squareColorUniform = cu
+      squareBuffers = sbuffs
+    , squareShader = shader
     , squareWidth = 1
     , squarePos = 0
     , squareRot = 0
@@ -62,8 +75,8 @@ updateSquare :: MonadIO m =>
 updateSquare sq@Square{..} = do 
   when squareDirty $ do
     let (V4 r1 r2 r3 r4) = scale (V3 squareWidth squareWidth squareWidth) !*! rotationZ squareRot !*! translate (V3 (squarePos^._x) (squarePos^._y) 0) 
-    writeBuffer squareModelMtxUniform 0 [r1, r2, r3, r4]
-    writeBuffer squareColorUniform 0 [squareColor]
+    writeBuffer (squareModelMtxUniform squareBuffers) 0 [r1, r2, r3, r4]
+    writeBuffer (squareColorUniform squareBuffers) 0 [squareColor]
   return $ sq {
       squareDirty = False
     }
@@ -84,10 +97,10 @@ loadMatrix44 b = V4
 drawSquare :: 
      AspectUniform os -- ^ Buffer with aspect ration
   -> Camera os -- ^ Camera matrix (View matrix)
-  -> Square os -- ^ Square with uniform buffers (Holds Model matrix)
+  -> SquareBuffers os -- ^ Square with uniform buffers (Holds Model matrix)
   -> AppShader os ()
   -- ^ Resulting shader
-drawSquare aspectBuffer Camera{..} Square{..} = do 
+drawSquare aspectBuffer Camera{..} SquareBuffers{..} = do 
   -- | Load uniforms
   aspect <- getUniform (const (aspectBuffer,0))
   modelMtx <- loadMatrix44 squareModelMtxUniform
