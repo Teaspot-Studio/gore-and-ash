@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Game.GoreAndAsh.Sync.Message(
     NetworkMessage(..)
   -- | Getting messages
@@ -26,6 +27,7 @@ import Data.Maybe
 import Data.Serialize
 import Data.Typeable 
 import Data.Word
+import GHC.Fingerprint.Type
 import Prelude hiding ((.), id)
 import qualified Data.ByteString as BS 
 import qualified Data.Foldable as F 
@@ -40,6 +42,8 @@ class ActorMessage i => NetworkMessage i where
   -- | Corresponding message payload for @i@ identifier, usually ADT
   type NetworkMessageType i :: *
 
+instance Serialize Fingerprint
+
 -- | Fires when network messages for specific actor has arrived
 -- Note: mid-level API is not safe to use with low-level at same time as
 -- first bytes of formed message are used for actor id. So, you need to 
@@ -50,20 +54,19 @@ peerIndexedMessages :: forall m i a . (NetworkMonad m, LoggingMonad m, NetworkMe
   -> i -- ^ ID of actor 
   -> GameWire m a (Event [NetworkMessageType i]) -- ^ Messages that are addressed to the actor
 peerIndexedMessages p chid i = filterE (not . null) 
-  . mapE (catMaybes . fmap parse . filter hasId)
+  . mapE (catMaybes . fmap parse)
   . peerMessages p chid
   where
     parse :: BS.ByteString -> Maybe (NetworkMessageType i)
     parse bs = case decode bs of 
       Left _ -> Nothing
-      Right (_ :: Word64, mbs :: BS.ByteString) -> case decode mbs of 
-        Left _ -> Nothing 
-        Right m -> Just m
-
-    hasId :: BS.ByteString -> Bool
-    hasId bs = case decode bs of
-      Left _ -> False 
-      Right (w64 :: Word64, _ :: BS.ByteString) -> fromIntegral w64 == toCounter i
+      Right (fp :: Fingerprint, w64 :: Word64, mbs :: BS.ByteString) -> if not matchId 
+        then Nothing
+        else case decode mbs of 
+          Left _ -> Nothing 
+          Right m -> Just m
+        where
+          matchId = fp == getActorFingerprint i && fromIntegral w64 == toCounter i
 
 -- | Encodes a message for specific actor type and send it to remote host
 -- Note: mid-level API is not safe to use with low-level at same time as
@@ -78,7 +81,7 @@ peerSendIndexedM :: (NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize
   -> m ()
 peerSendIndexedM p chid i mt msg = do 
   let w64 = fromIntegral (toCounter i) :: Word64
-      msg' = Message mt $ encode (w64, encode msg)
+      msg' = Message mt $ encode (getActorFingerprint i, w64, encode msg)
   peerSendM p chid msg'
 
 -- | Encodes a message for specific actor type and send it to remote host, arrow version

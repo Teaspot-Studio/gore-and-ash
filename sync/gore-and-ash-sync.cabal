@@ -28,7 +28,9 @@ library
                      
   default-extensions:  
                        Arrows
+                       DeriveGeneric
                        FlexibleContexts
                        OverloadedStrings
                        ScopedTypeVariables
+                       StandaloneDeriving
                        TypeFamilies

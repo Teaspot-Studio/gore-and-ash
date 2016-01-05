@@ -17,6 +17,8 @@ module Game.GoreAndAsh.Actor.API(
   , stateActorM
   , stateActorFixed
   , stateActorFixedM
+  -- | Helpers for libraries
+  , getActorFingerprint
   ) where
 
 import Control.Monad.Catch
@@ -80,7 +82,7 @@ instance {-# OVERLAPPING #-} MonadThrow m => ActorMonad (ActorT s m) where
   actorRegisterFixedM i = do 
     astate <- ActorT get
     case regActorFixedId i astate of 
-      Nothing -> throwM $! ActorIdConflict (getFingerprint i) (toCounter i)
+      Nothing -> throwM $! ActorIdConflict (getActorFingerprint i) (toCounter i)
       Just astate' -> ActorT . put $! astate'
 
   actorDeleteM i = do 
@@ -110,8 +112,8 @@ instance {-# OVERLAPPABLE #-} (MonadThrow (mt m), ActorMonad m, MonadTrans mt) =
   actorGetMessagesM = lift . actorGetMessagesM
 
 -- | Helper to get message fingerpring
-getFingerprint :: forall i . ActorMessage i => i -> Fingerprint
-getFingerprint _ = typeRepFingerprint $ typeRep (Proxy :: Proxy i)
+getActorFingerprint :: forall i . ActorMessage i => i -> Fingerprint
+getActorFingerprint _ = typeRepFingerprint $ typeRep (Proxy :: Proxy i)
 
 -- | Returns next unregistered id of actor and updates internal state
 pushActorNextId :: forall i s . ActorMessage i => ActorState s -> (Fingerprint, i, ActorState s)

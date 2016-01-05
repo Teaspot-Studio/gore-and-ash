@@ -23,25 +23,36 @@ import Game.GoreAndAsh.Network
 import Game.GoreAndAsh.Sync
 
 playerActor :: (PlayerId -> Player) -> AppActor PlayerId Game Player 
-playerActor initialPlayer = actorMaker $ \i -> proc (g, p) -> do 
-  p2 <- peerProcessIndexedM (playerPeer $ initialPlayer i) (ChannelID 0) globalGameId globalNetProcess -< p
-  notifyAboutSpawn i -< g
-  notifyAboutChanges i -< (g, p2)
-  forceNF -< p2
+playerActor initialPlayer = actorMaker mainController
   where
-    actorMaker = netStateActor initialPlayer process 
-      playerPeer 1 netProcess
+  -- | Helper to make actor
+  actorMaker = netStateActor initialPlayer process 
+    playerPeer 1 netProcess
 
-    process :: PlayerId -> Player -> PlayerMessage -> Player 
-    process _ p _ = p 
+  -- | Process local messages between local actors
+  process :: PlayerId -> Player -> PlayerMessage -> Player 
+  process _ p _ = p 
 
-    netProcess :: PlayerId -> ChannelID -> Player -> PlayerNetMessage -> Player 
-    netProcess _ _ p msg = case msg of 
-      NetMsgPlayerPos x y -> p { playerPos = V2 x y }
-      NetMsgPlayerRot r -> p { playerRot = r }
-      NetMsgPlayerColor r g b -> p { playerColor = V3 r g b }
-      _ -> p 
+  -- | Process player specific net messages
+  netProcess :: PlayerId -> ChannelID -> Player -> PlayerNetMessage -> Player 
+  netProcess _ _ p msg = case msg of 
+    NetMsgPlayerPos x y -> p { playerPos = V2 x y }
+    NetMsgPlayerRot r -> p { playerRot = r }
+    NetMsgPlayerColor r g b -> p { playerColor = V3 r g b }
+    _ -> p 
 
+  mainController i = proc (g, p) -> do 
+    p2 <- peerProcessIndexedM peer (ChannelID 0) globalGameId globalNetProcess -< p
+    notifyAboutSpawn i -< g
+    notifyAboutOtherPlayers i -< g
+    notifyAboutChanges i -< (g, p2)
+    forceNF -< p2
+    where
+    -- | Shortcut for peer
+    peer = playerPeer $ initialPlayer i
+
+
+    -- | Process global net messages from given peer (player)
     globalNetProcess :: Player -> GameNetMessage -> GameMonadT AppMonad Player
     globalNetProcess p msg = case msg of 
       PlayerRequestId -> do 
@@ -52,6 +63,7 @@ playerActor initialPlayer = actorMaker $ \i -> proc (g, p) -> do
         putMsgLnM $ pack $ show msg
         return p 
 
+    -- | When crated notify other players about spawn
     notifyAboutSpawn :: PlayerId -> AppWire Game ()
     notifyAboutSpawn pid = proc Game{..} -> do 
       e <- now -< ()
@@ -61,6 +73,17 @@ playerActor initialPlayer = actorMaker $ \i -> proc (g, p) -> do
       peerSendIndexedManyDyn (ChannelID 0) ReliableMessage -< const msgs <$> e
       returnA -< ()
 
+    -- | When created notify client-side about other players on server
+    notifyAboutOtherPlayers :: PlayerId -> AppWire Game ()
+    notifyAboutOtherPlayers pid = proc Game{..} -> do
+      e <- now -< ()
+      let ps = filter ((/= pid) . playerId) $ H.elems gamePlayers
+          msgs = (\p -> (peer, gameId, PlayerSpawn . toCounter $! playerId p)) <$> ps
+      traceEvent (\ps -> "Notify spawned player about other players " <> pack (show $ playerId <$> ps)) -< const ps <$> e
+      peerSendIndexedManyDyn (ChannelID 0) ReliableMessage -< const msgs <$> e 
+      returnA -< ()
+
+    -- | When player properties changes, spam about them to other players
     notifyAboutChanges :: PlayerId -> AppWire (Game, Player) ()
     notifyAboutChanges pid = proc (Game{..}, p) -> do 
       let ps = filter ((/= pid) . playerId) $ H.elems gamePlayers
