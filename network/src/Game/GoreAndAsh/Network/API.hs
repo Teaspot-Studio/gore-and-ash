@@ -56,7 +56,7 @@ class MonadIO m => NetworkMonad m where
   peerMessagesM :: Peer -> ChannelID -> m (S.Seq BS.ByteString)
 
   -- | Sends a packet to given peer on given channel
-  peerSendM :: Peer -> ChannelID -> Message -> m ()
+  peerSendM :: LoggingMonad m => Peer -> ChannelID -> Message -> m ()
 
   -- | Returns list of currently connected peers (servers on client side, clients on server side)
   networkPeersM :: m [Peer]
@@ -106,7 +106,11 @@ instance {-# OVERLAPPING #-} MonadIO m => NetworkMonad (NetworkT s m) where
     msgs <- networkMessages <$> NetworkT get
     return . fromMaybe S.empty $! H.lookup (peer, ch) msgs
 
-  peerSendM peer ch msg = liftIO $ send peer ch =<< P.poke (messageToPacket msg)
+  peerSendM peer ch msg = do
+    nstate <- NetworkT get 
+    when (networkDetailedLogging nstate) $ putMsgLnM $ "Network: sending packet via channel "
+      <> pack (show ch) <> ", payload: " <> pack (show msg)
+    liftIO $ send peer ch =<< P.poke (messageToPacket msg)
 
   networkPeersM = do 
     NetworkState{..} <- NetworkT get 

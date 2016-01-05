@@ -1,6 +1,10 @@
 module Game.Shared(
     GameId(..)
   , GameNetMessage(..)
+  , globalGameId
+  , isPlayerSpawn
+  , isPlayerDespawn
+  , isPlayerRequestId
   ) where
 
 import Control.DeepSeq
@@ -15,6 +19,10 @@ newtype GameId = GameId { unGameId :: Int } deriving (Eq, Generic)
 
 instance NFData GameId 
 
+-- | Statically known game id
+globalGameId :: GameId 
+globalGameId = GameId 0 
+
 -- | Opaque data for game message
 data GameMessage
 
@@ -22,6 +30,7 @@ data GameMessage
 data GameNetMessage = 
     PlayerSpawn !Int
   | PlayerDespawn !Int 
+  | PlayerRequestId
   deriving (Generic, Show)
 
 instance NFData GameNetMessage
@@ -34,3 +43,18 @@ instance ActorMessage GameId where
 
 instance NetworkMessage GameId where 
   type NetworkMessageType GameId = GameNetMessage
+
+isPlayerSpawn :: GameNetMessage -> Bool
+isPlayerSpawn m = case m of 
+  PlayerSpawn _ -> True 
+  _ -> False
+
+isPlayerDespawn :: GameNetMessage -> Bool
+isPlayerDespawn m = case m of 
+  PlayerDespawn _ -> True 
+  _ -> False
+
+isPlayerRequestId :: GameNetMessage -> Bool 
+isPlayerRequestId m = case m of 
+  PlayerRequestId -> True 
+  _ -> False

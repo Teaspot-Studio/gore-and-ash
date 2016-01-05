@@ -9,8 +9,8 @@ module Game(
 
 import Control.DeepSeq
 import Control.Wire
+import Data.Text (pack)
 import GHC.Generics (Generic)
-import Linear
 import Prelude hiding (id, (.))
 
 import Game.GoreAndAsh
@@ -39,28 +39,40 @@ instance NFData Game
 mainWire :: AppWire a (Maybe Game)
 mainWire = waitConnection
   where
-    waitConnection = proc a -> do 
+    waitConnection = switch $ proc _ -> do 
       e <- mapE head . peersConnected -< ()
       traceEvent (const "Connected to server") -< e
-      rSwitch (pure Nothing) -< (a, untilDisconnected <$> e)
+      returnA -< (Nothing, waitPlayerId <$> e) 
 
-    untilDisconnected peer = proc a -> do 
+    waitPlayerId peer = switch $ proc _ -> do 
+      emsg <- now -< PlayerRequestId
+      peerSendIndexed peer (ChannelID 0) globalGameId ReliableMessage -< emsg
+      traceEvent (const "Waiting for player id") -< emsg
+      
+      e <- mapE head . filterMsgs isPlayerSpawn . peerIndexedMessages peer (ChannelID 0) globalGameId -< () 
+      traceEvent (\(PlayerSpawn i) -> "Got player id: " <> pack (show i)) -< e
+      
+      let nextWire = (\(PlayerSpawn i) -> untilDisconnected peer $ PlayerId i) <$> e
+      returnA -< (Nothing, nextWire)
+
+    untilDisconnected peer pid = switch $ proc _ -> do 
       e <- peerDisconnected peer -< ()
       traceEvent (const "Disconnected from server") -< e
-      rSwitch (runActor' (playGame peer)) -< (a, const disconnected <$> e)
+      g <- runActor' (playGame pid peer) -< ()
+      returnA -< (g, const disconnected <$> e)
 
     disconnected = pure Nothing
 
-playGame :: Peer -> AppActor GameId a (Maybe Game)
-playGame peer = actorMaker $ proc (_, mg) -> do 
-  p <- runActor' $ playerActor initialPlayer -< ()
+playGame :: PlayerId -> Peer -> AppActor GameId a (Maybe Game)
+playGame pid peer = actorMaker $ proc (_, mg) -> do 
+  p <- runActor' $ playerActor pid peer -< ()
   c <- runActor' $ cameraWire initialCamera -< ()
   rps <- case mg of 
     Nothing -> returnA -< []
     Just g -> processRemotePlayers -< g
   forceNF -< Just $! case mg of 
     Nothing -> Game {
-        gameId = gid
+        gameId = globalGameId
       , gamePlayer = p
       , gameCamera = c
       , gameRemotePlayers = rps
@@ -74,35 +86,27 @@ playGame peer = actorMaker $ proc (_, mg) -> do
       , gameAddPlayers = []
       , gameRemovePlayers = []
       }
-  where 
-  -- | Static id of global space
-  gid = GameId 0
+  where
 
   -- | Maker of startup camera
   initialCamera i = Camera i 0 0 (-0.1)
-  -- | Maker of startup player
-  initialPlayer i = Player {
-      playerId = i 
-    , playerPos = 0
-    , playerColor = V3 1 0 0
-    , playerRot = 0
-    , playerSpeed = 0.5
-    , playerPeer = peer
-    }
 
   -- | Helper to hide some boring processing of inner state, messages and networking
-  actorMaker = netStateActorFixed gid Nothing process
+  actorMaker = netStateActorFixed globalGameId Nothing process
     peer 1 netProcess
   process g _ = g -- ^ Empty message handler
 
   netProcess _ Nothing _ = Nothing
   netProcess _ (Just g) msg = Just $ case msg of 
-    PlayerSpawn pid -> g { gameAddPlayers = fromCounter pid : gameAddPlayers g} 
-    PlayerDespawn pid -> g { gameRemovePlayers = fromCounter pid : gameRemovePlayers g} 
+    PlayerSpawn i -> g { gameAddPlayers = fromCounter i : gameAddPlayers g} 
+    PlayerDespawn i -> g { gameRemovePlayers = fromCounter i : gameRemovePlayers g} 
+    _ -> g 
 
   -- | Handles spawing/despawing of other players
   processRemotePlayers :: AppWire Game [RemotePlayer]
   processRemotePlayers = proc g -> do
-    adde <- mapE (fmap $ remotePlayerActor peer) . became (not . null) -< gameAddPlayers g
+    adde <- became (not . null) -< gameAddPlayers g
     reme <- became (not . null) -< gameRemovePlayers g
-    dynCollection [] -< ((), adde, reme)
+    traceEvent (\ids -> "New remote players: " <> pack (show ids)) -< adde
+    traceEvent (\ids -> "Removed remote players: " <> pack (show ids)) -< reme
+    dDynCollection [] -< ((), fmap (remotePlayerActor peer) <$> adde, reme)

@@ -5,55 +5,29 @@ module Game.Player(
   , playerActor
   ) where
 
-import Control.DeepSeq
 import Control.Wire
-import Data.Hashable
-import Data.Typeable 
-import GHC.Generics (Generic)
+import Data.Text (pack)
 import Linear
 import Prelude hiding (id, (.))
+import qualified Data.HashMap.Strict as H 
 
 import Game.Core
+import Game.Data
+import Game.Player.Data
+import Game.Shared
+
 import Game.GoreAndAsh
 import Game.GoreAndAsh.Actor
+import Game.GoreAndAsh.Logging
 import Game.GoreAndAsh.Network 
 import Game.GoreAndAsh.Sync
 
-import Game.Player.Shared
-
-import qualified Data.ByteString as BS
-
-data Player = Player {
-  playerId :: !PlayerId
-, playerPos :: !(V2 Double)
-, playerColor :: !(V3 Double) 
-, playerRot :: !Double  
-, playerPeer :: !Peer
-} deriving (Generic)
-
-instance NFData Player 
-
-newtype PlayerId = PlayerId { unPlayerId :: Int } deriving (Eq, Show, Generic) 
-instance NFData PlayerId 
-instance Hashable PlayerId 
-
-data PlayerMessage = PlayerMessageStub deriving (Typeable, Generic)
-instance NFData PlayerMessage 
-
-instance ActorMessage PlayerId where
-  type ActorMessageType PlayerId = PlayerMessage
-  toCounter = unPlayerId
-  fromCounter = PlayerId 
-
-instance NetworkMessage PlayerId where 
-  type NetworkMessageType PlayerId = PlayerNetMessage
-
-playerActor :: (PlayerId -> Player) -> AppActor PlayerId a Player 
-playerActor initialPlayer = actorMaker $ \_ -> proc (_, p) -> do 
-  peers <- peersConnected -< ()
-  rSwitch (pure ()) -< ((), peersWire <$> peers)
-
-  forceNF -< p
+playerActor :: (PlayerId -> Player) -> AppActor PlayerId Game Player 
+playerActor initialPlayer = actorMaker $ \i -> proc (g, p) -> do 
+  p2 <- peerProcessIndexedM (playerPeer $ initialPlayer i) (ChannelID 0) globalGameId globalNetProcess -< p
+  notifyAboutSpawn i -< g
+  notifyAboutChanges i -< (g, p2)
+  forceNF -< p2
   where
     actorMaker = netStateActor initialPlayer process 
       playerPeer 1 netProcess
@@ -67,9 +41,33 @@ playerActor initialPlayer = actorMaker $ \_ -> proc (_, p) -> do
       NetMsgPlayerRot r -> p { playerRot = r }
       NetMsgPlayerColor r g b -> p { playerColor = V3 r g b }
       _ -> p 
-      
-    mkMessage _ = Message ReliableMessage BS.empty
 
-    peersWire peers = proc _ -> do 
-      sequenceA ((\p -> peerSend p (ChannelID 0)) <$> peers) . mapE mkMessage . now -< ()
+    globalNetProcess :: Player -> GameNetMessage -> GameMonadT AppMonad Player
+    globalNetProcess p msg = case msg of 
+      PlayerRequestId -> do 
+        peerSendIndexedM (playerPeer p) (ChannelID 0) globalGameId ReliableMessage $ 
+          PlayerSpawn $ toCounter $ playerId p
+        return p
+      _ -> do 
+        putMsgLnM $ pack $ show msg
+        return p 
+
+    notifyAboutSpawn :: PlayerId -> AppWire Game ()
+    notifyAboutSpawn pid = proc Game{..} -> do 
+      e <- now -< ()
+      let ps = filter ((/= pid) . playerId) $ H.elems gamePlayers
+          msgs = (\p -> (playerPeer p, gameId, PlayerSpawn $ toCounter pid)) <$> ps
+      traceEvent (\ps -> "Notify another players about new player " <> pack (show $ playerId <$> ps)) -< const ps <$> e
+      peerSendIndexedManyDyn (ChannelID 0) ReliableMessage -< const msgs <$> e
+      returnA -< ()
+
+    notifyAboutChanges :: PlayerId -> AppWire (Game, Player) ()
+    notifyAboutChanges pid = proc (Game{..}, p) -> do 
+      let ps = filter ((/= pid) . playerId) $ H.elems gamePlayers
+      
+      epos <- changes -< playerPos p
+      let msgs = (\rp -> (playerPeer rp, pid, let V2 x y = playerPos p in NetMsgPlayerPos x y)) <$> ps
+      traceEvent (\ps -> "Notify another players about new pos " <> pack (show $ playerId <$> ps)) -< const ps <$> epos
+      peerSendIndexedManyDyn (ChannelID 0) UnreliableMessage -< const msgs <$> epos 
+
       returnA -< ()

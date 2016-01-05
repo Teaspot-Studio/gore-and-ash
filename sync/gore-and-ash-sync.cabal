@@ -25,7 +25,7 @@ library
                      , cereal >= 0.4.1.1
                      , bytestring >= 0.10.6.0
                      , netwire >= 5.0.1
-
+                     
   default-extensions:  
                        Arrows
                        FlexibleContexts

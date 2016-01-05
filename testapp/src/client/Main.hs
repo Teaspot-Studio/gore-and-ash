@@ -14,7 +14,7 @@ import Render
 
 main :: IO ()
 main = withModule (Proxy :: Proxy AppMonad) $ runWindow $ do
-  rs <- initResources
+  rs <- addSquare =<< initResources
   gs <- newGameState mainWire
   firstLoop rs gs 
   where 
@@ -35,7 +35,7 @@ main = withModule (Proxy :: Proxy AppMonad) $ runWindow $ do
       (mg, gs') <- stepGame gs (preFrame rs)
       rs2 <- case join mg of 
         Nothing -> renderEmptyScreen rs
-        Just g -> renderGame g <$> stepRenderState rs
+        Just g -> renderGame g =<< stepRenderState rs
       if isClosedRequest rs2 
         then cleanupGameState gs'
         else gameLoop rs2 gs'

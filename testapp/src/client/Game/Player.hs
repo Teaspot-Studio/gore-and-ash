@@ -46,32 +46,41 @@ instance ActorMessage PlayerId where
 instance NetworkMessage PlayerId where 
   type NetworkMessageType PlayerId = PlayerNetMessage
   
-playerActor :: (PlayerId -> Player) -> AppActor PlayerId a Player 
-playerActor initialPlayer = actorMaker $ \i -> proc (_, p) -> do 
-  forceNF . controlPlayer i (playerPeer $ initialPlayer i) -< p
+playerActor :: PlayerId -> Peer -> AppActor PlayerId a Player 
+playerActor i peer = actorMaker $ proc (_, p) -> do 
+  forceNF . controlPlayer i -< p
   where
-    actorMaker = netStateActor initialPlayer process 
-      playerPeer 1 netProcess
+    actorMaker = netStateActorFixed i initialPlayer process 
+      (playerPeer initialPlayer) 1 netProcess
 
-    process :: PlayerId -> Player -> PlayerMessage -> Player 
-    process _ p _ = p
+    initialPlayer = Player {
+        playerId = i 
+      , playerPos = 0
+      , playerColor = V3 1 0 0
+      , playerRot = 0
+      , playerSpeed = 0.5
+      , playerPeer = peer
+      }
 
-    netProcess :: PlayerId -> ChannelID -> Player -> PlayerNetMessage -> Player 
-    netProcess _ _ p msg = case msg of 
+    process :: Player -> PlayerMessage -> Player 
+    process p _ = p
+
+    netProcess :: ChannelID -> Player -> PlayerNetMessage -> Player 
+    netProcess _ p msg = case msg of 
       NetMsgPlayerPos x y -> p { playerPos = V2 x y }
       NetMsgPlayerRot r -> p { playerRot = r }
       NetMsgPlayerColor r g b -> p { playerColor = V3 r g b }
       NetMsgPlayerSpeed v -> p { playerSpeed = v }
  
-    controlPlayer :: PlayerId -> Peer -> AppWire Player Player
-    controlPlayer pid peer = 
-        movePlayer pid peer (V2 1 0) Key'Left 
-      . movePlayer pid peer (V2 (-1) 0) Key'Right
-      . movePlayer pid peer (V2 0 1) Key'Down
-      . movePlayer pid peer (V2 0 (-1)) Key'Up
+    controlPlayer :: PlayerId -> AppWire Player Player
+    controlPlayer pid = 
+        movePlayer pid (V2 1 0) Key'Left 
+      . movePlayer pid (V2 (-1) 0) Key'Right
+      . movePlayer pid (V2 0 1) Key'Down
+      . movePlayer pid (V2 0 (-1)) Key'Up
 
-    movePlayer :: PlayerId -> Peer -> V2 Double -> Key -> AppWire Player Player
-    movePlayer pid peer dv k = proc p -> do 
+    movePlayer :: PlayerId -> V2 Double -> Key -> AppWire Player Player
+    movePlayer pid dv k = proc p -> do 
       e <- keyPressing k -< ()
       let newPlayer = p {
             playerPos = playerPos p + dv * V2 (playerSpeed p) (playerSpeed p)

@@ -18,6 +18,7 @@ module Game.GoreAndAsh.Core.Arrow(
   , filterJustE
   , filterJustLE
   , liftGameMonadEvent1
+  , changes
   -- | Helpers
   , stateWire
   , chainWires
@@ -142,3 +143,11 @@ stateWire ib w = loop $ proc (a, b_) -> do
 chainWires :: Monad m => [GameWire m a a] -> GameWire m a a 
 chainWires [] = id 
 chainWires (w:ws) = w . chainWires ws
+
+-- | Fires when input value changes
+changes :: (Monad m, Eq a) => GameWire m a (Event a)
+changes = mkPureN $ \a -> (Right $! Event a, go a)
+  where
+    go cura = mkPureN $ \a -> if a == cura 
+      then (Right NoEvent, go cura)
+      else a `seq` (Right $! Event a, go a)

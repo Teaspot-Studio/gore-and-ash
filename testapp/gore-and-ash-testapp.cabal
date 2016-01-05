@@ -82,7 +82,9 @@ executable gore-and-ash-server
   other-modules:       
                        Game
                        Game.Core
+                       Game.Data
                        Game.Player
+                       Game.Player.Data
                        Game.Player.Shared
                        Game.Shared
                        Math

@@ -4,15 +4,14 @@ module Game(
   , Game(..)
   ) where
 
-import Control.DeepSeq
 import Control.Wire
 import Data.Text (pack)
-import GHC.Generics (Generic)
 import Linear
 import Prelude hiding (id, (.))
 import qualified Data.HashMap.Strict as H 
 
 import Game.Core
+import Game.Data
 import Game.Player
 import Game.Shared
 
@@ -21,30 +20,16 @@ import Game.GoreAndAsh.Actor
 import Game.GoreAndAsh.Logging
 import Game.GoreAndAsh.Network
 
-type PlayerMap = H.HashMap PlayerId Player
-type PlayerPeerMap = H.HashMap Peer PlayerId 
-
-data Game = Game {
-  gameId :: !GameId
-, gamePlayers :: !PlayerMap
-, gamePlayerPeers :: !PlayerPeerMap
-} deriving (Generic)
-
-instance NFData Game 
-
 mainWire :: AppActor GameId a Game
 mainWire = actorMaker $ proc (_, g) -> do 
   forceNF . processPlayers -< g
   where 
-    -- | Static id of global game space
-    gid = GameId 0 
-
-    actorMaker = stateActorFixed gid initGame processMessages
+    actorMaker = stateActorFixed globalGameId initGame processMessages
     processMessages g _ = g 
 
     -- | Game at start of the simulation
     initGame = Game {
-        gameId = gid
+        gameId = globalGameId
       , gamePlayers = H.empty
       , gamePlayerPeers = H.empty
       }
@@ -59,14 +44,14 @@ mainWire = actorMaker $ proc (_, g) -> do
       traceEvent (const "New player connected") -< addEvent -- Player id is not ready yet :(
       traceEvent (\i -> "Player " <> (pack . show) i <> " disconnected") -< remEvent
 
-      ps <- dynCollection [] -< ((), addEvent, remEvent)
+      ps <- dynCollection [] -< (g, addEvent, remEvent)
       returnA -< g {
           gamePlayers = H.fromList $ fmap playerId  ps `zip` ps
         , gamePlayerPeers = H.fromList $ fmap playerPeer ps `zip` fmap playerId ps
         }
 
     -- | Spawns new player from peer (creates new arrow)
-    spawnPlayer :: Peer -> AppActor PlayerId a Player
+    spawnPlayer :: Peer -> AppActor PlayerId Game Player
     spawnPlayer p = playerActor $ \i -> Player {
         playerId = i
       , playerPos = 0

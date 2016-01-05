@@ -1,15 +1,22 @@
 module Game.GoreAndAsh.Sync.Message(
     NetworkMessage(..)
+  -- | Getting messages
   , peerIndexedMessages
-  , peerSendIndexedM
-  , peerSendIndexed
-  , peerSendIndexedMany
   , peerProcessIndexed
   , peerProcessIndexedM
+  -- | Sending messages
+  , peerSendIndexedM
+  , peerSendIndexed
+  , peerSendIndexedDyn
+  , peerSendIndexedMany
+  , peerSendIndexedManyDyn
+  -- | Helpers for actors
   , netStateActor
   , netStateActorM
   , netStateActorFixed
   , netStateActorFixedM
+  -- | Helpers
+  , filterMsgs
   ) where
 
 import Control.Monad.Fix 
@@ -49,7 +56,9 @@ peerIndexedMessages p chid i = filterE (not . null)
     parse :: BS.ByteString -> Maybe (NetworkMessageType i)
     parse bs = case decode bs of 
       Left _ -> Nothing
-      Right m -> Just m
+      Right (_ :: Word64, mbs :: BS.ByteString) -> case decode mbs of 
+        Left _ -> Nothing 
+        Right m -> Just m
 
     hasId :: BS.ByteString -> Bool
     hasId bs = case decode bs of
@@ -84,6 +93,14 @@ peerSendIndexed :: (NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize 
   -> GameWire m (Event (NetworkMessageType i)) (Event ())
 peerSendIndexed p chid i mt = liftGameMonadEvent1 $ peerSendIndexedM p chid i mt
 
+-- | Encodes a message for specific actor type and send it to remote host, arrow version.
+-- Takes peer, id and message as arrow input.
+peerSendIndexedDyn :: (NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
+  => ChannelID -- ^ Which channel we are sending within
+  -> MessageType -- ^ Strategy of the message (reliable, unordered etc.)
+  -> GameWire m (Event (Peer, i, NetworkMessageType i)) (Event ())
+peerSendIndexedDyn chid mt = liftGameMonadEvent1 $ \(p, i, msg) -> peerSendIndexedM p chid i mt msg
+
 -- | Encodes a message for specific actor type and send it to remote host, arrow version
 -- Note: mid-level API is not safe to use with low-level at same time as
 -- first bytes of formed message are used for actor id. So, you need to 
@@ -95,6 +112,15 @@ peerSendIndexedMany :: (NetworkMonad m, LoggingMonad m, NetworkMessage i, Serial
   -> MessageType -- ^ Strategy of the message (reliable, unordered etc.)
   -> GameWire m (Event (t (NetworkMessageType i))) (Event ())
 peerSendIndexedMany p chid i mt = liftGameMonadEvent1 . F.mapM_ $ peerSendIndexedM p chid i mt
+
+-- | Encodes a message for specific actor type and send it to remote host, arrow version.
+-- Takes peer, id and message as arrow input.
+peerSendIndexedManyDyn :: (NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
+  => ChannelID -- ^ Which channel we are sending within
+  -> MessageType -- ^ Strategy of the message (reliable, unordered etc.)
+  -> GameWire m (Event [(Peer, i, NetworkMessageType i)]) (Event ())
+peerSendIndexedManyDyn chid mt = liftGameMonadEvent1 . F.mapM_ $ \(p, i, msg) -> peerSendIndexedM p chid i mt msg
+
 
 -- | Same as @peerIndexedMessages@, but transforms input state with given handler
 peerProcessIndexed :: (NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
@@ -116,7 +142,9 @@ peerProcessIndexedM :: (NetworkMonad m, LoggingMonad m, NetworkMessage i, Serial
   -> GameWire m a a -- ^ Updates @a@ with given handler for messages
 peerProcessIndexedM p chid i f = proc a -> do 
   emsgs <- peerIndexedMessages p chid i -< ()
-  liftGameMonad2 (\emsgs a -> event (return a) (F.foldlM f a) emsgs) -< (emsgs, a) 
+  liftGameMonad2 (\emsgs a -> case emsgs of
+    NoEvent -> return a 
+    Event msgs -> F.foldlM f a msgs) -< (emsgs, a) 
 
 -- | Helper to create stateful actors, same as @stateActor@
 netStateActor :: (ActorMonad m, NetworkMonad m, LoggingMonad m, MonadFix m, NetworkMessage i, Typeable (ActorMessageType i), Serialize (NetworkMessageType i))
@@ -171,3 +199,9 @@ netStateActorFixedM :: (ActorMonad m, NetworkMonad m, LoggingMonad m, MonadFix m
 netStateActorFixedM i bi f peer channels fn w = stateActorFixedM i bi f $ proc (a, b) -> do 
   b' <- chainWires ((\ch -> peerProcessIndexedM peer ch i (fn ch)) . ChannelID <$> [0 .. channels-1]) -< b
   w -< (a, b')
+
+-- | Helper to filter output of @peerIndexedMessages@
+filterMsgs :: Monad m
+  => (a -> Bool) -- ^ Predicate to test message
+  -> GameWire m (Event [a]) (Event [a])
+filterMsgs p = mapE (filter p)
