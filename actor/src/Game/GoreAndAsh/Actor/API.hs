@@ -24,7 +24,8 @@ import Control.Monad.Fix
 import Control.Monad.State.Strict
 import Control.Wire
 import Data.Dynamic
-import Data.Maybe (isJust, catMaybes)
+import Data.Maybe (catMaybes)
+import GHC.Fingerprint.Type
 import GHC.Generics 
 import Prelude hiding (id, (.))
 import qualified Data.Foldable as F
@@ -39,7 +40,7 @@ import Game.GoreAndAsh.Actor.State
 
 -- | Exceptions thrown by ActorMonad
 data ActorException = 
-  ActorIdConflict Int -- ^ Tried to register already presented actor
+  ActorIdConflict Fingerprint Int -- ^ Tried to register already presented actor
   deriving (Show, Generic)
 
 instance Exception ActorException
@@ -70,48 +71,35 @@ class MonadThrow m => ActorMonad m where
 instance {-# OVERLAPPING #-} MonadThrow m => ActorMonad (ActorT s m) where
   actorRegisterM = do 
     astate <- ActorT get 
-    let (i, astate') = pushActorNextId astate 
+    let (fpt, i, astate') = pushActorNextId astate 
     ActorT . put $! astate' {
-        actorBoxes = H.insert i S.empty $! actorBoxes astate'
+        actorBoxes = H.insert (fpt, toCounter i) S.empty $! actorBoxes astate'
       }
-    return $! fromCounter i 
+    return i 
 
   actorRegisterFixedM i = do 
     astate <- ActorT get
-    let c = toCounter i
-    case H.lookup c (actorBoxes astate) of 
-      Just _ -> throwM . ActorIdConflict $! c
-      Nothing -> ActorT . put $! astate {
-          actorBoxes = H.insert c S.empty $! actorBoxes astate
-        }
+    case regActorFixedId i astate of 
+      Nothing -> throwM $! ActorIdConflict (getFingerprint i) (toCounter i)
+      Just astate' -> ActorT . put $! astate'
 
   actorDeleteM i = do 
     astate <- ActorT get 
-    ActorT . put $! astate { 
-      actorBoxes = H.delete (toCounter i) $! actorBoxes astate
-    }
+    ActorT . put $! deleteActorId i astate
   
   actorRegisteredM i = do 
     astate <- ActorT get 
-    return . isJust . H.lookup (toCounter i) . actorBoxes $! astate
+    return . isActorIdRegistered i $! astate
 
   actorSendM i msg = do 
     astate <- ActorT get 
-    case H.lookup (toCounter i) . actorBoxes $! astate of 
-      Nothing -> return ()
-      Just msgs -> ActorT . put $! astate {
-          actorBoxes = H.insert (toCounter i) (msgs S.|> toDyn  msg) . actorBoxes $! astate
-        }
+    ActorT . put $! putActorMessage i (toDyn msg) astate
 
   actorGetMessagesM i = do 
     astate <- ActorT get 
-    case H.lookup (toCounter i) . actorBoxes $! astate of 
-      Nothing -> return []
-      Just msgs -> do 
-        ActorT . put $! astate {
-          actorBoxes = H.insert (toCounter i) S.empty . actorBoxes $! astate
-        }
-        return . catMaybes . F.toList $! fromDynamic <$> msgs
+    let (msgs, astate') = getActorMessages i astate 
+    ActorT . put $! astate'
+    return . catMaybes $! fromDynamic <$> msgs
 
 instance {-# OVERLAPPABLE #-} (MonadThrow (mt m), ActorMonad m, MonadTrans mt) => ActorMonad (mt m) where 
   actorRegisterM = lift actorRegisterM
@@ -120,6 +108,81 @@ instance {-# OVERLAPPABLE #-} (MonadThrow (mt m), ActorMonad m, MonadTrans mt) =
   actorRegisteredM = lift . actorRegisteredM
   actorSendM a b = lift $ actorSendM a b
   actorGetMessagesM = lift . actorGetMessagesM
+
+-- | Helper to get message fingerpring
+getFingerprint :: forall i . ActorMessage i => i -> Fingerprint
+getFingerprint _ = typeRepFingerprint $ typeRep (Proxy :: Proxy i)
+
+-- | Returns next unregistered id of actor and updates internal state
+pushActorNextId :: forall i s . ActorMessage i => ActorState s -> (Fingerprint, i, ActorState s)
+pushActorNextId !s = case H.lookup k (actorBoxes s) of
+  Just _ -> pushActorNextId nextState
+  Nothing -> (fingerprint, nextId, nextState)
+  where 
+    fingerprint = typeRepFingerprint $ typeRep (Proxy :: Proxy i)
+    (nextId, nextState) = rawGet s 
+    k = (fingerprint, toCounter nextId)
+
+    -- | Update @actorNextId@ map
+    rawGet :: ActorState s -> (i, ActorState s)
+    rawGet s' = case H.lookup fingerprint (actorNextId s') of 
+      Nothing -> (fromCounter 0, s' {
+        actorNextId = H.insert fingerprint 1 (actorNextId s')
+        })
+      Just i -> (fromCounter i, s' {
+        actorNextId = H.insert fingerprint (i+1) (actorNextId s')
+        })
+ 
+-- | Try to register given id in the mailbox map
+regActorFixedId :: forall i s . ActorMessage i => i -> ActorState s -> Maybe (ActorState s)
+regActorFixedId !i !s = case H.lookup k (actorBoxes s) of 
+  Just _ -> Nothing
+  Nothing -> Just $! s {
+      actorBoxes = H.insert k S.empty $! actorBoxes s
+    }
+  where
+    fingerprint = typeRepFingerprint $ typeRep (Proxy :: Proxy i)
+    k = (fingerprint, toCounter i)
+
+-- | Remove actor id from mailbox map
+deleteActorId :: forall i s . ActorMessage i => i -> ActorState s -> ActorState s 
+deleteActorId !i !s = s {
+    actorBoxes = H.delete k . actorBoxes $! s 
+  }
+  where
+    fingerprint = typeRepFingerprint $ typeRep (Proxy :: Proxy i)
+    k = (fingerprint, toCounter i)
+
+-- | Returns True if given ID is registered
+isActorIdRegistered :: forall i s . ActorMessage i => i -> ActorState s -> Bool
+isActorIdRegistered !i !s = case H.lookup k . actorBoxes $! s of 
+  Nothing -> False 
+  Just _ -> True 
+  where
+    fingerprint = typeRepFingerprint $ typeRep (Proxy :: Proxy i)
+    k = (fingerprint, toCounter i)
+
+-- | Appends given message in corresponding message queue
+putActorMessage :: forall i s . ActorMessage i => i -> Dynamic -> ActorState s -> ActorState s
+putActorMessage !i !msg !s = case H.lookup k . actorBoxes $! s of 
+  Nothing -> s
+  Just msgs -> s {
+      actorBoxes = H.insert k (msgs S.|> msg) . actorBoxes $! s
+    }
+  where
+    fingerprint = typeRepFingerprint $ typeRep (Proxy :: Proxy i)
+    k = (fingerprint, toCounter i)
+
+-- | Return all messages in corresponding mailbox and cleanup it
+getActorMessages :: forall i s . ActorMessage i => i -> ActorState s -> ([Dynamic], ActorState s)
+getActorMessages !i !s = case H.lookup k . actorBoxes $! s of 
+  Nothing -> ([], s)
+  Just msgs -> (F.toList msgs, s {
+      actorBoxes = H.insert k S.empty . actorBoxes $! s
+    })
+  where
+    fingerprint = typeRepFingerprint $ typeRep (Proxy :: Proxy i)
+    k = (fingerprint, toCounter i)
 
 -- | Sends message to statically known actor
 actorSend :: (ActorMonad m, ActorMessage i, Typeable (ActorMessageType i)) 

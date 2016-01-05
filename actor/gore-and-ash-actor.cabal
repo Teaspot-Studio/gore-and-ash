@@ -32,6 +32,8 @@ library
                      , unordered-containers >= 0.2.5.1
                      , containers >= 0.5.6.2
                      , exceptions >= 0.8.0.2
+                     , hashable >= 1.2.3.3
+
   default-extensions:  
                        Arrows
                        BangPatterns
@@ -41,6 +43,8 @@ library
                        GeneralizedNewtypeDeriving
                        MultiParamTypeClasses
                        RecordWildCards
+                       ScopedTypeVariables
+                       StandaloneDeriving
                        TupleSections
                        TypeFamilies
                        UndecidableInstances
