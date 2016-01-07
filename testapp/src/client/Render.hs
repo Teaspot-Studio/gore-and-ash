@@ -14,6 +14,7 @@ import qualified Data.Foldable as F
 
 renderGame :: (MonadIO m, MonadException m) => Game -> RenderState os -> ContextT w os f m (RenderState os)
 renderGame Game{..} rs = do 
+  -- liftIO $ print gamePlayer
   rs' <- F.foldlM (\s _ -> addSquare s) rs [1 .. length gameRemotePlayers + 1 - length (renderSquares rs)]
   return $ rs' {
     renderSquares = case renderSquares rs' of

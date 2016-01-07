@@ -41,7 +41,7 @@ playerActor initialPlayer = actorMaker mainController
     NetMsgPlayerColor r g b -> p { playerColor = V3 r g b }
     _ -> p 
 
-  mainController i = proc (g, p) -> do 
+  mainController i = proc (g, p) -> do
     p2 <- peerProcessIndexedM peer (ChannelID 0) globalGameId globalNetProcess -< p
     notifyAboutSpawn i -< g
     notifyAboutOtherPlayers i -< g
@@ -55,9 +55,9 @@ playerActor initialPlayer = actorMaker mainController
     -- | Process global net messages from given peer (player)
     globalNetProcess :: Player -> GameNetMessage -> GameMonadT AppMonad Player
     globalNetProcess p msg = case msg of 
-      PlayerRequestId -> do 
-        peerSendIndexedM (playerPeer p) (ChannelID 0) globalGameId ReliableMessage $ 
-          PlayerSpawn $ toCounter $ playerId p
+      PlayerRequestId -> do
+        peerSendIndexedM peer (ChannelID 0) globalGameId ReliableMessage $ 
+          PlayerResponseId $ toCounter i
         return p
       _ -> do 
         putMsgLnM $ pack $ show msg

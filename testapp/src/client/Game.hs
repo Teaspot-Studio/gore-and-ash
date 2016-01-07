@@ -49,10 +49,10 @@ mainWire = waitConnection
       peerSendIndexed peer (ChannelID 0) globalGameId ReliableMessage -< emsg
       traceEvent (const "Waiting for player id") -< emsg
       
-      e <- mapE head . filterMsgs isPlayerSpawn . peerIndexedMessages peer (ChannelID 0) globalGameId -< () 
-      traceEvent (\(PlayerSpawn i) -> "Got player id: " <> pack (show i)) -< e
+      e <- mapE head . filterMsgs isPlayerResponseId . peerIndexedMessages peer (ChannelID 0) globalGameId -< () 
+      traceEvent (\(PlayerResponseId i) -> "Got player id: " <> pack (show i)) -< e
       
-      let nextWire = (\(PlayerSpawn i) -> untilDisconnected peer $ PlayerId i) <$> e
+      let nextWire = (\(PlayerResponseId i) -> untilDisconnected peer $ PlayerId i) <$> e
       returnA -< (Nothing, nextWire)
 
     untilDisconnected peer pid = switch $ proc _ -> do 
