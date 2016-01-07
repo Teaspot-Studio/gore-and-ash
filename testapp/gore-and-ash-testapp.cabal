@@ -80,6 +80,7 @@ executable gore-and-ash-server
   default-language:    Haskell2010
   
   other-modules:       
+                       FPS
                        Game
                        Game.Core
                        Game.Data

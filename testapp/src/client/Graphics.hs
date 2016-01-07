@@ -14,7 +14,7 @@ import Control.Monad.IO.Class
 import Graphics.GPipe    
 import Graphics.GPipe.Context.GLFW.Unsafe
 import qualified Graphics.GPipe.Context.GLFW as GLFW
-import qualified Graphics.UI.GLFW as GLFW (Window)
+import qualified Graphics.UI.GLFW as GLFW (Window, swapInterval)
 
 import Graphics.Camera
 import Graphics.Square 
@@ -96,6 +96,9 @@ renderStep rs@RenderState{..} rendering = do
   let viewport = ViewPort (V2 0 0) size
   writeBuffer renderAspectBuffer 0 [fromIntegral w / fromIntegral h]
   
+  -- | Set VSync
+  liftIO $ GLFW.swapInterval 1
+
   -- | Render
   render $ rendering viewport
   swapContextBuffers    

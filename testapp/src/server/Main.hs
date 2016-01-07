@@ -15,6 +15,8 @@ import Data.IORef
 import System.Environment
 import Text.Read 
 
+import FPS 
+
 parseArgs :: IO (String, Int)
 parseArgs = do 
   args <- getArgs 
@@ -29,7 +31,8 @@ main = withModule (Proxy :: Proxy AppMonad) $ do
   gs <- newGameState $ runActor' mainWire
   gsRef <- newIORef gs
   (host, port) <- liftIO parseArgs
-  firstStep host port gs gsRef `onCtrlC` exitHandler gsRef
+  fps <- makeFPSBounder 60
+  firstStep fps host port gs gsRef `onCtrlC` exitHandler gsRef
   where
     -- | What to do on emergency exit
     exitHandler gsRef = do 
@@ -43,19 +46,20 @@ main = withModule (Proxy :: Proxy AppMonad) $ do
       return $ SockAddrInet p $ hostAddress he
 
     -- | Initialization step
-    firstStep host port gs gsRef = do 
+    firstStep fps host port gs gsRef = do 
       (_, gs') <- stepGame gs $ do 
         networkSetDetailedLoggingM False
         addr <- liftIO $ getAddr host (fromIntegral port)
         networkBind (Just addr) 100 2 0 0
       writeIORef gsRef gs'
-      gameLoop gs' gsRef
+      gameLoop fps gs' gsRef
 
     -- | Normal game loop
-    gameLoop gs gsRef = do 
+    gameLoop fps gs gsRef = do 
+      waitFPSBound fps
       (_, gs') <- stepGame gs (return ())
       writeIORef gsRef gs'
-      gameLoop gs' gsRef
+      gameLoop fps gs' gsRef
 
 -- | Executes given handler on Ctrl-C pressing
 onCtrlC :: IO a -> IO () -> IO a
