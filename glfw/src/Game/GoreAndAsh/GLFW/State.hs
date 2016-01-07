@@ -41,6 +41,7 @@ data GLFWState s = GLFWState {
 , glfwWindowSizeChannel :: !WindowSizeChannel
 , glfwScroll :: ![(Double, Double)]
 , glfwScrollChannel :: !ScrollChannel
+, glfwBufferSize :: !Int
 } deriving (Generic)
 
 instance NFData s => NFData (GLFWState s) where 
@@ -57,7 +58,8 @@ instance NFData s => NFData (GLFWState s) where
     glfwWindowSize `deepseq`
     glfwWindowSizeChannel `seq`
     glfwScroll `deepseq`
-    glfwScrollChannel `seq` ()
+    glfwScrollChannel `seq` 
+    glfwBufferSize `seq` ()
 
 instance Hashable Key 
 instance Hashable MouseButton

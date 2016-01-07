@@ -45,6 +45,7 @@ main = withModule (Proxy :: Proxy AppMonad) $ runWindow $ do
       (_, gs') <- stepGame gs $ do 
         networkSetDetailedLoggingM False
         networkBind Nothing 1 2 0 0
+        setBufferSizeM 2
         addr <- liftIO $ getAddr host (fromIntegral port)
         networkConnect addr 2 0
       gameLoop fps rs gs'

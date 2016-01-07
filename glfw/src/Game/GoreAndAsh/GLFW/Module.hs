@@ -41,11 +41,11 @@ instance GameModule m s => GameModule (GLFWInputT s m) (GLFWState s) where
       })
     where 
       readAllKeys GLFWState{..} = liftIO $ do
-        keys <- atomically $ readAllChan glfwKeyChannel
+        keys <- atomically $ readAllChan glfwBufferSize glfwKeyChannel
         return $ M.fromList $ (\(k, ks, mds) -> (k, (ks, mds))) <$> keys
 
       readAllButtons GLFWState{..} = liftIO $ do 
-        btns <- atomically $ readAllChan glfwMouseButtonChannel
+        btns <- atomically $ readAllChan glfwBufferSize glfwMouseButtonChannel
         return $ M.fromList $ (\(b, bs, mds) -> (b, (bs, mds))) <$> btns 
 
       readMousePos GLFWState{..} = liftIO $
@@ -55,7 +55,7 @@ instance GameModule m s => GameModule (GLFWInputT s m) (GLFWState s) where
         atomically $ readTVar glfwWindowSizeChannel 
 
       readMouseScroll GLFWState{..} = liftIO $ 
-        atomically $ readAllChan glfwScrollChannel
+        atomically $ readAllChan glfwBufferSize glfwScrollChannel
 
   newModuleState = do
     s <- newModuleState 
@@ -78,6 +78,7 @@ instance GameModule m s => GameModule (GLFWInputT s m) (GLFWState s) where
       , glfwWindowSizeChannel = wsc
       , glfwScroll = []
       , glfwScrollChannel = sch
+      , glfwBufferSize = 100
       }
 
   withModule _ = id
@@ -155,11 +156,13 @@ bindScrollListener sch w = setScrollCallback w (Just f)
     f _ !sx !sy = atomically . writeTChan sch $! (sx, sy)
 
 -- | Helper function to read all elements from channel
-readAllChan :: TChan a -> STM [a]
-readAllChan chan = fmap reverse $ go []
+readAllChan :: Int -> TChan a -> STM [a]
+readAllChan mi chan = fmap reverse $ go 0 []
   where
-    go acc = do
+    go i acc = do
       mc <- tryReadTChan chan
       case mc of 
         Nothing -> return acc
-        Just a -> go (a:acc)
+        Just a -> go (i+1) $ if i >= mi 
+          then acc
+          else a:acc

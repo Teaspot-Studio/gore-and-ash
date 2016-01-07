@@ -82,6 +82,8 @@ class Monad m => MonadGLFWInput m where
   windowSizeM :: m (Maybe (Double, Double))
   -- | Setups current window for input catch
   setCurrentWindowM :: Maybe Window -> m ()
+  -- | Setup maximum size of inner buffers for keys, mouse buttons
+  setBufferSizeM :: Int -> m ()
 
 instance {-# OVERLAPPING #-} Monad m => MonadGLFWInput (GLFWInputT s m) where 
   keyStatusM k = do 
@@ -103,6 +105,12 @@ instance {-# OVERLAPPING #-} Monad m => MonadGLFWInput (GLFWInputT s m) where
       , glfwPrevWindow = glfwWindow s 
       }
 
+  setBufferSizeM i = GLFWInputT $ do 
+    s <- get 
+    put $ s {
+        glfwBufferSize = i 
+      }
+
 instance {-# OVERLAPPABLE #-} (Monad (mt m), MonadGLFWInput m, MonadTrans mt) => MonadGLFWInput (mt m) where 
   keyStatusM = lift . keyStatusM
   mouseButtonM = lift . mouseButtonM
@@ -110,7 +118,8 @@ instance {-# OVERLAPPABLE #-} (Monad (mt m), MonadGLFWInput m, MonadTrans mt) =>
   mouseScrollM = lift mouseScrollM
   windowSizeM = lift windowSizeM
   setCurrentWindowM = lift . setCurrentWindowM
-
+  setBufferSizeM = lift . setBufferSizeM
+  
 -- | Produces event when key state changes
 keyStatus :: MonadGLFWInput m => Key -> GameWire m a (Event (KeyState, ModifierKeys))
 keyStatus k = liftGameMonad (maybe2Event <$> keyStatusM k)
