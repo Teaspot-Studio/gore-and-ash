@@ -19,6 +19,7 @@ executable gore-and-ash-client
   default-language:    Haskell2010
   
   other-modules:       
+                       FPS
                        Game
                        Game.Camera
                        Game.Core

@@ -17,6 +17,9 @@ import Text.Read
 
 import FPS 
 
+simulationFPS :: Int 
+simulationFPS = 60 
+
 parseArgs :: IO (String, Int)
 parseArgs = do 
   args <- getArgs 
@@ -31,7 +34,7 @@ main = withModule (Proxy :: Proxy AppMonad) $ do
   gs <- newGameState $ runActor' mainWire
   gsRef <- newIORef gs
   (host, port) <- liftIO parseArgs
-  fps <- makeFPSBounder 60
+  fps <- makeFPSBounder simulationFPS
   firstStep fps host port gs gsRef `onCtrlC` exitHandler gsRef
   where
     -- | What to do on emergency exit
