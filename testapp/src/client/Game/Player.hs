@@ -12,14 +12,12 @@ import Data.Typeable
 import GHC.Generics (Generic)
 import Linear
 import Prelude hiding (id, (.))
---import Data.Text (pack)
 
 import Game.Core
 import Game.GoreAndAsh.Actor
 import Game.GoreAndAsh.GLFW 
 import Game.GoreAndAsh.Network
 import Game.GoreAndAsh.Sync
---import Game.GoreAndAsh.Logging
 
 import Game.Player.Shared
 
@@ -84,7 +82,6 @@ playerActor i peer = actorMaker $ proc (_, p) -> do
     movePlayer :: PlayerId -> V2 Double -> Key -> AppWire Player Player
     movePlayer pid dv k = proc p -> do 
       e <- keyPressing k -< ()
-      -- traceEvent (pack . show) -< e
       let newPlayer = p {
             playerPos = playerPos p + dv * V2 (playerSpeed p) (playerSpeed p)
           }

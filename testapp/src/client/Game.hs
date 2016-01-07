@@ -64,28 +64,30 @@ mainWire = waitConnection
     disconnected = pure Nothing
 
 playGame :: PlayerId -> Peer -> AppActor GameId a (Maybe Game)
-playGame pid peer = actorMaker $ proc (_, mg) -> do 
-  p <- runActor' $ playerActor pid peer -< ()
-  c <- runActor' $ cameraWire initialCamera -< ()
-  rps <- case mg of 
-    Nothing -> returnA -< []
-    Just g -> processRemotePlayers -< g
-  forceNF -< Just $! case mg of 
-    Nothing -> Game {
-        gameId = globalGameId
-      , gamePlayer = p
-      , gameCamera = c
-      , gameRemotePlayers = rps
-      , gameAddPlayers = []
-      , gameRemovePlayers = []
-      }
-    Just g -> g {
-        gamePlayer = p
-      , gameCamera = c
-      , gameRemotePlayers = rps
-      , gameAddPlayers = []
-      , gameRemovePlayers = []
-      }
+playGame pid peer = do
+  peerSendIndexedM peer (ChannelID 0) globalGameId ReliableMessage PlayerRequestOthers
+  actorMaker $ proc (_, mg) -> do 
+    p <- runActor' $ playerActor pid peer -< ()
+    c <- runActor' $ cameraWire initialCamera -< ()
+    rps <- case mg of 
+      Nothing -> returnA -< []
+      Just g -> processRemotePlayers -< g
+    forceNF -< Just $! case mg of 
+      Nothing -> Game {
+          gameId = globalGameId
+        , gamePlayer = p
+        , gameCamera = c
+        , gameRemotePlayers = rps
+        , gameAddPlayers = []
+        , gameRemovePlayers = []
+        }
+      Just g -> g {
+          gamePlayer = p
+        , gameCamera = c
+        , gameRemotePlayers = rps
+        , gameAddPlayers = []
+        , gameRemovePlayers = []
+        }
   where
 
   -- | Maker of startup camera

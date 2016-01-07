@@ -6,6 +6,7 @@ module Game.Shared(
   , isPlayerDespawn
   , isPlayerRequestId
   , isPlayerResponseId
+  , isPlayerRequestOthers
   ) where
 
 import Control.DeepSeq
@@ -33,6 +34,7 @@ data GameNetMessage =
   | PlayerDespawn !Int 
   | PlayerRequestId
   | PlayerResponseId !Int
+  | PlayerRequestOthers
   deriving (Generic, Show)
 
 instance NFData GameNetMessage
@@ -64,4 +66,9 @@ isPlayerRequestId m = case m of
 isPlayerResponseId :: GameNetMessage -> Bool 
 isPlayerResponseId m = case m of 
   PlayerResponseId _ -> True 
+  _ -> False
+
+isPlayerRequestOthers :: GameNetMessage -> Bool 
+isPlayerRequestOthers m = case m of 
+  PlayerRequestOthers -> True 
   _ -> False

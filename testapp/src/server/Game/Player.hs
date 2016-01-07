@@ -42,9 +42,7 @@ playerActor initialPlayer = actorMaker mainController
     _ -> p 
 
   mainController i = proc (g, p) -> do
-    p2 <- peerProcessIndexedM peer (ChannelID 0) globalGameId globalNetProcess -< p
-    notifyAboutSpawn i -< g
-    notifyAboutOtherPlayers i -< g
+    (_, p2) <- peerProcessIndexedM peer (ChannelID 0) globalGameId globalNetProcess -< (g, p)
     notifyAboutChanges i -< (g, p2)
     forceNF -< p2
     where
@@ -53,35 +51,35 @@ playerActor initialPlayer = actorMaker mainController
 
 
     -- | Process global net messages from given peer (player)
-    globalNetProcess :: Player -> GameNetMessage -> GameMonadT AppMonad Player
-    globalNetProcess p msg = case msg of 
+    globalNetProcess :: (Game, Player) -> GameNetMessage -> GameMonadT AppMonad (Game, Player)
+    globalNetProcess (g, p) msg = case msg of 
       PlayerRequestId -> do
         peerSendIndexedM peer (ChannelID 0) globalGameId ReliableMessage $ 
           PlayerResponseId $ toCounter i
-        return p
+        return (g, p)
+      PlayerRequestOthers -> do 
+        notifyAboutSpawn i g 
+        notifyAboutOtherPlayers i g 
+        return (g, p)
       _ -> do 
         putMsgLnM $ pack $ show msg
-        return p 
+        return (g, p) 
 
     -- | When crated notify other players about spawn
-    notifyAboutSpawn :: PlayerId -> AppWire Game ()
-    notifyAboutSpawn pid = proc Game{..} -> do 
-      e <- now -< ()
+    notifyAboutSpawn :: PlayerId -> Game -> GameMonadT AppMonad ()
+    notifyAboutSpawn pid Game{..} = do 
       let ps = filter ((/= pid) . playerId) $ H.elems gamePlayers
-          msgs = (\p -> (playerPeer p, gameId, PlayerSpawn $ toCounter pid)) <$> ps
-      traceEvent (\ps -> "Notify another players about new player " <> pack (show $ playerId <$> ps)) -< const ps <$> e
-      peerSendIndexedManyDyn (ChannelID 0) ReliableMessage -< const msgs <$> e
-      returnA -< ()
+          msgs = (\p -> (playerPeer p, PlayerSpawn $ toCounter pid)) <$> ps
+      putMsgLnM $ "Notify another players about new player " <> pack (show $ playerId <$> ps)
+      mapM_ (\(pr, msg) -> peerSendIndexedM pr (ChannelID 0) gameId ReliableMessage msg) msgs
 
     -- | When created notify client-side about other players on server
-    notifyAboutOtherPlayers :: PlayerId -> AppWire Game ()
-    notifyAboutOtherPlayers pid = proc Game{..} -> do
-      e <- now -< ()
+    notifyAboutOtherPlayers :: PlayerId -> Game -> GameMonadT AppMonad ()
+    notifyAboutOtherPlayers pid Game{..} = do 
       let ps = filter ((/= pid) . playerId) $ H.elems gamePlayers
-          msgs = (\p -> (peer, gameId, PlayerSpawn . toCounter $! playerId p)) <$> ps
-      traceEvent (\ps -> "Notify spawned player about other players " <> pack (show $ playerId <$> ps)) -< const ps <$> e
-      peerSendIndexedManyDyn (ChannelID 0) ReliableMessage -< const msgs <$> e 
-      returnA -< ()
+          msgs = (\p -> PlayerSpawn . toCounter $! playerId p) <$> ps
+      putMsgLnM $ "Notify another players about new player " <> pack (show $ playerId <$> ps)
+      mapM_ (peerSendIndexedM peer (ChannelID 0) gameId ReliableMessage) msgs
 
     -- | When player properties changes, spam about them to other players
     notifyAboutChanges :: PlayerId -> AppWire (Game, Player) ()
