@@ -22,8 +22,6 @@ import Game.GoreAndAsh.Logging
 import Game.GoreAndAsh.Network 
 import Game.GoreAndAsh.Sync
 
-import Debug.Trace (traceShow)
-
 playerActor :: (PlayerId -> Player) -> AppActor PlayerId Game Player 
 playerActor initialPlayer = actorMaker mainController
   where
@@ -35,7 +33,7 @@ playerActor initialPlayer = actorMaker mainController
   process _ p _ = p 
 
   mainController i = proc (g, p) -> do
-    p2 <- peerProcessIndexed peer (ChannelID 0) i netProcess -< p
+    p2 <- peerProcessIndexedM peer (ChannelID 0) i netProcess -< p
     (_, p3) <- peerProcessIndexedM peer (ChannelID 0) globalGameId globalNetProcess -< (g, p2)
     notifyAboutChanges i -< (g, p3)
     forceNF -< p3
@@ -44,12 +42,12 @@ playerActor initialPlayer = actorMaker mainController
     peer = playerPeer $ initialPlayer i
 
     -- | Process player specific net messages
-    netProcess :: Player -> PlayerNetMessage -> Player 
-    netProcess p msg = traceShow msg $ case msg of 
-      NetMsgPlayerPos x y -> p { playerPos = V2 x y }
-      NetMsgPlayerRot r -> p { playerRot = r }
-      NetMsgPlayerColor r g b -> p { playerColor = V3 r g b }
-      _ -> p 
+    netProcess :: Player -> PlayerNetMessage -> GameMonadT AppMonad Player 
+    netProcess p msg = case msg of 
+      NetMsgPlayerPos x y -> return $ p { playerPos = V2 x y }
+      NetMsgPlayerRot r -> return $ p { playerRot = r }
+      NetMsgPlayerColor r g b -> return $ p { playerColor = V3 r g b }
+      NetMsgPlayerSpeed v -> return $ p { playerSpeed = v }
 
     -- | Process global net messages from given peer (player)
     globalNetProcess :: (Game, Player) -> GameNetMessage -> GameMonadT AppMonad (Game, Player)
@@ -62,6 +60,17 @@ playerActor initialPlayer = actorMaker mainController
         notifyAboutSpawn i g 
         notifyAboutOtherPlayers i g 
         return (g, p)
+      PlayerRequestData ri -> do 
+        let pid = PlayerId ri 
+        case H.lookup pid $ gamePlayers g of 
+          Nothing -> return (g, p)
+          Just p2 -> do 
+            let sendF mkMsg = peerSendIndexedM (playerPeer p) (ChannelID 0) pid ReliableMessage $ mkMsg p2
+            sendF ((\(V2 x y) -> NetMsgPlayerPos x y) . playerPos)
+            sendF (NetMsgPlayerRot . playerRot)
+            sendF ((\(V3 x y z) -> NetMsgPlayerColor x y z) . playerColor)
+            sendF (NetMsgPlayerSpeed . playerSpeed)
+            return (g, p) 
       _ -> do 
         putMsgLnM $ pack $ show msg
         return (g, p) 
@@ -87,9 +96,17 @@ playerActor initialPlayer = actorMaker mainController
     notifyAboutChanges pid = proc (Game{..}, p) -> do 
       let ps = filter ((/= pid) . playerId) $ H.elems gamePlayers
       
-      epos <- changes -< playerPos p
-      let msgs = (\rp -> (playerPeer rp, pid, let V2 x y = playerPos p in NetMsgPlayerPos x y)) <$> ps
-      traceEvent (\ps -> "Notify another players about new pos " <> pack (show $ playerId <$> ps)) -< const ps <$> epos
-      peerSendIndexedManyDyn (ChannelID 0) UnreliableMessage -< const msgs <$> epos 
+      fieldChanges pid playerPos (\(V2 x y) -> NetMsgPlayerPos x y) -< (p, ps)
+      fieldChanges pid playerRot NetMsgPlayerRot -< (p, ps)
+      fieldChanges pid playerColor (\(V3 x y z) -> NetMsgPlayerColor x y z) -< (p, ps)
+      fieldChanges pid playerSpeed NetMsgPlayerSpeed -< (p, ps)
 
+      returnA -< ()
+
+    fieldChanges :: Eq a => PlayerId -> (Player -> a) -> (a -> PlayerNetMessage) -> AppWire (Player, [Player]) ()
+    fieldChanges pid fieldGetter fieldMessage = proc (p, ps) -> do 
+      let field = fieldGetter p
+      efield <- changes -< field
+      let msgs = (\rp -> (playerPeer rp, pid, fieldMessage field)) <$> ps
+      peerSendIndexedManyDyn (ChannelID 0) UnreliableMessage -< const msgs <$> efield 
       returnA -< ()

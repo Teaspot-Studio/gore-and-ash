@@ -72,7 +72,7 @@ playerActor i peer = actorMaker $ proc (_, p) -> do
       NetMsgPlayerRot r -> p { playerRot = r }
       NetMsgPlayerColor r g b -> p { playerColor = V3 r g b }
       NetMsgPlayerSpeed v -> p { playerSpeed = v }
- 
+
     controlPlayer :: PlayerId -> AppWire Player Player
     controlPlayer pid = 
         movePlayer pid (V2 1 0) Key'Left 

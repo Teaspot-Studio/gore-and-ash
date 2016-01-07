@@ -35,6 +35,7 @@ data GameNetMessage =
   | PlayerRequestId
   | PlayerResponseId !Int
   | PlayerRequestOthers
+  | PlayerRequestData !Int -- Id of player we want info about
   deriving (Generic, Show)
 
 instance NFData GameNetMessage
