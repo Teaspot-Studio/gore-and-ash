@@ -31,8 +31,7 @@ library
                      , netwire >= 5.0.1
                      , unordered-containers >= 0.2.5.1
                      , containers >= 0.5.6.2
-                     , exceptions >= 0.8.0.2
-                     , hashable >= 1.2.3.3
+                     , exceptions >= 0.8.0.2 
 
   default-extensions:  
                        Arrows

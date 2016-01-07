@@ -44,6 +44,7 @@ instance ActorMessage GameId where
   type ActorMessageType GameId = GameMessage 
   toCounter = unGameId
   fromCounter = GameId 
+  actorFingerprint _ = 0
 
 instance NetworkMessage GameId where 
   type NetworkMessageType GameId = GameNetMessage

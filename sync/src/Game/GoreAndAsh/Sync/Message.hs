@@ -27,7 +27,6 @@ import Data.Maybe
 import Data.Serialize
 import Data.Typeable 
 import Data.Word
-import GHC.Fingerprint.Type
 import Prelude hiding ((.), id)
 import qualified Data.ByteString as BS 
 import qualified Data.Foldable as F 
@@ -41,8 +40,6 @@ import Game.GoreAndAsh.Network
 class ActorMessage i => NetworkMessage i where
   -- | Corresponding message payload for @i@ identifier, usually ADT
   type NetworkMessageType i :: *
-
-instance Serialize Fingerprint
 
 -- | Fires when network messages for specific actor has arrived
 -- Note: mid-level API is not safe to use with low-level at same time as
@@ -60,7 +57,7 @@ peerIndexedMessages p chid i = filterE (not . null)
     parse :: BS.ByteString -> Maybe (NetworkMessageType i)
     parse bs = case decode bs of 
       Left _ -> Nothing
-      Right (fp :: Fingerprint, w64 :: Word64, mbs :: BS.ByteString) -> if not matchId 
+      Right (fp :: Word64, w64 :: Word64, mbs :: BS.ByteString) -> if not matchId 
         then Nothing
         else case decode mbs of 
           Left _ -> Nothing 

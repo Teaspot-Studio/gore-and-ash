@@ -22,33 +22,34 @@ import Game.GoreAndAsh.Logging
 import Game.GoreAndAsh.Network 
 import Game.GoreAndAsh.Sync
 
+import Debug.Trace (traceShow)
+
 playerActor :: (PlayerId -> Player) -> AppActor PlayerId Game Player 
 playerActor initialPlayer = actorMaker mainController
   where
   -- | Helper to make actor
-  actorMaker = netStateActor initialPlayer process 
-    playerPeer 1 netProcess
+  actorMaker = stateActor initialPlayer process
 
   -- | Process local messages between local actors
   process :: PlayerId -> Player -> PlayerMessage -> Player 
   process _ p _ = p 
 
-  -- | Process player specific net messages
-  netProcess :: PlayerId -> ChannelID -> Player -> PlayerNetMessage -> Player 
-  netProcess _ _ p msg = case msg of 
-    NetMsgPlayerPos x y -> p { playerPos = V2 x y }
-    NetMsgPlayerRot r -> p { playerRot = r }
-    NetMsgPlayerColor r g b -> p { playerColor = V3 r g b }
-    _ -> p 
-
   mainController i = proc (g, p) -> do
-    (_, p2) <- peerProcessIndexedM peer (ChannelID 0) globalGameId globalNetProcess -< (g, p)
-    notifyAboutChanges i -< (g, p2)
-    forceNF -< p2
+    p2 <- peerProcessIndexed peer (ChannelID 0) i netProcess -< p
+    (_, p3) <- peerProcessIndexedM peer (ChannelID 0) globalGameId globalNetProcess -< (g, p2)
+    notifyAboutChanges i -< (g, p3)
+    forceNF -< p3
     where
     -- | Shortcut for peer
     peer = playerPeer $ initialPlayer i
 
+    -- | Process player specific net messages
+    netProcess :: Player -> PlayerNetMessage -> Player 
+    netProcess p msg = traceShow msg $ case msg of 
+      NetMsgPlayerPos x y -> p { playerPos = V2 x y }
+      NetMsgPlayerRot r -> p { playerRot = r }
+      NetMsgPlayerColor r g b -> p { playerColor = V3 r g b }
+      _ -> p 
 
     -- | Process global net messages from given peer (player)
     globalNetProcess :: (Game, Player) -> GameNetMessage -> GameMonadT AppMonad (Game, Player)
