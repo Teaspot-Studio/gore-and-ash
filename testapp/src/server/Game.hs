@@ -22,6 +22,17 @@ import Game.GoreAndAsh.Logging
 import Game.GoreAndAsh.Network
 import Game.GoreAndAsh.Sync 
 
+-- | Wire that returns next player color
+playerColors :: AppWire (Event a) (V3 Double)
+playerColors = dDispense [
+    V3 1 0 0
+  , V3 0 1 0
+  , V3 0 0 1
+  , V3 1 1 0
+  , V3 1 0 1
+  , V3 0 1 1
+  ]
+
 mainWire :: AppActor GameId a Game
 mainWire = actorMaker $ proc (_, g) -> do 
   forceNF . processPlayers -< g
@@ -39,7 +50,10 @@ mainWire = actorMaker $ proc (_, g) -> do
     -- | Handles process of players connection and disconnections
     processPlayers :: AppWire Game Game
     processPlayers = proc g -> do 
-      addEvent <- mapE (fmap spawnPlayer) . peersConnected -< ()
+      conEvent <- peersConnected -< ()
+      col <- playerColors -< conEvent
+      let addEvent = fmap (spawnPlayer col) <$> conEvent
+
       disEvent <- peersDisconnected -< ()
       remEvent <- filterJustLE -< fmap (despawnPlayer g) <$> disEvent
 
@@ -55,11 +69,11 @@ mainWire = actorMaker $ proc (_, g) -> do
         }
 
     -- | Spawns new player from peer (creates new arrow)
-    spawnPlayer :: Peer -> AppActor PlayerId Game Player
-    spawnPlayer p = playerActor $ \i -> Player {
+    spawnPlayer :: V3 Double -> Peer -> AppActor PlayerId Game Player
+    spawnPlayer c p = playerActor $ \i -> Player {
         playerId = i
       , playerPos = 0
-      , playerColor = V3 1 0 0
+      , playerColor = c
       , playerRot = 0
       , playerPeer = p
       , playerSpeed = 0.5

@@ -36,6 +36,7 @@ playerActor initialPlayer = actorMaker mainController
     p2 <- peerProcessIndexedM peer (ChannelID 0) i netProcess -< p
     (_, p3) <- peerProcessIndexedM peer (ChannelID 0) globalGameId globalNetProcess -< (g, p2)
     notifyAboutChanges i -< (g, p3)
+    updateClientsState i -< (g, p3)
     forceNF -< p3
     where
     -- | Shortcut for peer
@@ -96,17 +97,33 @@ playerActor initialPlayer = actorMaker mainController
     notifyAboutChanges pid = proc (Game{..}, p) -> do 
       let ps = filter ((/= pid) . playerId) $ H.elems gamePlayers
       
-      fieldChanges pid playerPos (\(V2 x y) -> NetMsgPlayerPos x y) -< (p, ps)
-      fieldChanges pid playerRot NetMsgPlayerRot -< (p, ps)
-      fieldChanges pid playerColor (\(V3 x y z) -> NetMsgPlayerColor x y z) -< (p, ps)
-      fieldChanges pid playerSpeed NetMsgPlayerSpeed -< (p, ps)
+      fieldChanges pid changes playerPos (\(V2 x y) -> NetMsgPlayerPos x y) -< (p, ps)
+      fieldChanges pid changes playerRot NetMsgPlayerRot -< (p, ps)
+      fieldChanges pid changes playerColor (\(V3 x y z) -> NetMsgPlayerColor x y z) -< (p, ps)
+      fieldChanges pid changes playerSpeed NetMsgPlayerSpeed -< (p, ps)
 
       returnA -< ()
 
-    fieldChanges :: Eq a => PlayerId -> (Player -> a) -> (a -> PlayerNetMessage) -> AppWire (Player, [Player]) ()
-    fieldChanges pid fieldGetter fieldMessage = proc (p, ps) -> do 
+
+    -- | Periodically sends all state of player to clients
+    updateClientsState :: PlayerId -> AppWire (Game, Player) ()
+    updateClientsState pid = proc (Game{..}, p) -> do 
+      let ps = H.elems gamePlayers
+
+      fieldChanges pid emake playerPos (\(V2 x y) -> NetMsgPlayerPos x y) -< (p, ps)
+      fieldChanges pid emake playerRot NetMsgPlayerRot -< (p, ps)
+      fieldChanges pid emake playerColor (\(V3 x y z) -> NetMsgPlayerColor x y z) -< (p, ps)
+      fieldChanges pid emake playerSpeed NetMsgPlayerSpeed -< (p, ps)
+
+      returnA -< ()
+      where
+        emake = periodic 4 -- period of update
+
+    -- | Helper that sends updates about specific player field to given set of players
+    fieldChanges :: Eq a => PlayerId -> (AppWire a (Event a)) -> (Player -> a) -> (a -> PlayerNetMessage) -> AppWire (Player, [Player]) ()
+    fieldChanges pid eventGen fieldGetter fieldMessage = proc (p, ps) -> do 
       let field = fieldGetter p
-      efield <- changes -< field
+      efield <- eventGen -< field
       let msgs = (\rp -> (playerPeer rp, pid, fieldMessage field)) <$> ps
       peerSendIndexedManyDyn (ChannelID 0) UnreliableMessage -< const msgs <$> efield 
       returnA -< ()

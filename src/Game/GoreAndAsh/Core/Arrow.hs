@@ -22,6 +22,8 @@ module Game.GoreAndAsh.Core.Arrow(
   -- | Helpers
   , stateWire
   , chainWires
+  , dispense
+  , dDispense
   ) where
 
 import Control.Monad.Fix
@@ -151,3 +153,25 @@ changes = mkPureN $ \a -> (Right $! Event a, go a)
     go cura = mkPureN $ \a -> if a == cura 
       then (Right NoEvent, go cura)
       else a `seq` (Right $! Event a, go a)
+
+-- | Infinitely dispense given elements and switches to next item on event
+-- Note: is not defined on empty list.
+-- Note: not delayed version, new item is returned on same frame when input event occurs
+dispense :: (Monad m) => [a] -> GameWire m (Event b) a
+dispense = go . cycle
+  where
+    go [] = error "dispense: empty list"
+    go (a:as) = mkPureN $ \e -> case e of 
+      NoEvent -> (Right a, go $ a:as)
+      Event _ -> (Right $ head as, go as)
+
+-- | Infinitely dispense given elements and switches to next item on event
+-- Note: is not defined on empty list.
+-- Note: delayed version, new item is returned on frame after input event occurs
+dDispense :: (Monad m) => [a] -> GameWire m (Event b) a
+dDispense = go . cycle
+  where
+    go [] = error "dDispense: empty list" 
+    go (a:as) = mkPureN $ \e -> case e of 
+      NoEvent -> (Right a, go $ a:as)
+      Event _ -> (Right a, go as)
