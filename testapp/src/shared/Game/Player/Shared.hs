@@ -11,6 +11,7 @@ data PlayerNetMessage =
   | NetMsgPlayerRot !Double
   | NetMsgPlayerColor !Double !Double !Double
   | NetMsgPlayerSpeed !Double
+  | NetMsgPlayerRequest
   deriving (Generic, Show)
 
 instance NFData PlayerNetMessage

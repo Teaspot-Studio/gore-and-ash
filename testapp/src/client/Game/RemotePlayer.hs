@@ -54,3 +54,4 @@ remotePlayerActor peer pid = do
       NetMsgPlayerRot r -> p { remotePlayerRot = r }
       NetMsgPlayerColor r g b -> p { remotePlayerCol = V3 r g b }
       NetMsgPlayerSpeed v -> p { remotePlayerSpeed = v }
+      NetMsgPlayerRequest -> p

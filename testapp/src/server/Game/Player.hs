@@ -42,6 +42,15 @@ playerActor initialPlayer = actorMaker mainController
     -- | Shortcut for peer
     peer = playerPeer $ initialPlayer i
 
+    -- | Sends full state of player to given peer and actor id
+    sendFullData :: Peer -> Player -> GameMonadT AppMonad ()
+    sendFullData peer1 p = do 
+      let sendF mkMsg = peerSendIndexedM peer1 (ChannelID 0) (playerId p) ReliableMessage $ mkMsg p
+      sendF ((\(V2 x y) -> NetMsgPlayerPos x y) . playerPos)
+      sendF (NetMsgPlayerRot . playerRot)
+      sendF ((\(V3 x y z) -> NetMsgPlayerColor x y z) . playerColor)
+      sendF (NetMsgPlayerSpeed . playerSpeed)
+
     -- | Process player specific net messages
     netProcess :: Player -> PlayerNetMessage -> GameMonadT AppMonad Player 
     netProcess p msg = case msg of 
@@ -49,6 +58,7 @@ playerActor initialPlayer = actorMaker mainController
       NetMsgPlayerRot r -> return $ p { playerRot = r }
       NetMsgPlayerColor r g b -> return $ p { playerColor = V3 r g b }
       NetMsgPlayerSpeed v -> return $ p { playerSpeed = v }
+      NetMsgPlayerRequest -> sendFullData (playerPeer p) p >> return p
 
     -- | Process global net messages from given peer (player)
     globalNetProcess :: (Game, Player) -> GameNetMessage -> GameMonadT AppMonad (Game, Player)
@@ -66,12 +76,8 @@ playerActor initialPlayer = actorMaker mainController
         case H.lookup pid $ gamePlayers g of 
           Nothing -> return (g, p)
           Just p2 -> do 
-            let sendF mkMsg = peerSendIndexedM (playerPeer p) (ChannelID 0) pid ReliableMessage $ mkMsg p2
-            sendF ((\(V2 x y) -> NetMsgPlayerPos x y) . playerPos)
-            sendF (NetMsgPlayerRot . playerRot)
-            sendF ((\(V3 x y z) -> NetMsgPlayerColor x y z) . playerColor)
-            sendF (NetMsgPlayerSpeed . playerSpeed)
-            return (g, p) 
+            sendFullData (playerPeer p) p2
+            return (g, p)
       _ -> do 
         putMsgLnM $ pack $ show msg
         return (g, p) 

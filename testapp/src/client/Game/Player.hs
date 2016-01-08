@@ -49,6 +49,7 @@ instance NetworkMessage PlayerId where
   
 playerActor :: PlayerId -> Peer -> AppActor PlayerId a Player 
 playerActor i peer = actorMaker $ proc (_, p) -> do 
+  peerSendIndexed peer (ChannelID 0) i ReliableMessage . now -< NetMsgPlayerRequest
   forceNF . controlPlayer i -< p
   where
     actorMaker = netStateActorFixed i initialPlayer process 
@@ -72,6 +73,7 @@ playerActor i peer = actorMaker $ proc (_, p) -> do
       NetMsgPlayerRot r -> p { playerRot = r }
       NetMsgPlayerColor r g b -> p { playerColor = V3 r g b }
       NetMsgPlayerSpeed v -> p { playerSpeed = v }
+      NetMsgPlayerRequest -> p 
 
     controlPlayer :: PlayerId -> AppWire Player Player
     controlPlayer pid = 
