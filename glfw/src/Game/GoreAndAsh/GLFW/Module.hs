@@ -3,12 +3,12 @@ module Game.GoreAndAsh.GLFW.Module(
     GLFWInputT(..)
   ) where
 
-import Control.Concurrent.STM
 import Control.Monad.Catch
 import Control.Monad.Extra
-import Control.Monad.IO.Class
 import Control.Monad.Fix 
+import Control.Monad.IO.Class
 import Control.Monad.State.Strict 
+import Data.IORef
 import Graphics.UI.GLFW
 import qualified Data.HashMap.Strict as M 
 
@@ -41,29 +41,29 @@ instance GameModule m s => GameModule (GLFWInputT s m) (GLFWState s) where
       })
     where 
       readAllKeys GLFWState{..} = liftIO $ do
-        keys <- atomically $ readAllChan glfwBufferSize glfwKeyChannel
+        keys <- readAllChan glfwBufferSize glfwKeyChannel
         return $ M.fromList $ (\(k, ks, mds) -> (k, (ks, mds))) <$> keys
 
       readAllButtons GLFWState{..} = liftIO $ do 
-        btns <- atomically $ readAllChan glfwBufferSize glfwMouseButtonChannel
+        btns <- readAllChan glfwBufferSize glfwMouseButtonChannel
         return $ M.fromList $ (\(b, bs, mds) -> (b, (bs, mds))) <$> btns 
 
       readMousePos GLFWState{..} = liftIO $
-        atomically $ readTVar glfwMousePosChannel
+        readIORef glfwMousePosChannel
 
       readWindowSize GLFWState{..} = liftIO $ 
-        atomically $ readTVar glfwWindowSizeChannel 
+        readIORef glfwWindowSizeChannel 
 
       readMouseScroll GLFWState{..} = liftIO $ 
-        atomically $ readAllChan glfwBufferSize glfwScrollChannel
+        readAllChan glfwBufferSize glfwScrollChannel
 
   newModuleState = do
     s <- newModuleState 
-    kc <- liftIO newTChanIO
-    mbc <- liftIO newTChanIO
-    mpc <- liftIO $ newTVarIO (0, 0)
-    wsc <- liftIO $ newTVarIO Nothing
-    sch <- liftIO newTChanIO
+    kc <- liftIO $ newIORef []
+    mbc <- liftIO $ newIORef []
+    mpc <- liftIO $ newIORef (0, 0)
+    wsc <- liftIO $ newIORef Nothing
+    sch <- liftIO $ newIORef []
     return $ GLFWState {
         glfwNextState = s
       , glfwKeyChannel = kc
@@ -99,7 +99,7 @@ bindWindow prev cur kch mbch mpch wsch sch = unless (prev == cur) $ liftIO $ do
     setKeyCallback w Nothing
     setMouseButtonCallback w Nothing
     setCursorPosCallback w Nothing
-    setWindowSizeCallback w Nothing >> atomically (writeTVar wsch Nothing)
+    setWindowSizeCallback w Nothing >> atomicWriteIORef wsch Nothing
     setScrollCallback w Nothing
   whenJust cur $ \w -> do
     bindKeyListener kch w
@@ -109,23 +109,26 @@ bindWindow prev cur kch mbch mpch wsch sch = unless (prev == cur) $ liftIO $ do
     bindWindowSizeListener wsch w
     -- update window size
     (!sx, !sy) <- getWindowSize w 
-    atomically . writeTVar wsch $! Just (fromIntegral sx, fromIntegral sy)
+    atomicWriteIORef wsch $! Just (fromIntegral sx, fromIntegral sy)
 
     bindScrollListener sch w 
+
+atomicAppendIORef :: IORef [a] -> a -> IO ()
+atomicAppendIORef ref a = atomicModifyIORef ref $ \as -> (a : as, ()) 
 
 -- | Bind callback that passes keyboard info to channel
 bindKeyListener :: KeyChannel -> Window -> IO ()
 bindKeyListener kch w = setKeyCallback w (Just f)
   where
     f :: Window -> Key -> Int -> KeyState -> ModifierKeys -> IO ()
-    f _ k _ ks mds = atomically $ writeTChan kch (k, ks, mds)
+    f _ k _ ks mds = atomicAppendIORef kch (k, ks, mds)
 
 -- | Bind callback that passes mouse button info to channel
 bindMouseButtonListener :: ButtonChannel -> Window -> IO ()
 bindMouseButtonListener mbch w = setMouseButtonCallback w (Just f)
   where 
     f :: Window -> MouseButton -> MouseButtonState -> ModifierKeys -> IO ()
-    f _ b bs mds = atomically $ writeTChan mbch (b, bs, mds)
+    f _ b bs mds = atomicAppendIORef mbch (b, bs, mds)
 
 -- | Bind callback that passes mouse position info to channel
 bindMousePosListener :: MouseChannel -> Window -> IO ()
@@ -136,7 +139,7 @@ bindMousePosListener mpch w = setCursorPosCallback w (Just f)
       (sx, sy) <- getWindowSize w'
       let x' = 2 * (x / fromIntegral sx - 0.5)
           y' = 2 * (0.5 - y / fromIntegral sy)
-      atomically . writeTVar mpch $! x' `seq` y' `seq` (x', y')
+      atomicWriteIORef mpch $! x' `seq` y' `seq` (x', y')
 
 -- | Bind callback that passes window size info to channel
 bindWindowSizeListener :: WindowSizeChannel -> Window -> IO ()
@@ -146,23 +149,18 @@ bindWindowSizeListener wsch w = setWindowSizeCallback w (Just f)
     f _ sx sy = do 
       let sx' = fromIntegral sx 
           sy' = fromIntegral sy
-      atomically . writeTVar wsch . Just $! sx' `seq` sy' `seq` (sx', sy')
+      atomicWriteIORef wsch . Just $! sx' `seq` sy' `seq` (sx', sy')
 
 -- | Bind callback that passes scoll info to channel
 bindScrollListener :: ScrollChannel -> Window -> IO ()
 bindScrollListener sch w = setScrollCallback w (Just f)
   where 
     f :: Window -> Double -> Double -> IO ()
-    f _ !sx !sy = atomically . writeTChan sch $! (sx, sy)
+    f _ !sx !sy = atomicAppendIORef sch $! (sx, sy)
 
 -- | Helper function to read all elements from channel
-readAllChan :: Int -> TChan a -> STM [a]
-readAllChan mi chan = fmap reverse $ go 0 []
-  where
-    go i acc = do
-      mc <- tryReadTChan chan
-      case mc of 
-        Nothing -> return acc
-        Just a -> go (i+1) $ if i >= mi 
-          then acc
-          else a:acc
+readAllChan :: Int -> IORef [a] -> IO [a]
+readAllChan mi chan = do 
+  xs <- readIORef chan 
+  atomicWriteIORef chan []
+  return $ take mi xs

@@ -25,7 +25,6 @@ library
                      , deepseq >= 1.4
                      , mtl >= 2.2
                      , GLFW-b >= 1.4.7
-                     , stm >= 2.4
                      , transformers >= 0.4.2
                      , unordered-containers >= 0.2.5
                      , hashable >= 1.2.3

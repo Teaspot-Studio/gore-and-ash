@@ -8,23 +8,23 @@ module Game.GoreAndAsh.GLFW.State(
   , GLFWState(..)
   ) where
 
-import Control.Concurrent.STM
 import Control.DeepSeq
+import Data.IORef
 import Data.Hashable
 import GHC.Generics (Generic)
 import Graphics.UI.GLFW
 import qualified Data.HashMap.Strict as M 
 
 -- | Channel to connect core and callback with key states
-type KeyChannel = TChan (Key, KeyState, ModifierKeys)
+type KeyChannel = IORef [(Key, KeyState, ModifierKeys)]
 -- | Channel to connect core and callback with mouse button states
-type ButtonChannel = TChan (MouseButton, MouseButtonState, ModifierKeys)
+type ButtonChannel = IORef [(MouseButton, MouseButtonState, ModifierKeys)]
 -- | Channel to connect core and callback with mouse position
-type MouseChannel = TVar (Double, Double)
+type MouseChannel = IORef (Double, Double)
 -- | Channel to connect core and callback with window resizing 
-type WindowSizeChannel = TVar (Maybe (Double, Double))
+type WindowSizeChannel = IORef (Maybe (Double, Double))
 -- | Channel to connect core and callback with mouse scrolling
-type ScrollChannel = TChan (Double, Double)
+type ScrollChannel = IORef [(Double, Double)]
 
 -- | Module inner state
 data GLFWState s = GLFWState {
