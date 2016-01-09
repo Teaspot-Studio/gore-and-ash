@@ -52,7 +52,7 @@ main = withModule (Proxy :: Proxy AppMonad) $ runWindow $ do
 
     gameLoop fps rs gs = do 
       liftIO $ putStrLn "gl start"
-      liftIO $ waitFPSBound fps
+      --liftIO $ waitFPSBound fps
       liftIO $ putStrLn "gl step"
       (mg, gs') <- stepGame gs (preFrame rs)
       liftIO $ putStrLn "gl step done, render"
