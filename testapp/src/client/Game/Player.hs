@@ -42,7 +42,7 @@ instance ActorMessage PlayerId where
   type ActorMessageType PlayerId = PlayerMessage
   toCounter = unPlayerId
   fromCounter = PlayerId 
-  actorFingerprint _ = 1
+  actorFingerprint _ = playerActorId
 
 instance NetworkMessage PlayerId where 
   type NetworkMessageType PlayerId = PlayerNetMessage
