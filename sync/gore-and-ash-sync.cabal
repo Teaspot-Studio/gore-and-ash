@@ -16,6 +16,10 @@ library
   hs-source-dirs:      src
   exposed-modules:     Game.GoreAndAsh.Sync
                        Game.GoreAndAsh.Sync.Message
+                       Game.GoreAndAsh.Sync.Remote
+                       Game.GoreAndAsh.Sync.Remote.Actor
+                       Game.GoreAndAsh.Sync.Remote.Collection
+                       
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
                      , gore-and-ash 
@@ -25,7 +29,7 @@ library
                      , cereal >= 0.4.1.1
                      , bytestring >= 0.10.6.0
                      , netwire >= 5.0.1
-                     
+                     , deepseq >= 1.4.1.1
   default-extensions:  
                        Arrows
                        DeriveGeneric
@@ -34,3 +38,6 @@ library
                        ScopedTypeVariables
                        StandaloneDeriving
                        TypeFamilies
+                       MultiParamTypeClasses
+                       FunctionalDependencies
+                       UndecidableInstances
