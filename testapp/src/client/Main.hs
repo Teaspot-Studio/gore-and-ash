@@ -51,11 +51,15 @@ main = withModule (Proxy :: Proxy AppMonad) $ runWindow $ do
       gameLoop fps rs gs'
 
     gameLoop fps rs gs = do 
+      liftIO $ putStrLn "gl start"
       liftIO $ waitFPSBound fps
+      liftIO $ putStrLn "gl step"
       (mg, gs') <- stepGame gs (preFrame rs)
+      liftIO $ putStrLn "gl step done, render"
       rs2 <- case join mg of 
         Nothing -> renderEmptyScreen rs
         Just g -> renderGame g =<< stepRenderState rs
+      liftIO $ putStrLn "gl render done"
       if isClosedRequest rs2 
         then cleanupGameState gs'
         else gameLoop fps rs2 gs'

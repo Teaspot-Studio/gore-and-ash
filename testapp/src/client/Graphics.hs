@@ -87,25 +87,32 @@ renderStep :: (MonadException m, MonadIO m)
   -> (ViewPort -> Render os f ()) -- ^ How to render
   -> ContextT GLFWWindow os f m (RenderState os) -- ^ New state
 renderStep rs@RenderState{..} rendering = do
+  liftIO $ putStrLn "renderStep start"    
   -- | Update buffers
   squares <- mapM updateSquare renderSquares
   camera' <- updateCamera renderCamera
+  liftIO $ putStrLn "buffers updated"    
   
   -- | Calculate viewport
   size@(V2 w h) <- getContextBuffersSize
   let viewport = ViewPort (V2 0 0) size
   writeBuffer renderAspectBuffer 0 [fromIntegral w / fromIntegral h]
-  
+  liftIO $ putStrLn "update viewport"    
+
   -- | Set VSync
   liftIO $ GLFW.swapInterval 1
 
   -- | Render
+  liftIO $ putStrLn "renderState render start"    
   render $ rendering viewport
+  liftIO $ putStrLn "renderState render end"    
   swapContextBuffers    
+  liftIO $ putStrLn "renderState buffers swapped"    
 
   -- | Update state
   closeRequested <- GLFW.windowShouldClose   
   win <- withContextWindow $ return . getGLFWWindow
+  liftIO $ putStrLn "renderState end"    
   return $ rs {
       renderSquares = squares
     , renderCamera = camera'
