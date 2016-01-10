@@ -35,41 +35,54 @@ import Game.GoreAndAsh
 import Game.GoreAndAsh.Actor
 import Game.GoreAndAsh.Logging
 import Game.GoreAndAsh.Network
-
--- | Extension for actor message, messages that are sent to remote host
-class ActorMessage i => NetworkMessage i where
-  -- | Corresponding message payload for @i@ identifier, usually ADT
-  type NetworkMessageType i :: *
+import Game.GoreAndAsh.Sync.API 
+import Game.GoreAndAsh.Sync.State
 
 -- | Fires when network messages for specific actor has arrived
 -- Note: mid-level API is not safe to use with low-level at same time as
 -- first bytes of formed message are used for actor id. So, you need to 
 -- have a special forbidden id for you custom messages.
-peerIndexedMessages :: forall m i a . (NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
+peerIndexedMessages :: forall m i a . (SyncMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
   => Peer -- ^ Which peer we are listening
   -> ChannelID -- ^ Which channel we are listening
   -> i -- ^ ID of actor 
   -> GameWire m a (Event [NetworkMessageType i]) -- ^ Messages that are addressed to the actor
-peerIndexedMessages p chid i = filterE (not . null) 
-  . mapE (catMaybes . fmap parse)
-  . peerMessages p chid
+peerIndexedMessages p chid i = proc _ -> do 
+  netid <- mkNetId -< ()
+  emsgs <- peerMessages p chid -< ()
+  filterE (not . null) . mapE (\(netid, msgs) -> catMaybes $ (parse netid) <$> msgs)
+    -< (netid, ) <$> emsgs
   where
-    parse :: BS.ByteString -> Maybe (NetworkMessageType i)
-    parse bs = case decode bs of 
+    -- | If actor is new, register actor and cache the id
+    mkNetId :: GameWire m () Word64
+    mkNetId = mkGen $ \_ _ -> do 
+      let !tr = actorFingerprint (Proxy :: Proxy i)
+      mnid <- getSyncIdM tr
+      case mnid of 
+        Nothing -> do 
+          !nid <- registerSyncIdM tr
+          return (Right nid, pure nid)
+        Just !nid -> return (Right nid, pure nid)
+
+    -- | Parses packet, decodes only user messages
+    parse :: Word64 -> BS.ByteString -> Maybe (NetworkMessageType i)
+    parse !netid !bs = case decode bs of 
       Left _ -> Nothing
-      Right (fp :: Word64, w64 :: Word64, mbs :: BS.ByteString) -> if not matchId 
+      Right (fp :: Word64, bs2 :: BS.ByteString) -> if fp == 0 
         then Nothing
-        else case decode mbs of 
-          Left _ -> Nothing 
-          Right m -> Just m
-        where
-          matchId = fp == getActorFingerprint i && fromIntegral w64 == toCounter i
+        else case decode bs2 of 
+          Left _ -> Nothing
+          Right (w64 :: Word64, mbs :: BS.ByteString) -> if not (fp == netid && fromIntegral w64 == toCounter i)
+            then Nothing
+            else case decode mbs of 
+              Left _ -> Nothing 
+              Right !m -> Just $! m
 
 -- | Encodes a message for specific actor type and send it to remote host
 -- Note: mid-level API is not safe to use with low-level at same time as
 -- first bytes of formed message are used for actor id. So, you need to 
 -- have a special forbidden id for you custom messages.
-peerSendIndexedM :: (NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
+peerSendIndexedM :: forall m i . (SyncMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
   => Peer -- ^ Which peer we sending to
   -> ChannelID -- ^ Which channel we are sending within
   -> i -- ^ ID of actor
@@ -77,15 +90,19 @@ peerSendIndexedM :: (NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize
   -> NetworkMessageType i -- ^ Message to send
   -> m ()
 peerSendIndexedM p chid i mt msg = do 
-  let w64 = fromIntegral (toCounter i) :: Word64
-      msg' = Message mt $ encode (getActorFingerprint i, w64, encode msg)
-  peerSendM p chid msg'
+  mnid <- getSyncIdM $ actorFingerprint (Proxy :: Proxy i)
+  case mnid of 
+    Nothing -> syncScheduleMessageM p chid i mt msg  -- schedule message send when we resolve sync id 
+    Just nid -> do 
+      let w64 = fromIntegral (toCounter i) :: Word64
+          msg' = Message mt $! encode (nid, encode (w64, encode msg))
+      peerSendM p chid msg'
 
 -- | Encodes a message for specific actor type and send it to remote host, arrow version
 -- Note: mid-level API is not safe to use with low-level at same time as
 -- first bytes of formed message are used for actor id. So, you need to 
 -- have a special forbidden id for you custom messages.
-peerSendIndexed :: (NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
+peerSendIndexed :: (SyncMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
   => Peer -- ^ Which peer we sending to
   -> ChannelID -- ^ Which channel we are sending within
   -> i -- ^ ID of actor
@@ -95,7 +112,7 @@ peerSendIndexed p chid i mt = liftGameMonadEvent1 $ peerSendIndexedM p chid i mt
 
 -- | Encodes a message for specific actor type and send it to remote host, arrow version.
 -- Takes peer, id and message as arrow input.
-peerSendIndexedDyn :: (NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
+peerSendIndexedDyn :: (SyncMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
   => ChannelID -- ^ Which channel we are sending within
   -> MessageType -- ^ Strategy of the message (reliable, unordered etc.)
   -> GameWire m (Event (Peer, i, NetworkMessageType i)) (Event ())
@@ -105,7 +122,7 @@ peerSendIndexedDyn chid mt = liftGameMonadEvent1 $ \(p, i, msg) -> peerSendIndex
 -- Note: mid-level API is not safe to use with low-level at same time as
 -- first bytes of formed message are used for actor id. So, you need to 
 -- have a special forbidden id for you custom messages.
-peerSendIndexedMany :: (NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i), F.Foldable t)
+peerSendIndexedMany :: (SyncMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i), F.Foldable t)
   => Peer -- ^ Which peer we sending to
   -> ChannelID -- ^ Which channel we are sending within
   -> i -- ^ ID of actor
@@ -115,7 +132,7 @@ peerSendIndexedMany p chid i mt = liftGameMonadEvent1 . F.mapM_ $ peerSendIndexe
 
 -- | Encodes a message for specific actor type and send it to remote host, arrow version.
 -- Takes peer, id and message as arrow input.
-peerSendIndexedManyDyn :: (NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
+peerSendIndexedManyDyn :: (SyncMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
   => ChannelID -- ^ Which channel we are sending within
   -> MessageType -- ^ Strategy of the message (reliable, unordered etc.)
   -> GameWire m (Event [(Peer, i, NetworkMessageType i)]) (Event ())
@@ -123,7 +140,7 @@ peerSendIndexedManyDyn chid mt = liftGameMonadEvent1 . F.mapM_ $ \(p, i, msg) ->
 
 
 -- | Same as @peerIndexedMessages@, but transforms input state with given handler
-peerProcessIndexed :: (NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
+peerProcessIndexed :: (SyncMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
   => Peer -- ^ Which peer we are listening
   -> ChannelID -- ^ Which channel we are listening
   -> i -- ^ ID of actor
@@ -134,7 +151,7 @@ peerProcessIndexed p chid i f = proc a -> do
   returnA -< event a (F.foldl' f a) emsgs
 
 -- | Same as @peerIndexedMessages@, but transforms input state with given handler, monadic version
-peerProcessIndexedM :: (NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
+peerProcessIndexedM :: (SyncMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
   => Peer -- ^ Which peer we are listening
   -> ChannelID -- ^ Which channel we are listening
   -> i -- ^ ID of actor
@@ -147,7 +164,7 @@ peerProcessIndexedM p chid i f = proc a -> do
     Event msgs -> F.foldlM f a msgs) -< (emsgs, a) 
 
 -- | Helper to create stateful actors, same as @stateActor@
-netStateActor :: (ActorMonad m, NetworkMonad m, LoggingMonad m, MonadFix m, NetworkMessage i, Typeable (ActorMessageType i), Serialize (NetworkMessageType i))
+netStateActor :: (SyncMonad m, ActorMonad m, NetworkMonad m, LoggingMonad m, MonadFix m, NetworkMessage i, Typeable (ActorMessageType i), Serialize (NetworkMessageType i))
   => (i -> b) -- ^ Inital value of state
   -> (i -> b -> ActorMessageType i -> b) -- ^ Handler for messages
   -> (b -> Peer) -- ^ Way to get peer value from inital getter
@@ -160,7 +177,7 @@ netStateActor bi f getPeer channels fn w = stateActor bi f $ \i -> proc (a, b) -
   w i -< (a, b')
 
 -- | Helper to create stateful actors, same as @stateActor@
-netStateActorM :: (ActorMonad m, NetworkMonad m, LoggingMonad m, MonadFix m, NetworkMessage i, Typeable (ActorMessageType i), Serialize (NetworkMessageType i))
+netStateActorM :: (SyncMonad m, ActorMonad m, NetworkMonad m, LoggingMonad m, MonadFix m, NetworkMessage i, Typeable (ActorMessageType i), Serialize (NetworkMessageType i))
   => (i -> b) -- ^ Inital value of state
   -> (i -> b -> ActorMessageType i -> GameMonadT m b) -- ^ Handler for messages
   -> (b -> Peer) -- ^ Way to get peer value from inital getter
@@ -173,7 +190,7 @@ netStateActorM bi f getPeer channels fn w = stateActorM bi f $ \i -> proc (a, b)
   w i -< (a, b')
 
 -- | Helper to create stateful actors with specific id, same as @stateActor@
-netStateActorFixed :: (ActorMonad m, NetworkMonad m, LoggingMonad m, MonadFix m, NetworkMessage i, Typeable (ActorMessageType i), Serialize (NetworkMessageType i))
+netStateActorFixed :: (SyncMonad m, ActorMonad m, NetworkMonad m, LoggingMonad m, MonadFix m, NetworkMessage i, Typeable (ActorMessageType i), Serialize (NetworkMessageType i))
   => i -- ^ Fixed id of actor
   -> b -- ^ Inital value of state
   -> (b -> ActorMessageType i -> b) -- ^ Handler for messages
@@ -187,7 +204,7 @@ netStateActorFixed i bi f peer channels fn w = stateActorFixed i bi f $ proc (a,
   w -< (a, b')
 
 -- | Helper to create stateful actors with specific id, same as @stateActorM@
-netStateActorFixedM :: (ActorMonad m, NetworkMonad m, LoggingMonad m, MonadFix m, NetworkMessage i, Typeable (ActorMessageType i), Serialize (NetworkMessageType i))
+netStateActorFixedM :: (SyncMonad m, ActorMonad m, NetworkMonad m, LoggingMonad m, MonadFix m, NetworkMessage i, Typeable (ActorMessageType i), Serialize (NetworkMessageType i))
   => i -- ^ Fixed id of actor
   -> b -- ^ Inital value of state
   -> (b -> ActorMessageType i -> GameMonadT m b) -- ^ Handler for messages

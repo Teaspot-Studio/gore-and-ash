@@ -1,9 +1,11 @@
 module Game.GoreAndAsh.Actor.Message(
     ActorMessage(..)
+  , actorFingerprint
   ) where
 
-import Data.Proxy 
-import Data.Word 
+import Data.Typeable
+
+import Game.GoreAndAsh.Actor.TypeRep
 
 -- | The typeclass separates message API's of different type of actors
 --  
@@ -13,12 +15,14 @@ import Data.Word
 --
 -- The class implies that your id is some integer type, but it could be not. Just provide way
 -- to stable convertion of you id to integer and vice-versa.
-class ActorMessage objectId where 
+class Typeable objectId => ActorMessage objectId where 
   -- | Binded message type, mailbox with id type of objectId would accept only this message type
   type ActorMessageType objectId :: *
-  -- | Unique actor type id
-  actorFingerprint :: Proxy objectId -> Word64 
   -- | Convertion from global counter. Don't use it in client code as it could break type safety.
   fromCounter :: Int -> objectId
   -- | Convertion to global counter. Don't use it in client code as it could break type safety.
   toCounter :: objectId -> Int
+
+-- | Returns hashable fingerprint of actor that is stable across applications (unique by type name)
+actorFingerprint :: forall proxy a . ActorMessage a => proxy a -> HashableTypeRep
+actorFingerprint = hashableTypeRep

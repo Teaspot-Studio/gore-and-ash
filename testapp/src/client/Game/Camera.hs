@@ -35,8 +35,7 @@ instance NFData CameraMessage
 instance ActorMessage CameraId where
   type ActorMessageType CameraId = CameraMessage
   toCounter = unCameraId
-  fromCounter = CameraId 
-  actorFingerprint _ = 2
+  fromCounter = CameraId
 
 cameraWire :: (CameraId -> Camera) -> AppActor CameraId a Camera 
 cameraWire initialCamera = stateActor initialCamera process $ \_ -> proc (_, c) -> do 

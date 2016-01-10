@@ -13,6 +13,7 @@ import Prelude hiding ((.), id)
 import Game.GoreAndAsh.Actor
 import Game.GoreAndAsh.Logging 
 import Game.GoreAndAsh.Network
+import Game.GoreAndAsh.Sync.API
 import Game.GoreAndAsh.Sync.Message 
 
 import Game.GoreAndAsh.Sync.Remote.Actor
@@ -24,12 +25,10 @@ newtype RemActorCollId = RemActorCollId { unRemActorCollId :: Int }
 -- | Stub for local collection API
 data RemActorCollMessage
 
--- | Fingerprint that is occupied is '4567348'
 instance ActorMessage RemActorCollId where
   type ActorMessageType RemActorCollId = RemActorCollMessage
   toCounter = unRemActorCollId
   fromCounter = RemActorCollId
-  actorFingerprint _ = 4567348
 
 -- | Comminucation protocol between client and server side collections
 data RemActorCollNetMessage =
@@ -53,7 +52,7 @@ instance NetworkMessage RemActorCollId where
 -- 
 -- Second wire input is event with new actors to add to the collection
 -- Third wire input is event with id of actor to delete from the collection
-remoteActorCollectionServer :: (LoggingMonad m, ActorMonad m, NetworkMonad m, Eq i, RemoteActor i b) 
+remoteActorCollectionServer :: (SyncMonad m, LoggingMonad m, ActorMonad m, NetworkMonad m, Eq i, RemoteActor i b) 
   => [GameActor m i a b] -- ^ Initial set of actors
   -> GameActor m RemActorCollId (a, Event [GameActor m i a b], Event [i]) [b]
 remoteActorCollectionServer initalActors = makeActor $ \_ -> proc (a, addEvent, remEvent) -> do 
@@ -73,7 +72,7 @@ emptyClientRemCollState = ClientRemCollState {
 
 -- | Client side collection of network actors that are automatically
 -- synchronized to remote clients.
-remoteActorCollectionClient :: forall m i a b . (LoggingMonad m, ActorMonad m, NetworkMonad m, Eq i, RemoteActor i b) 
+remoteActorCollectionClient :: forall m i a b . (SyncMonad m, LoggingMonad m, ActorMonad m, NetworkMonad m, Eq i, RemoteActor i b) 
   => RemActorCollId -- ^ Corresponding server collection id
   -> Peer -- ^ Server peer
   -> GameActor m RemActorCollId a [b]

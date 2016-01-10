@@ -59,6 +59,7 @@ instance GameModule m s => GameModule (NetworkT s m) (NetworkState s) where
       , networkDetailedLogging = False
       , networkConnectedPeers = []
       , networkDisconnectedPeers = []
+      , networkMaximumChannels = 0
       }
 
   withModule _ = withENetDo

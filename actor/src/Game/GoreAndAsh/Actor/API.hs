@@ -27,7 +27,6 @@ import Control.Monad.State.Strict
 import Control.Wire
 import Data.Dynamic
 import Data.Maybe (catMaybes)
-import Data.Word 
 import GHC.Generics 
 import Prelude hiding (id, (.))
 import qualified Data.Foldable as F
@@ -39,10 +38,11 @@ import Game.GoreAndAsh.Actor.Indexed
 import Game.GoreAndAsh.Actor.Message
 import Game.GoreAndAsh.Actor.Module
 import Game.GoreAndAsh.Actor.State
+import Game.GoreAndAsh.Actor.TypeRep
 
 -- | Exceptions thrown by ActorMonad
 data ActorException = 
-  ActorIdConflict Word64 Int -- ^ Tried to register already presented actor
+  ActorIdConflict TypeRep Int -- ^ Tried to register already presented actor
   deriving (Show, Generic)
 
 instance Exception ActorException
@@ -70,19 +70,24 @@ class MonadThrow m => ActorMonad m where
   actorGetMessagesM :: (ActorMessage i, Typeable (ActorMessageType i))
     => i -> m [ActorMessageType i]
 
+  -- | Find type representation of actor by it type name
+  findActorTypeRepM :: String -> m (Maybe HashableTypeRep)
+
 instance {-# OVERLAPPING #-} MonadThrow m => ActorMonad (ActorT s m) where
   actorRegisterM = do 
     astate <- ActorT get 
     let (fpt, i, astate') = pushActorNextId astate 
     ActorT . put $! astate' {
         actorBoxes = H.insert (fpt, toCounter i) S.empty $! actorBoxes astate'
+      , actorNameMap = H.insert (show fpt) fpt $! actorNameMap astate'
       }
     return i 
 
   actorRegisterFixedM i = do 
     astate <- ActorT get
     case regActorFixedId i astate of 
-      Nothing -> throwM $! ActorIdConflict (getActorFingerprint i) (toCounter i)
+      Nothing -> throwM $! ActorIdConflict tp (toCounter i)
+        where tp = fromHashableTypeRep $ getActorFingerprint i
       Just astate' -> ActorT . put $! astate'
 
   actorDeleteM i = do 
@@ -103,6 +108,10 @@ instance {-# OVERLAPPING #-} MonadThrow m => ActorMonad (ActorT s m) where
     ActorT . put $! astate'
     return . catMaybes $! fromDynamic <$> msgs
 
+  findActorTypeRepM n = do 
+    astate <- ActorT get 
+    return . H.lookup n . actorNameMap $! astate
+
 instance {-# OVERLAPPABLE #-} (MonadThrow (mt m), ActorMonad m, MonadTrans mt) => ActorMonad (mt m) where 
   actorRegisterM = lift actorRegisterM
   actorRegisterFixedM = lift . actorRegisterFixedM
@@ -110,12 +119,13 @@ instance {-# OVERLAPPABLE #-} (MonadThrow (mt m), ActorMonad m, MonadTrans mt) =
   actorRegisteredM = lift . actorRegisteredM
   actorSendM a b = lift $ actorSendM a b
   actorGetMessagesM = lift . actorGetMessagesM
+  findActorTypeRepM = lift . findActorTypeRepM
 
-getActorFingerprint :: forall i . ActorMessage i => i -> Word64
+getActorFingerprint :: forall i . ActorMessage i => i -> HashableTypeRep
 getActorFingerprint _ = actorFingerprint (Proxy :: Proxy i)
 
 -- | Returns next unregistered id of actor and updates internal state
-pushActorNextId :: forall i s . ActorMessage i => ActorState s -> (Word64, i, ActorState s)
+pushActorNextId :: forall i s . ActorMessage i => ActorState s -> (HashableTypeRep, i, ActorState s)
 pushActorNextId !s = case H.lookup k (actorBoxes s) of
   Just _ -> pushActorNextId nextState
   Nothing -> (fingerprint, nextId, nextState)
@@ -139,7 +149,8 @@ regActorFixedId :: forall i s . ActorMessage i => i -> ActorState s -> Maybe (Ac
 regActorFixedId !i !s = case H.lookup k (actorBoxes s) of 
   Just _ -> Nothing
   Nothing -> Just $! s {
-      actorBoxes = H.insert k S.empty $! actorBoxes s
+      actorBoxes = H.insert k S.empty . actorBoxes $! s
+    , actorNameMap = H.insert (show fingerprint) fingerprint . actorNameMap $! s
     }
   where
     fingerprint = actorFingerprint (Proxy :: Proxy i)
@@ -149,6 +160,7 @@ regActorFixedId !i !s = case H.lookup k (actorBoxes s) of
 deleteActorId :: forall i s . ActorMessage i => i -> ActorState s -> ActorState s 
 deleteActorId !i !s = s {
     actorBoxes = H.delete k . actorBoxes $! s 
+  , actorNameMap = H.delete (show fingerprint) . actorNameMap $! s
   }
   where
     fingerprint = actorFingerprint (Proxy :: Proxy i)

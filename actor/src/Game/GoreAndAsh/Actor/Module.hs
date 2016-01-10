@@ -27,6 +27,7 @@ instance GameModule m s => GameModule (ActorT s m) (ActorState s) where
     return $ ActorState {
         actorBoxes = H.empty
       , actorNextId = H.empty
+      , actorNameMap = H.empty
       , actorNextState = s
       }
 

@@ -20,7 +20,7 @@ class NetworkMessage i => RemoteActor i a | i -> a, a -> i where
   -- | Unique id for synchronization actor attached to your actor
   remoteActorFingerprint :: Proxy i -> Word64 
   -- | Unique id for synchronization collection of remote actors
-  remoteActorCollectionFingerpring :: Proxy i -> Word64 
+  remoteActorCollectionFingerprint :: Proxy i -> Word64 
 
 -- | Id of synchronization actor build over another actor
 newtype RemActorId i = RemActorId { unRemActorId :: i }
@@ -33,7 +33,6 @@ instance RemoteActor i a => ActorMessage (RemActorId i) where
   type ActorMessageType (RemActorId i) = RemActorMessage i
   toCounter = toCounter . unRemActorId
   fromCounter = RemActorId . fromCounter
-  actorFingerprint _ = remoteActorFingerprint (Proxy :: Proxy i)
 
 -- | Network protocol of synchronization actor
 data RemActorNetMessage i = RemActorNetMessageStub

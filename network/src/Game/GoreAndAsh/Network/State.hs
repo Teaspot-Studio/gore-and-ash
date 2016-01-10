@@ -37,6 +37,7 @@ data NetworkState s = NetworkState {
 , networkDisconnectedPeers :: ![Peer]
 , networkMessages :: !(H.HashMap (Peer, B.ChannelID) (S.Seq BS.ByteString))
 , networkDetailedLogging :: !Bool
+, networkMaximumChannels :: !Word
 , networkNextState :: !s
 } deriving (Generic)
 

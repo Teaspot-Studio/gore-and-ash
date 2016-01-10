@@ -64,6 +64,9 @@ class MonadIO m => NetworkMonad m where
   -- | Sets flag for detailed logging (for debug)
   networkSetDetailedLoggingM :: Bool -> m ()
 
+  -- | Return count of allocated network channels
+  networkChannels :: m Word 
+
 instance {-# OVERLAPPING #-} MonadIO m => NetworkMonad (NetworkT s m) where
   networkBind addr conCount chanCount inBandth outBandth = do
     nstate <- NetworkT get 
@@ -78,6 +81,7 @@ instance {-# OVERLAPPING #-} MonadIO m => NetworkMonad (NetworkT s m) where
           Just a -> "Network: binded to " <> pack (show a)
         NetworkT $ put $ nstate {
             networkHost = Just phost
+          , networkMaximumChannels = chanCount
           }
 
   peersConnectedM = do 
@@ -100,7 +104,11 @@ instance {-# OVERLAPPING #-} MonadIO m => NetworkMonad (NetworkT s m) where
           then do
             putMsgLnM $ "Network: failed to connect to " <> pack (show addr)
             return Nothing
-          else return $ Just ()
+          else do
+            NetworkT . put $! nstate {
+                networkMaximumChannels = chanCount
+              }
+            return $ Just ()
 
   peerMessagesM peer ch = do
     msgs <- networkMessages <$> NetworkT get
@@ -120,6 +128,10 @@ instance {-# OVERLAPPING #-} MonadIO m => NetworkMonad (NetworkT s m) where
     s <- NetworkT get 
     put $ s { networkDetailedLogging = f }
 
+  networkChannels = do 
+    s <- NetworkT get 
+    return $ networkMaximumChannels s 
+
 instance {-# OVERLAPPABLE #-} (Monad (mt m), MonadIO (mt m), LoggingMonad m, NetworkMonad m, MonadTrans mt) => NetworkMonad (mt m) where 
   networkBind a mc mch ib ob = lift $ networkBind a mc mch ib ob
   peersConnectedM = lift peersConnectedM
@@ -129,7 +141,8 @@ instance {-# OVERLAPPABLE #-} (Monad (mt m), MonadIO (mt m), LoggingMonad m, Net
   peerSendM a b c = lift $ peerSendM a b c
   networkPeersM = lift networkPeersM
   networkSetDetailedLoggingM = lift . networkSetDetailedLoggingM
-
+  networkChannels = lift networkChannels 
+  
 -- | Fires when one or several clients were connected
 peersConnected :: (LoggingMonad m, NetworkMonad m) => GameWire m a (Event [Peer])
 peersConnected = mkGen_ $ \_ -> do 

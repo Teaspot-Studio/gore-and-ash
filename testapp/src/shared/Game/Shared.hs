@@ -44,8 +44,7 @@ instance Serialize GameNetMessage
 instance ActorMessage GameId where
   type ActorMessageType GameId = GameMessage 
   toCounter = unGameId
-  fromCounter = GameId 
-  actorFingerprint _ = 0
+  fromCounter = GameId
 
 instance NetworkMessage GameId where 
   type NetworkMessageType GameId = GameNetMessage
