@@ -73,6 +73,10 @@ class MonadThrow m => ActorMonad m where
   -- | Find type representation of actor by it type name
   findActorTypeRepM :: String -> m (Maybe HashableTypeRep)
 
+  -- | Register type representation for actor (sometimes this should be done before
+  -- any actor is registered)
+  registerActorTypeRepM :: forall proxy i . ActorMessage i => proxy i -> m ()
+
 instance {-# OVERLAPPING #-} MonadThrow m => ActorMonad (ActorT s m) where
   actorRegisterM = do 
     astate <- ActorT get 
@@ -112,6 +116,13 @@ instance {-# OVERLAPPING #-} MonadThrow m => ActorMonad (ActorT s m) where
     astate <- ActorT get 
     return . H.lookup n . actorNameMap $! astate
 
+  registerActorTypeRepM p = do 
+    astate <- ActorT get 
+    let fp = actorFingerprint p
+    ActorT . put $! astate {
+        actorNameMap = H.insert (show fp) fp . actorNameMap $! astate
+      }
+
 instance {-# OVERLAPPABLE #-} (MonadThrow (mt m), ActorMonad m, MonadTrans mt) => ActorMonad (mt m) where 
   actorRegisterM = lift actorRegisterM
   actorRegisterFixedM = lift . actorRegisterFixedM
@@ -120,7 +131,8 @@ instance {-# OVERLAPPABLE #-} (MonadThrow (mt m), ActorMonad m, MonadTrans mt) =
   actorSendM a b = lift $ actorSendM a b
   actorGetMessagesM = lift . actorGetMessagesM
   findActorTypeRepM = lift . findActorTypeRepM
-
+  registerActorTypeRepM = lift . registerActorTypeRepM
+  
 getActorFingerprint :: forall i . ActorMessage i => i -> HashableTypeRep
 getActorFingerprint _ = actorFingerprint (Proxy :: Proxy i)
 

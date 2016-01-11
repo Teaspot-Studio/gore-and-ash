@@ -6,6 +6,7 @@ import Control.Monad.State.Strict
 import Control.Wire
 import Data.Proxy 
 import Data.Serialize (encode, Serialize)
+import Data.Text
 import Data.Word 
 import Prelude hiding (id, (.))
 import qualified Data.HashMap.Strict as H 
@@ -29,9 +30,9 @@ class MonadIO m => SyncMonad m where
   -- | Find actor type representation by it id
   getSyncTypeRepM :: Word64 -> m (Maybe HashableTypeRep)
   -- | Generate and register new id for given actor type representation
-  registerSyncIdM :: HashableTypeRep -> m Word64
+  registerSyncIdM :: LoggingMonad m => HashableTypeRep -> m Word64
   -- | Register new type rep with given id, doesn't overide existing records
-  addSyncTypeRepM :: HashableTypeRep -> Word64 -> m ()
+  addSyncTypeRepM :: LoggingMonad m => HashableTypeRep -> Word64 -> m ()
 
   -- | Send message as soon as network id of actor is resolved
   syncScheduleMessageM :: (NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
@@ -41,6 +42,21 @@ class MonadIO m => SyncMonad m where
     -> MessageType -- ^ Strategy of the message (reliable, unordered etc.)
     -> NetworkMessageType i -- ^ Message to send
     -> m ()
+
+  -- | Switch on/off detailed logging of the module
+  syncSetLoggingM :: Bool -> m ()
+
+  -- | Setups behavior model in synchronizing of actor ids
+  -- Note: clients should be slaves and server master
+  syncSetRoleM :: SyncRole -> m ()
+
+  -- | Returns current behavior model in synchronizing of actor ids
+  -- Note: clients should be slaves and server master
+  syncGetRoleM :: m SyncRole
+
+  -- | Send request for given peer for id of given actor
+  syncRequestIdM :: forall proxy i . (ActorMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i) 
+    => Peer -> proxy i -> m ()
 
 instance {-# OVERLAPPING #-} MonadIO m => SyncMonad (SyncT s m) where
   getSyncIdM !tr = do 
@@ -54,34 +70,59 @@ instance {-# OVERLAPPING #-} MonadIO m => SyncMonad (SyncT s m) where
   registerSyncIdM !tr = do 
     sstate <- SyncT get
     let (w64, s') = registerSyncIdInternal tr sstate
+    syncLog s' $ "Registering new actor type " <> pack (show tr) <> " with id " <> pack (show w64)
     SyncT . put $! s'
     return w64
 
   addSyncTypeRepM !tr !i = do 
     sstate <- SyncT get 
+    syncLog sstate $ "Registering new actor type " <> pack (show tr) <> " with id " <> pack (show i)
     SyncT . put $! addSyncTypeRepInternal tr i sstate
 
   syncScheduleMessageM peer ch i mt msg = do 
     sstate <- SyncT get 
     let name = getActorName i 
         serviceMsg = Message ReliableMessage $! encode (0 :: Word64, encode $! SyncServiceRequestId name )
-        k = (peer, ch)
         actorId = fromIntegral (toCounter i) :: Word64
-        v = (name, \netid -> Message mt $! encode (netid, encode (actorId, msg)))
+        v = (name, ch, \netid -> Message mt $! encode (netid, encode (actorId, encode msg)))
     serviceChan <- getServiceChannel 
     peerSendM peer serviceChan serviceMsg
     SyncT . put $! sstate {
-        syncScheduledMessages = case H.lookup k . syncScheduledMessages $! sstate of 
-          Nothing -> H.insert k (S.singleton v) . syncScheduledMessages $! sstate
-          Just msgs -> H.insert k (msgs S.|> v) . syncScheduledMessages $! sstate
+        syncScheduledMessages = case H.lookup peer . syncScheduledMessages $! sstate of 
+          Nothing -> H.insert peer (S.singleton v) . syncScheduledMessages $! sstate
+          Just msgs -> H.insert peer (msgs S.|> v) . syncScheduledMessages $! sstate
       }
 
-instance {-# OVERLAPPABLE #-} (MonadIO (mt m), SyncMonad m, NetworkMonad m, LoggingMonad m,  MonadTrans mt) => SyncMonad (mt m) where 
+  syncSetLoggingM f = do 
+    sstate <- SyncT get 
+    SyncT . put $! sstate {
+        syncLogging = f
+      }
+
+  syncSetRoleM r = do 
+    sstate <- SyncT get
+    SyncT . put $! sstate {
+        syncRole = r 
+      }
+
+  syncGetRoleM = syncRole <$> SyncT get 
+
+  syncRequestIdM peer p = do
+    s <- SyncT get
+    syncLog s $ "Sync module: request id of actor " <> pack (show $ actorFingerprint p)
+    s' <- syncRequestIdInternal peer p s
+    SyncT . put $! s'
+
+instance {-# OVERLAPPABLE #-} (MonadIO (mt m), SyncMonad m, ActorMonad m, NetworkMonad m, LoggingMonad m,  MonadTrans mt) => SyncMonad (mt m) where 
   getSyncIdM = lift . getSyncIdM
   getSyncTypeRepM = lift . getSyncTypeRepM
   registerSyncIdM = lift . registerSyncIdM
   addSyncTypeRepM a b = lift $ addSyncTypeRepM a b
   syncScheduleMessageM peer ch i mt msg  = lift $ syncScheduleMessageM peer ch i mt msg
+  syncSetLoggingM = lift . syncSetLoggingM
+  syncSetRoleM = lift . syncSetRoleM
+  syncGetRoleM = lift syncGetRoleM
+  syncRequestIdM a b = lift $ syncRequestIdM a b 
 
 -- | Return typename of actor using it type representation
 getActorName :: forall i . ActorMessage i => i -> String 

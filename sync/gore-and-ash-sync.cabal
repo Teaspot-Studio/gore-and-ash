@@ -39,7 +39,7 @@ library
                      , netwire >= 5.0.1
                      , text >= 1.2.2.0
                      , unordered-containers >= 0.2.5.1
-                     
+
   default-extensions:  
                        Arrows
                        BangPatterns
@@ -50,6 +50,7 @@ library
                        GeneralizedNewtypeDeriving
                        MultiParamTypeClasses
                        OverloadedStrings
+                       RecordWildCards
                        ScopedTypeVariables
                        StandaloneDeriving
                        TupleSections

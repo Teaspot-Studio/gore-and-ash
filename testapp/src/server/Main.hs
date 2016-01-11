@@ -8,6 +8,7 @@ import Game.Core
 import Game.GoreAndAsh
 import Game.GoreAndAsh.Actor
 import Game.GoreAndAsh.Network
+import Game.GoreAndAsh.Sync
 import Network.BSD (getHostByName, hostAddress)
 import Network.Socket (SockAddr(..))
 import System.Exit
@@ -52,6 +53,8 @@ main = withModule (Proxy :: Proxy AppMonad) $ do
     firstStep fps host port gs gsRef = do 
       (_, gs') <- stepGame gs $ do 
         networkSetDetailedLoggingM False
+        syncSetLoggingM True
+        syncSetRoleM SyncMaster
         addr <- liftIO $ getAddr host (fromIntegral port)
         networkBind (Just addr) 100 2 0 0
       writeIORef gsRef gs'

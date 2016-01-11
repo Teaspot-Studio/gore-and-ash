@@ -7,6 +7,7 @@ import Game
 import Game.GoreAndAsh
 import Game.GoreAndAsh.GLFW
 import Game.GoreAndAsh.Network
+import Game.GoreAndAsh.Sync
 import Graphics
 import Network.BSD (getHostByName, hostAddress)
 import Network.Socket (SockAddr(..))
@@ -44,6 +45,8 @@ main = withModule (Proxy :: Proxy AppMonad) $ runWindow $ do
     firstLoop fps host port rs gs = do 
       (_, gs') <- stepGame gs $ do 
         networkSetDetailedLoggingM False
+        syncSetLoggingM True
+        syncSetRoleM SyncSlave
         networkBind Nothing 1 2 0 0
         setBufferSizeM 2
         addr <- liftIO $ getAddr host (fromIntegral port)

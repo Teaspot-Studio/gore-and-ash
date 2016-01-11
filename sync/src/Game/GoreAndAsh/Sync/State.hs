@@ -1,5 +1,6 @@
 module Game.GoreAndAsh.Sync.State(
     SyncState(..)
+  , SyncRole(..)
   , NetworkMessage(..)
   , SyncServiceMsg(..)
   , emptySyncState
@@ -15,6 +16,14 @@ import qualified Data.Sequence as S
 import Game.GoreAndAsh.Actor
 import Game.GoreAndAsh.Actor.TypeRep
 import Game.GoreAndAsh.Network 
+
+-- | Defines behavior in synchronization for actor ids
+data SyncRole = 
+    SyncMaster -- ^ Registers types of actors
+  | SyncSlave -- ^ Always ask for ids from other nodes
+  deriving (Generic, Eq, Show, Enum)
+
+instance NFData SyncRole 
 
 -- | Extension for actor message, messages that are sent to remote host
 class ActorMessage i => NetworkMessage i where
@@ -44,7 +53,11 @@ data SyncState s = SyncState {
 , syncNextId :: !Word64
   -- | Messages that are waiting resolving of network id of actor
   -- Actor name and actor local id is stored with the message to sent
-, syncScheduledMessages :: !(H.HashMap (Peer, ChannelID) (S.Seq (String, Word64 -> Message)))
+, syncScheduledMessages :: !(H.HashMap Peer (S.Seq (String, ChannelID, Word64 -> Message)))
+  -- | Flag that enables detailed logging
+, syncLogging :: !Bool
+  -- | Current model of synchronization
+, syncRole :: !SyncRole
 } deriving (Generic)
 
 instance NFData s => NFData (SyncState s)
@@ -57,4 +70,6 @@ emptySyncState s = SyncState {
   , syncIdMapRev = H.empty
   , syncNextId = 1
   , syncScheduledMessages = H.empty
+  , syncLogging = False
+  , syncRole = SyncMaster
   }

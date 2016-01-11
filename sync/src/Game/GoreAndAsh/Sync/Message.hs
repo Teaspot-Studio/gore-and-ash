@@ -28,6 +28,7 @@ import Data.Serialize
 import Data.Typeable 
 import Data.Word
 import Prelude hiding ((.), id)
+import qualified Control.Monad as M 
 import qualified Data.ByteString as BS 
 import qualified Data.Foldable as F 
 
@@ -42,27 +43,37 @@ import Game.GoreAndAsh.Sync.State
 -- Note: mid-level API is not safe to use with low-level at same time as
 -- first bytes of formed message are used for actor id. So, you need to 
 -- have a special forbidden id for you custom messages.
-peerIndexedMessages :: forall m i a . (SyncMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
+peerIndexedMessages :: forall m i a . (ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
   => Peer -- ^ Which peer we are listening
   -> ChannelID -- ^ Which channel we are listening
   -> i -- ^ ID of actor 
   -> GameWire m a (Event [NetworkMessageType i]) -- ^ Messages that are addressed to the actor
-peerIndexedMessages p chid i = proc _ -> do 
+peerIndexedMessages p chid i = inhibit2NoEvent $ proc _ -> do 
   netid <- mkNetId -< ()
   emsgs <- peerMessages p chid -< ()
   filterE (not . null) . mapE (\(netid, msgs) -> catMaybes $ (parse netid) <$> msgs)
     -< (netid, ) <$> emsgs
   where
+    inhibit2NoEvent w = w <|> never 
+
     -- | If actor is new, register actor and cache the id
     mkNetId :: GameWire m () Word64
-    mkNetId = mkGen $ \_ _ -> do 
-      let !tr = actorFingerprint (Proxy :: Proxy i)
-      mnid <- getSyncIdM tr
-      case mnid of 
-        Nothing -> do 
-          !nid <- registerSyncIdM tr
-          return (Right nid, pure nid)
-        Just !nid -> return (Right nid, pure nid)
+    mkNetId = go False
+      where
+      go sended = mkGen $ \_ _ -> do 
+        let !tr = actorFingerprint (Proxy :: Proxy i)
+        mnid <- getSyncIdM tr
+        case mnid of 
+          Nothing -> do 
+            r <- syncGetRoleM
+            case r of 
+              SyncMaster -> do 
+                !nid <- registerSyncIdM tr
+                return (Right nid, pure nid)
+              SyncSlave -> do 
+                M.unless sended $ syncRequestIdM p (Proxy :: Proxy i)
+                return (Left (), go True)
+          Just !nid -> return (Right nid, pure nid)
 
     -- | Parses packet, decodes only user messages
     parse :: Word64 -> BS.ByteString -> Maybe (NetworkMessageType i)
@@ -102,7 +113,7 @@ peerSendIndexedM p chid i mt msg = do
 -- Note: mid-level API is not safe to use with low-level at same time as
 -- first bytes of formed message are used for actor id. So, you need to 
 -- have a special forbidden id for you custom messages.
-peerSendIndexed :: (SyncMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
+peerSendIndexed :: (ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
   => Peer -- ^ Which peer we sending to
   -> ChannelID -- ^ Which channel we are sending within
   -> i -- ^ ID of actor
@@ -112,7 +123,7 @@ peerSendIndexed p chid i mt = liftGameMonadEvent1 $ peerSendIndexedM p chid i mt
 
 -- | Encodes a message for specific actor type and send it to remote host, arrow version.
 -- Takes peer, id and message as arrow input.
-peerSendIndexedDyn :: (SyncMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
+peerSendIndexedDyn :: (ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
   => ChannelID -- ^ Which channel we are sending within
   -> MessageType -- ^ Strategy of the message (reliable, unordered etc.)
   -> GameWire m (Event (Peer, i, NetworkMessageType i)) (Event ())
@@ -122,7 +133,7 @@ peerSendIndexedDyn chid mt = liftGameMonadEvent1 $ \(p, i, msg) -> peerSendIndex
 -- Note: mid-level API is not safe to use with low-level at same time as
 -- first bytes of formed message are used for actor id. So, you need to 
 -- have a special forbidden id for you custom messages.
-peerSendIndexedMany :: (SyncMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i), F.Foldable t)
+peerSendIndexedMany :: (ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i), F.Foldable t)
   => Peer -- ^ Which peer we sending to
   -> ChannelID -- ^ Which channel we are sending within
   -> i -- ^ ID of actor
@@ -132,7 +143,7 @@ peerSendIndexedMany p chid i mt = liftGameMonadEvent1 . F.mapM_ $ peerSendIndexe
 
 -- | Encodes a message for specific actor type and send it to remote host, arrow version.
 -- Takes peer, id and message as arrow input.
-peerSendIndexedManyDyn :: (SyncMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
+peerSendIndexedManyDyn :: (ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
   => ChannelID -- ^ Which channel we are sending within
   -> MessageType -- ^ Strategy of the message (reliable, unordered etc.)
   -> GameWire m (Event [(Peer, i, NetworkMessageType i)]) (Event ())
@@ -140,7 +151,7 @@ peerSendIndexedManyDyn chid mt = liftGameMonadEvent1 . F.mapM_ $ \(p, i, msg) ->
 
 
 -- | Same as @peerIndexedMessages@, but transforms input state with given handler
-peerProcessIndexed :: (SyncMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
+peerProcessIndexed :: (ActorMonad m,SyncMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
   => Peer -- ^ Which peer we are listening
   -> ChannelID -- ^ Which channel we are listening
   -> i -- ^ ID of actor
@@ -151,7 +162,7 @@ peerProcessIndexed p chid i f = proc a -> do
   returnA -< event a (F.foldl' f a) emsgs
 
 -- | Same as @peerIndexedMessages@, but transforms input state with given handler, monadic version
-peerProcessIndexedM :: (SyncMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
+peerProcessIndexedM :: (ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
   => Peer -- ^ Which peer we are listening
   -> ChannelID -- ^ Which channel we are listening
   -> i -- ^ ID of actor

@@ -3,7 +3,9 @@ module Game.GoreAndAsh.Sync.Module(
     SyncT(..)
   , registerSyncIdInternal
   , addSyncTypeRepInternal
+  , syncRequestIdInternal
   , getServiceChannel
+  , syncLog
   ) where
 
 import Control.Monad.Catch
@@ -12,7 +14,7 @@ import Control.Monad.State.Strict
 import Data.Maybe
 import Data.Monoid 
 import Data.Serialize
-import Data.Text (pack)
+import Data.Text (Text, pack)
 import Data.Word
 import qualified Data.ByteString as BS 
 import qualified Data.HashMap.Strict as H 
@@ -52,13 +54,14 @@ instance (NetworkMonad m, LoggingMonad m, ActorMonad m, GameModule m s) => GameM
 processServiceMessages :: (ActorMonad m, NetworkMonad m, LoggingMonad m) => SyncState s -> m (SyncState s)
 processServiceMessages sstate = do 
   serviceChan <- getServiceChannel
-  foldM (process serviceChan) sstate . H.toList . syncScheduledMessages $ sstate
+  peers <- networkPeersM
+  foldM (process serviceChan) sstate peers
   where
   -- | Process one peer
-  process serviceChan s ((peer, chan), msgs) = do 
-    bss <- peerMessagesM peer chan
+  process serviceChan s peer = do 
+    bss <- peerMessagesM peer serviceChan
     let serviceMsgs = catMaybesSeq . fmap decodeService $ bss
-    foldM (processService serviceChan peer chan msgs) s serviceMsgs
+    foldM (processService serviceChan peer) s serviceMsgs
 
   -- | Decode service message
   decodeService bs = case decode bs of 
@@ -70,38 +73,57 @@ processServiceMessages sstate = do
       else Nothing 
 
   -- | Service one service message for given peer
-  processService serviceChan peer chan msgs s serviceMsg = case serviceMsg of
+  processService serviceChan peer s serviceMsg = case serviceMsg of
     SyncServiceRequestId aname -> do 
+      syncLog s $ "Received request for network id for actor " <> pack aname
       marep <- findActorTypeRepM aname
       case marep of 
-        Nothing -> do 
-          peerSendM peer serviceChan . Message ReliableMessage . encode $ SyncServiceResponseNotRegistered aname
+        Nothing -> do
+          syncLog s "Such actor isn't known"
+          sendService peer serviceChan $ SyncServiceResponseNotRegistered aname
           return s
         Just arep -> case H.lookup arep . syncIdMap $ s of 
-          Nothing -> do 
+          Nothing -> do
+            syncLog s "Registering actor network id, sending"
             let (w64, s') = registerSyncIdInternal arep s 
-            peerSendM peer serviceChan . Message ReliableMessage . encode $ SyncServiceResponseId aname w64
+            sendService peer serviceChan $ SyncServiceResponseId aname w64
             return s'
           Just w64 -> do 
-            peerSendM peer serviceChan . Message ReliableMessage . encode $ SyncServiceResponseId aname w64
+            syncLog s "Known actor id, sending"
+            sendService peer serviceChan $ SyncServiceResponseId aname w64
             return s 
     SyncServiceResponseId aname w64 -> do 
+      syncLog s $ "Received response for network id for actor " <> pack aname <> " and id " <> pack (show w64)
       marep <- findActorTypeRepM aname 
       case marep of 
-        Nothing -> return s 
+        Nothing -> do
+          syncLog s "Not known actor, ignoring"
+          return s 
         Just arep -> do 
+          syncLog s "Sending all scheduled messages"
           let s' = addSyncTypeRepInternal arep w64 s 
-          sheduled <- fmap catMaybesSeq . forM msgs $ \(aname', msg) -> if aname == aname'
+              msgs = fromMaybe S.empty . H.lookup peer . syncScheduledMessages $! s'
+          sheduled <- fmap catMaybesSeq . forM msgs $ \(aname', chan, msg) -> if aname == aname'
             then do 
               peerSendM peer chan . msg $! w64 
               return Nothing
-            else return $! Just (aname', msg)
+            else return $! Just (aname', chan, msg)
+          
+          let sended = S.length msgs - S.length sheduled
+          syncLog s $ "Sended: " <> pack (show sended)
+          
           return $! s' {
-              syncScheduledMessages = H.insert (peer, chan) sheduled . syncScheduledMessages $! s'
+              syncScheduledMessages = H.insert peer sheduled . syncScheduledMessages $! s'
             }
     SyncServiceResponseNotRegistered aname -> do 
       putMsgLnM $ "Sync module: Failed to resolve actor id with name " <> (pack aname) 
       return s 
+
+-- | Helper for sending service messages
+sendService :: (NetworkMonad m, LoggingMonad m) => Peer -> ChannelID -> SyncServiceMsg -> m ()
+sendService peer chanid msg = do 
+  let msg' = encode (0 :: Word64, encode msg)
+  peerSendM peer chanid . Message ReliableMessage $ msg'
 
 -- | catMaybes for sequences
 catMaybesSeq :: S.Seq (Maybe a) -> S.Seq a 
@@ -132,6 +154,15 @@ addSyncTypeRepInternal !tr !i sstate = case H.lookup i . syncIdMapRev $! sstate 
     , syncIdMapRev = H.insert i tr . syncIdMapRev $! sstate
     }
 
+-- | Internal implementation of sending service request for actor net id
+syncRequestIdInternal :: forall proxy i m s . (ActorMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i) 
+    => Peer -> proxy i -> SyncState s -> m (SyncState s)
+syncRequestIdInternal peer p s = do
+  chan <- getServiceChannel
+  registerActorTypeRepM p
+  sendService peer chan $ SyncServiceRequestId $ show $ actorFingerprint p
+  return s
+
 -- | Return channel id 1 if network module has more than 1 channel, either fallback to 0
 --
 -- Note: If you open more than one channel,
@@ -142,3 +173,7 @@ getServiceChannel :: NetworkMonad m => m ChannelID
 getServiceChannel = do 
   maxi <- networkChannels
   return . ChannelID $! if maxi > 1 then 1 else 0
+
+-- | Log only when flag is turned on
+syncLog :: LoggingMonad m => SyncState s -> Text -> m ()
+syncLog SyncState{..} = when syncLogging . putMsgLnM . ("Sync module: " <>)

@@ -38,7 +38,11 @@ instance SyncMonad AppMonad where
   registerSyncIdM = AppMonad . registerSyncIdM
   addSyncTypeRepM a b = AppMonad $ addSyncTypeRepM a b
   syncScheduleMessageM peer ch i mt msg  = AppMonad $ syncScheduleMessageM peer ch i mt msg
-
+  syncSetLoggingM = AppMonad . syncSetLoggingM
+  syncSetRoleM = AppMonad . syncSetRoleM
+  syncGetRoleM = AppMonad syncGetRoleM
+  syncRequestIdM a b = AppMonad $ syncRequestIdM a b 
+  
 instance GameModule AppMonad AppState where 
   type ModuleState AppMonad = AppState
   runModule (AppMonad m) (AppState s) = do 
