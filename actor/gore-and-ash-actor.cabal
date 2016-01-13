@@ -17,6 +17,7 @@ library
   exposed-modules:     Game.GoreAndAsh.Actor
                        Game.GoreAndAsh.Actor.API
                        Game.GoreAndAsh.Actor.Collection
+                       Game.GoreAndAsh.Actor.Collection.Data
                        Game.GoreAndAsh.Actor.Indexed
                        Game.GoreAndAsh.Actor.Message
                        Game.GoreAndAsh.Actor.Module

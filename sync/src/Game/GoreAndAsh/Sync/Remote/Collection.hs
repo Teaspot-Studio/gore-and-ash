@@ -6,9 +6,11 @@ module Game.GoreAndAsh.Sync.Remote.Collection(
 
 import Control.DeepSeq
 import Control.Wire
+import Data.Filterable
 import Data.Serialize
 import GHC.Generics
 import Prelude hiding ((.), id)
+import qualified Data.Foldable as F 
 
 import Game.GoreAndAsh.Actor
 import Game.GoreAndAsh.Logging 
@@ -52,39 +54,39 @@ instance NetworkMessage RemActorCollId where
 -- 
 -- Second wire input is event with new actors to add to the collection
 -- Third wire input is event with id of actor to delete from the collection
-remoteActorCollectionServer :: (SyncMonad m, LoggingMonad m, ActorMonad m, NetworkMonad m, Eq i, RemoteActor i b) 
-  => [GameActor m i a b] -- ^ Initial set of actors
-  -> GameActor m RemActorCollId (a, Event [GameActor m i a b], Event [i]) [b]
+remoteActorCollectionServer :: (SyncMonad m, LoggingMonad m, ActorMonad m, NetworkMonad m, Eq i, RemoteActor i b, DynCollection c, FilterConstraint c (GameWireIndexed m i a b), FilterConstraint c (Either () b), F.Foldable c2) 
+  => c (GameActor m i a b) -- ^ Initial set of actors
+  -> GameActor m RemActorCollId (a, Event (c (GameActor m i a b)), Event (c2 i)) (c b)
 remoteActorCollectionServer initalActors = makeActor $ \_ -> proc (a, addEvent, remEvent) -> do 
   dynCollection initalActors -< (a, addEvent, remEvent)
 
 -- | Internal state of client side collection of remote actors
-data ClientRemCollState i = ClientRemCollState {
-  clientRemCollNewActors :: [i]
-, clientRemCollDelActors :: [i]
+data ClientRemCollState c i = ClientRemCollState {
+  clientRemCollNewActors :: !(c i)
+, clientRemCollDelActors :: ![i]
 }
 
-emptyClientRemCollState :: ClientRemCollState i 
+emptyClientRemCollState :: DynCollection c => ClientRemCollState c i 
 emptyClientRemCollState = ClientRemCollState {
-    clientRemCollNewActors = []
-  , clientRemCollDelActors = []
+    clientRemCollNewActors = emptyDynColl
+  , clientRemCollDelActors = emptyDynColl
   }
 
 -- | Client side collection of network actors that are automatically
 -- synchronized to remote clients.
-remoteActorCollectionClient :: forall m i a b . (SyncMonad m, LoggingMonad m, ActorMonad m, NetworkMonad m, Eq i, RemoteActor i b) 
+remoteActorCollectionClient :: forall m i a b c . (SyncMonad m, LoggingMonad m, ActorMonad m, NetworkMonad m, Eq i, RemoteActor i b, DynCollection c, FilterConstraint c (GameWireIndexed m i a b), FilterConstraint c (Either () b), DynConsConstr c i) 
   => RemActorCollId -- ^ Corresponding server collection id
   -> Peer -- ^ Server peer
-  -> GameActor m RemActorCollId a [b]
+  -> GameActor m RemActorCollId a (c b)
 remoteActorCollectionClient cid peer = makeFixedActor cid $ proc a -> do
   cs <- peerProcessIndexed peer (ChannelID 0) cid processNet -< emptyClientRemCollState
   addEvent <- became (not . null) -< clientRemCollNewActors cs
   remEvent <- became (not . null) -< clientRemCollDelActors cs
-  dynCollection [] -< (a, fmap mkActor <$> addEvent, remEvent)
+  dynCollection emptyDynColl -< (a, fmap mkActor <$> addEvent, remEvent)
   where
-  processNet :: ClientRemCollState i -> RemActorCollNetMessage -> ClientRemCollState i
+  processNet :: ClientRemCollState c i -> RemActorCollNetMessage -> ClientRemCollState c i
   processNet cs msg = case msg of
-    RemActorCollNetSpawn i -> cs { clientRemCollNewActors = fromCounter i : clientRemCollNewActors cs }
+    RemActorCollNetSpawn i -> cs { clientRemCollNewActors = fromCounter i `consDynColl` clientRemCollNewActors cs }
     RemActorCollNetDespawn i -> cs { clientRemCollDelActors = fromCounter i : clientRemCollDelActors cs }
     RemActorCollRequestOthers -> cs
 
