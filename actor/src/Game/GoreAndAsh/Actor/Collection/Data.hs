@@ -52,7 +52,7 @@ instance DynCollection S.Seq where
 class (Hashable i, Eq i) => ElementWithId a i where
   elementId :: a -> i 
 
--- | Order of elements are not preserved
+-- | Order of elements is not preserved
 instance (Eq k, Hashable k) => DynCollection (H.HashMap k) where
   type DynConsConstr (H.HashMap k) o = ElementWithId o k
 

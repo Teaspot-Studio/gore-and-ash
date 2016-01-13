@@ -40,8 +40,7 @@ executable gore-and-ash-client
                      , gore-and-ash-glfw
                      , gore-and-ash-network
                      , gore-and-ash-sync
-                     , GPipe >= 2.1.4
-                     , GPipe-GLFW >= 1.2.1
+                     , gloss >= 1.9.4.1
                      , GLFW-b >= 1.4.7.3
                      , lens >= 4.12.3
                      , linear >= 1.19

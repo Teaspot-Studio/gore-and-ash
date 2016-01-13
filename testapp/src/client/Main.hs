@@ -1,21 +1,19 @@
 module Main where  
 
-import Control.Monad (join)
-import Control.Monad.IO.Class
-import Data.Proxy 
-import Game 
-import Game.GoreAndAsh
-import Game.GoreAndAsh.GLFW
-import Game.GoreAndAsh.Network
-import Game.GoreAndAsh.Sync
-import Graphics
-import Network.BSD (getHostByName, hostAddress)
-import Network.Socket (SockAddr(..))
-import Render 
+--import Control.Monad (join)
+--import Control.Monad.IO.Class
+--import Data.Proxy 
+--import Game 
+--import Game.GoreAndAsh
+--import Game.GoreAndAsh.Network
+--import Game.GoreAndAsh.Sync
+--import Graphics
+--import Network.BSD (getHostByName, hostAddress)
+--import Network.Socket (SockAddr(..))
+--import Render 
 import System.Environment
 import Text.Read 
-
-import FPS 
+import Graphics.Gloss.Interface.IO.Game
 
 gameFPS :: Int 
 gameFPS = 60 
@@ -29,12 +27,11 @@ parseArgs = do
       Just pint -> return (h, pint)
     _ -> fail "Misuse of arguments: gore-and-ash-client HOST PORT"
 
+{-
 main :: IO ()
-main = withModule (Proxy :: Proxy AppMonad) $ runWindow $ do
-  rs <- addSquare =<< initResources
+main = withModule (Proxy :: Proxy AppMonad) $ do
   gs <- newGameState mainWire
   (host, port) <- liftIO parseArgs
-  fps <- liftIO $ makeFPSBounder gameFPS
   firstLoop fps host port rs gs 
   where 
     -- | Resolve given hostname and port
@@ -54,14 +51,20 @@ main = withModule (Proxy :: Proxy AppMonad) $ runWindow $ do
       gameLoop fps rs gs'
 
     gameLoop fps rs gs = do 
-      liftIO $ waitFPSBound fps
-      (mg, gs') <- stepGame gs (preFrame rs)
+      (mg, gs') <- stepGame gs rs
       rs2 <- case join mg of 
         Nothing -> renderEmptyScreen rs
         Just g -> renderGame g =<< stepRenderState rs
       if isClosedRequest rs2 
         then cleanupGameState gs'
-        else gameLoop fps rs2 gs'
+        else gameLoop fps rs2 gs' -}
 
-    preFrame rs = do 
-      setCurrentWindowM $ renderWindow rs
+main :: IO ()
+main = do
+  -- gs <- newGameState mainWire
+  playIO display 0 60 () renderGame eventUpdate gameUpdate
+  where
+    display = InWindow "Client" (0, 0) (800, 600)
+    renderGame _ = pure $ Circle 80
+    eventUpdate _ = pure 
+    gameUpdate _ gs = return gs

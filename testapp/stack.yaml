@@ -9,9 +9,14 @@ packages:
 - '..'
 - '../actor'
 - '../logging'
-- '../glfw'
 - '../network'
 - '../sync'
+- location:
+    git: git@github.com:Teaspot-Studio/gloss-core.git
+    commit: fc59a9d688c32fbe3396d61e5fbe9dd8cfbf9f5c
+- location:
+    git: git@github.com:Teaspot-Studio/gloss-rendering.git
+    commit: e406fdcfe2dc802a3a6018a8bc9dc5a794ceb216
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps: []

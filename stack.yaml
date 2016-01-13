@@ -12,6 +12,12 @@ packages:
 - location:
     git: https://github.com/Teaspot-Studio/bitset.git
     commit: 5bb58562ff99c551fa9643321c95a6ba27977596
+- location:
+    git: git@github.com:Teaspot-Studio/gloss-core.git
+    commit: fc59a9d688c32fbe3396d61e5fbe9dd8cfbf9f5c
+- location:
+    git: git@github.com:Teaspot-Studio/gloss-rendering.git
+    commit: e406fdcfe2dc802a3a6018a8bc9dc5a794ceb216
 - actor 
 - glfw
 - logging
