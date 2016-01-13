@@ -15,8 +15,6 @@ module Game.GoreAndAsh.Core.Arrow(
   , once'
   , mapE
   , filterE
-  , Filterable(..)
-  , KeyHashMap(..)
   , filterEG
   , filterEGM
   , filterJustE
@@ -30,16 +28,12 @@ module Game.GoreAndAsh.Core.Arrow(
   , dDispense
   ) where
 
-import Control.Monad (filterM)
 import Control.Monad.Fix
 import Control.Wire
 import Control.Wire.Unsafe.Event
-import Data.Hashable 
+import Data.Filterable
 import Data.Maybe (fromJust, isJust)
 import Prelude hiding (id, (.))
-import qualified Data.Foldable as F 
-import qualified Data.HashMap.Strict as H 
-import qualified Data.Sequence as S 
 
 import Game.GoreAndAsh.Core.Monad
 import Game.GoreAndAsh.Core.Session
@@ -131,48 +125,8 @@ mapE f = arr $ \e -> case e of
   NoEvent -> NoEvent
   Event a -> Event $ f a 
 
--- | Generic filter for collections
-class Filterable f where 
-  -- | Test collection for emptiness
-  fNull :: f a -> Bool 
-  -- | Filter function for collection
-  fFilter :: (a -> Bool) -> f a -> f a
-  -- | Monad version of filter 
-  fFilterM :: (Eq a, Hashable a, Monad m) => (a -> m Bool) -> f a -> m (f a)
-
-instance Filterable [] where 
-  fNull = null  
-  fFilter = filter 
-  fFilterM = filterM
-
-instance Filterable S.Seq where 
-  fNull = S.null  
-  fFilter = S.filter 
-  fFilterM p = F.foldlM (\xs x -> do
-    f <- p x 
-    return $! if f then xs S.|> x else xs) S.empty
-
--- | Wrapper around HashMap to Filterable instance over keys
-newtype KeyHashMap v k = KeyHashMap { unKeyHashMap :: H.HashMap k v }
-
-instance Filterable (KeyHashMap v) where
-  fNull = H.null . unKeyHashMap
-  fFilter p (KeyHashMap m) = KeyHashMap $ H.filterWithKey (\k _ -> p k) m
-  fFilterM p (KeyHashMap m) = fmap KeyHashMap $ H.foldlWithKey' (\mxs k x -> do 
-    xs <- mxs
-    f <- p k 
-    return $! if f then H.insert k x xs else xs) (return H.empty) m
-
-instance (Eq k, Hashable k) => Filterable (H.HashMap k) where
-  fNull = H.null  
-  fFilter = H.filter 
-  fFilterM p = H.foldlWithKey' (\mxs k x -> do 
-    xs <- mxs
-    f <- p x
-    return $! if f then H.insert k x xs else xs) (return H.empty)
-
 -- | Same as @filterE@ but for generic collections
-filterEG :: (Foldable f, Filterable f, Monad m, Eq a, Hashable a)
+filterEG :: (Foldable f, Filterable f, FilterConstraint f a, Monad m)
   => (a -> Bool) -- ^ Predicate to test elements that are left in collection
   -> GameWire m (Event (f a)) (Event (f a)) -- ^ Wire that leaves only non empty collections
 filterEG p = arr $ \e -> case e of 
@@ -184,7 +138,7 @@ filterEG p = arr $ \e -> case e of
       else length as' `seq` Event as'
 
 -- | Same as @filterEG@ but applicative
-filterEGM :: (Foldable f, Filterable f, Monad m, Eq a, Hashable a)
+filterEGM :: (Foldable f, Filterable f, FilterConstraint f a, Monad m)
   => (a -> GameMonadT m Bool) -- ^ Predicate to test elements that are left in collection
   -> GameWire m (Event (f a)) (Event (f a)) -- ^ Wire that leaves only non empty collections
 filterEGM p = mkGen_ $ \e -> case e of 
@@ -200,7 +154,7 @@ filterJustE :: Monad m => GameWire m (Event (Maybe a)) (Event a)
 filterJustE = mapE fromJust . filterE isJust
 
 -- | Filters only Just events in foldable struct
-filterJustLE :: (Monad m, Filterable f, Functor f) => GameWire m (Event (f (Maybe a))) (Event (f a))
+filterJustLE :: (Monad m, Filterable f, FilterConstraint f (Maybe a), Functor f) => GameWire m (Event (f (Maybe a))) (Event (f a))
 filterJustLE = mapE (fmap fromJust . fFilter isJust)
 
 -- | Lifting game monad action to event processing arrow

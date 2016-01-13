@@ -14,7 +14,9 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Game.GoreAndAsh
+  exposed-modules:     
+                       Data.Filterable
+                       Game.GoreAndAsh
                        Game.GoreAndAsh.Core
                        Game.GoreAndAsh.Core.Arrow
                        Game.GoreAndAsh.Core.Monad
