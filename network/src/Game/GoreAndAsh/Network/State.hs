@@ -4,6 +4,7 @@ module Game.GoreAndAsh.Network.State(
   , Host
   , Peer
   , B.ChannelID(..)
+  , emptyNetworkState
   ) where
 
 import Control.DeepSeq 
@@ -32,9 +33,9 @@ instance Hashable B.ChannelID where
 -- | Inner state of network layer
 data NetworkState s = NetworkState {
   networkHost :: !(Maybe Host)
-, networkPeers :: !(H.HashMap Peer ())
-, networkConnectedPeers :: ![Peer]
-, networkDisconnectedPeers :: ![Peer]
+, networkPeers :: !(S.Seq Peer)
+, networkConnectedPeers :: !(S.Seq Peer)
+, networkDisconnectedPeers :: !(S.Seq Peer)
 , networkMessages :: !(H.HashMap (Peer, B.ChannelID) (S.Seq BS.ByteString))
 , networkDetailedLogging :: !Bool
 , networkMaximumChannels :: !Word
@@ -48,3 +49,16 @@ instance NFData s => NFData (NetworkState s)
 
 instance NFData B.ChannelID where 
   rnf (B.ChannelID i) = i `seq` ()
+
+-- | Creates initial state
+emptyNetworkState :: s -> NetworkState s
+emptyNetworkState s = NetworkState {
+    networkNextState = s
+  , networkHost = Nothing 
+  , networkPeers = S.empty
+  , networkMessages = H.empty
+  , networkDetailedLogging = False
+  , networkConnectedPeers = S.empty
+  , networkDisconnectedPeers = S.empty
+  , networkMaximumChannels = 0
+  }

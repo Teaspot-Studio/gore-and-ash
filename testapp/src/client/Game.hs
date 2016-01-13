@@ -12,6 +12,7 @@ import Control.Wire
 import Data.Text (pack)
 import GHC.Generics (Generic)
 import Prelude hiding (id, (.))
+import qualified Data.Sequence as S 
 
 import Game.GoreAndAsh
 import Game.GoreAndAsh.Actor 
@@ -40,16 +41,20 @@ mainWire :: AppWire a (Maybe Game)
 mainWire = waitConnection
   where
     waitConnection = switch $ proc _ -> do 
-      e <- mapE head . peersConnected -< ()
+      e <- mapE seqLeftHead . peersConnected -< ()
       traceEvent (const "Connected to server") -< e
       returnA -< (Nothing, waitPlayerId <$> e) 
+
+    seqLeftHead s = case S.viewl s of 
+      S.EmptyL -> error "seqLeftHead: empty sequence"
+      (h S.:< _) -> h 
 
     waitPlayerId peer = switch $ proc _ -> do 
       emsg <- now -< PlayerRequestId
       peerSendIndexed peer (ChannelID 0) globalGameId ReliableMessage -< emsg
       traceEvent (const "Waiting for player id") -< emsg
       
-      e <- mapE head . filterMsgs isPlayerResponseId . peerIndexedMessages peer (ChannelID 0) globalGameId -< () 
+      e <- mapE seqLeftHead . filterMsgs isPlayerResponseId . peerIndexedMessages peer (ChannelID 0) globalGameId -< () 
       traceEvent (\(PlayerResponseId i) -> "Got player id: " <> pack (show i)) -< e
       
       let nextWire = (\(PlayerResponseId i) -> untilDisconnected peer $ PlayerId i) <$> e

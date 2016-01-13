@@ -31,6 +31,7 @@ import Prelude hiding ((.), id)
 import qualified Control.Monad as M 
 import qualified Data.ByteString as BS 
 import qualified Data.Foldable as F 
+import qualified Data.Sequence as S 
 
 import Game.GoreAndAsh
 import Game.GoreAndAsh.Actor
@@ -47,11 +48,11 @@ peerIndexedMessages :: forall m i a . (ActorMonad m, SyncMonad m, NetworkMonad m
   => Peer -- ^ Which peer we are listening
   -> ChannelID -- ^ Which channel we are listening
   -> i -- ^ ID of actor 
-  -> GameWire m a (Event [NetworkMessageType i]) -- ^ Messages that are addressed to the actor
+  -> GameWire m a (Event (S.Seq (NetworkMessageType i))) -- ^ Messages that are addressed to the actor
 peerIndexedMessages p chid i = inhibit2NoEvent $ proc _ -> do 
   netid <- mkNetId -< ()
   emsgs <- peerMessages p chid -< ()
-  filterE (not . null) . mapE (\(netid, msgs) -> catMaybes $ (parse netid) <$> msgs)
+  filterE (not . S.null) . mapE (\(netid, msgs) -> catMaybesSeq $ (parse netid) <$> msgs)
     -< (netid, ) <$> emsgs
   where
     inhibit2NoEvent w = w <|> never 
@@ -88,6 +89,10 @@ peerIndexedMessages p chid i = inhibit2NoEvent $ proc _ -> do
             else case decode mbs of 
               Left _ -> Nothing 
               Right !m -> Just $! m
+
+-- | catMaybes for sequences
+catMaybesSeq :: S.Seq (Maybe a) -> S.Seq a 
+catMaybesSeq = fmap fromJust . S.filter isJust
 
 -- | Encodes a message for specific actor type and send it to remote host
 -- Note: mid-level API is not safe to use with low-level at same time as
@@ -229,7 +234,7 @@ netStateActorFixedM i bi f peer channels fn w = stateActorFixedM i bi f $ proc (
   w -< (a, b')
 
 -- | Helper to filter output of @peerIndexedMessages@
-filterMsgs :: Monad m
+filterMsgs :: (Monad m)
   => (a -> Bool) -- ^ Predicate to test message
-  -> GameWire m (Event [a]) (Event [a])
-filterMsgs p = mapE (filter p)
+  -> GameWire m (Event (S.Seq a)) (Event (S.Seq a))
+filterMsgs p = filterE (not . S.null) . mapE (S.filter p)

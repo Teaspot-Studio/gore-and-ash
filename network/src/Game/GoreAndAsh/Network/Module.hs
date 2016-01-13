@@ -7,6 +7,7 @@ import Control.Monad.Catch
 import Control.Monad.Extra (whenJust)
 import Control.Monad.Fix
 import Control.Monad.State.Strict
+import Data.Hashable 
 import Game.GoreAndAsh
 import Game.GoreAndAsh.Network.State
 import Network.ENet
@@ -36,13 +37,13 @@ instance GameModule m s => GameModule (NetworkT s m) (NetworkState s) where
         Just h -> processNetEvents s' h
 
       moveConnected s' = return $ s' {
-          networkPeers = networkPeers s' `H.union` H.fromList ((, ()) <$> networkConnectedPeers s')
-        , networkConnectedPeers = []
+          networkPeers = networkPeers s' S.>< networkConnectedPeers s'
+        , networkConnectedPeers = S.empty
         }
 
       moveDisconnected s' = return $ s' {
-          networkPeers = F.foldl' (flip H.delete) (networkPeers s') $ networkDisconnectedPeers s'
-        , networkDisconnectedPeers = []
+          networkPeers = remAllFromSeq (networkDisconnectedPeers s') (networkPeers s')
+        , networkDisconnectedPeers = S.empty
         }
 
       clearMessages s' = return $ s' {
@@ -51,22 +52,17 @@ instance GameModule m s => GameModule (NetworkT s m) (NetworkState s) where
 
   newModuleState = do 
     s <- newModuleState 
-    return $ NetworkState {
-        networkNextState = s
-      , networkHost = Nothing 
-      , networkPeers = H.empty
-      , networkMessages = H.empty
-      , networkDetailedLogging = False
-      , networkConnectedPeers = []
-      , networkDisconnectedPeers = []
-      , networkMaximumChannels = 0
-      }
+    return $ emptyNetworkState s
 
   withModule _ = withENetDo
   cleanupModule NetworkState{..} = do 
-    forM_ (H.toList networkPeers) $ \(p, _) -> disconnectNow p 0
+    forM_ networkPeers $ \p -> disconnectNow p 0
     forM_ networkConnectedPeers $ \p -> disconnectNow p 0
     whenJust networkHost destroy
+ 
+-- | Deletes all elements from second sequence that are in first sequence O(n^2)
+remAllFromSeq :: (Eq k, Hashable k) => S.Seq k -> S.Seq k -> S.Seq k
+remAllFromSeq s m = F.foldl' (\acc a -> S.filter (/= a) acc) m s 
 
 -- | Poll all events from ENet
 processNetEvents :: MonadIO m => NetworkState s -> Host -> m (NetworkState s)
@@ -87,12 +83,12 @@ processNetEvents nst hst = liftIO $ untilNothing nst (service hst 0) handleEvent
       B.Connect -> do 
         when networkDetailedLogging $ putStrLn "Network: Peer connected"
         return $ s {
-            networkConnectedPeers = peer : networkConnectedPeers 
+            networkConnectedPeers = networkConnectedPeers S.|> peer
           }
       B.Disconnect -> do 
         when networkDetailedLogging $ putStrLn $ "Network: Peer disconnected, code " ++ show edata
         return $ s {
-            networkDisconnectedPeers = peer : networkDisconnectedPeers
+            networkDisconnectedPeers = networkDisconnectedPeers S.|> peer
           }
       B.Receive -> do 
         (Packet !fs !bs) <- peek packetPtr

@@ -41,10 +41,10 @@ class MonadIO m => NetworkMonad m where
     -> m ()
 
   -- | Returns peers that were connected during last frame
-  peersConnectedM :: m [Peer]
+  peersConnectedM :: m (S.Seq Peer)
 
   -- | Returns peers that were disconnected during last frame
-  peersDisconnectedM :: m [Peer]
+  peersDisconnectedM :: m (S.Seq Peer)
 
   -- | Initiate connection to the remote host
   networkConnect :: LoggingMonad m => SockAddr -- ^ Address of host
@@ -59,7 +59,7 @@ class MonadIO m => NetworkMonad m where
   peerSendM :: LoggingMonad m => Peer -> ChannelID -> Message -> m ()
 
   -- | Returns list of currently connected peers (servers on client side, clients on server side)
-  networkPeersM :: m [Peer]
+  networkPeersM :: m (S.Seq Peer)
 
   -- | Sets flag for detailed logging (for debug)
   networkSetDetailedLoggingM :: Bool -> m ()
@@ -122,7 +122,7 @@ instance {-# OVERLAPPING #-} MonadIO m => NetworkMonad (NetworkT s m) where
 
   networkPeersM = do 
     NetworkState{..} <- NetworkT get 
-    return $ H.keys networkPeers  
+    return networkPeers  
 
   networkSetDetailedLoggingM f = do 
     s <- NetworkT get 
@@ -144,20 +144,20 @@ instance {-# OVERLAPPABLE #-} (Monad (mt m), MonadIO (mt m), LoggingMonad m, Net
   networkChannels = lift networkChannels 
   
 -- | Fires when one or several clients were connected
-peersConnected :: (LoggingMonad m, NetworkMonad m) => GameWire m a (Event [Peer])
+peersConnected :: (LoggingMonad m, NetworkMonad m) => GameWire m a (Event (S.Seq Peer))
 peersConnected = mkGen_ $ \_ -> do 
   ps <- peersConnectedM
-  return $! case ps of 
-    [] -> Right NoEvent
-    _ -> ps `deepseq` Right (Event ps)
+  return $! if S.null ps  
+    then Right NoEvent
+    else ps `deepseq` Right (Event ps)
 
 -- | Fires when one of connected peers is disconnected for some reason
-peersDisconnected :: (LoggingMonad m, NetworkMonad m) => GameWire m a (Event [Peer])
+peersDisconnected :: (LoggingMonad m, NetworkMonad m) => GameWire m a (Event (S.Seq Peer))
 peersDisconnected = mkGen_ $ \_ -> do 
   ps <- peersDisconnectedM 
-  return $! case ps of 
-    [] -> Right NoEvent
-    _ -> ps `deepseq` Right (Event ps)
+  return $! if S.null ps  
+    then Right NoEvent
+    else ps `deepseq` Right (Event ps)
 
 -- | Fires when statically known peer is disconnected
 peerDisconnected :: (LoggingMonad m, NetworkMonad m) => Peer -> GameWire m a (Event ())
@@ -168,22 +168,21 @@ peerDisconnected p = mkGen_ $ \_ -> do
     Just _ -> Right $! Event ()
 
 -- | Returns list of current peers (clients on server, servers on client)
-currentPeers :: (LoggingMonad m, NetworkMonad m) => GameWire m a [Peer]
+currentPeers :: (LoggingMonad m, NetworkMonad m) => GameWire m a (S.Seq Peer)
 currentPeers = liftGameMonad networkPeersM
 
 -- | Returns sequence of packets that were recieved during last frame from given peer and channel id
-peerMessages :: (LoggingMonad m, NetworkMonad m) => Peer -> ChannelID -> GameWire m a (Event [BS.ByteString]) 
+peerMessages :: (LoggingMonad m, NetworkMonad m) => Peer -> ChannelID -> GameWire m a (Event (S.Seq BS.ByteString)) 
 peerMessages p ch = mkGen_ $ \_ -> do 
   msgs <- peerMessagesM p ch
   return $! if S.null msgs 
     then Right NoEvent
-    else let msgs' = F.toList msgs 
-      in msgs' `deepseq` Right (Event msgs')
+    else msgs `deepseq` Right (Event msgs)
 
 -- | Send message to given peer with given channel id
 peerSend :: (LoggingMonad m, NetworkMonad m) => Peer -> ChannelID -> GameWire m (Event Message) (Event ())
 peerSend peer chid = liftGameMonadEvent1 $ peerSendM peer chid 
 
 -- | Send several messages to given peer with given channel id
-peerSendMany :: (LoggingMonad m, NetworkMonad m) => Peer -> ChannelID -> GameWire m (Event [Message]) (Event ())
+peerSendMany :: (LoggingMonad m, NetworkMonad m, F.Foldable t) => Peer -> ChannelID -> GameWire m (Event (t Message)) (Event ())
 peerSendMany peer chid = liftGameMonadEvent1 $ mapM_ (peerSendM peer chid) 

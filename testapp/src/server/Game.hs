@@ -10,6 +10,7 @@ import Data.Text (pack)
 import Linear
 import Prelude hiding (id, (.))
 import qualified Data.HashMap.Strict as H 
+import qualified Data.Foldable as F 
 
 import Game.Core
 import Game.Data
@@ -52,10 +53,10 @@ mainWire = actorMaker $ proc (_, g) -> do
     processPlayers = proc g -> do 
       conEvent <- peersConnected -< ()
       col <- playerColors -< conEvent
-      let addEvent = fmap (spawnPlayer col) <$> conEvent
+      let addEvent = F.toList . fmap (spawnPlayer col) <$> conEvent
 
       disEvent <- peersDisconnected -< ()
-      remEvent <- filterJustLE -< fmap (despawnPlayer g) <$> disEvent
+      remEvent <- mapE F.toList . filterJustLE -< fmap (despawnPlayer g) <$> disEvent
 
       traceEvent (const "New player connected") -< addEvent -- Player id is not ready yet :(
       traceEvent (\i -> "Player " <> (pack . show) i <> " disconnected") -< remEvent
