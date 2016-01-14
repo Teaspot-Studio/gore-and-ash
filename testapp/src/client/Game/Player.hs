@@ -13,6 +13,7 @@ import Data.Word
 import GHC.Generics (Generic)
 import Linear
 import Prelude hiding (id, (.))
+import Data.Text (pack)
 
 import Game.Core
 import Game.GoreAndAsh
@@ -20,14 +21,16 @@ import Game.GoreAndAsh.Actor
 import Game.GoreAndAsh.Network
 import Game.GoreAndAsh.SDL 
 import Game.GoreAndAsh.Sync
+import Game.GoreAndAsh.Logging
 
 import Consts
 import Game.Camera 
 import Game.Player.Shared
+import Math
 
---import SDL 
 import Linear.Affine
 import Foreign.C.Types
+import qualified Data.Vector.Storable as V 
 
 data Player = Player {
   playerId :: !PlayerId
@@ -93,6 +96,7 @@ playerActor i peer = actorMaker $ proc (c, p) -> do
     movePlayer :: PlayerId -> V2 Double -> Scancode -> AppWire Player Player
     movePlayer pid dv k = proc p -> do 
       e <- keyPress k -< ()
+      traceEvent (const . pack . show $ k) -< e
       let newPlayer = p {
             playerPos = playerPos p + dv * V2 (playerSpeed p) (playerSpeed p)
           }
@@ -102,16 +106,31 @@ playerActor i peer = actorMaker $ proc (c, p) -> do
 
 -- | Function of rendering player
 renderPlayer :: MonadSDL m => Player -> Camera -> GameMonadT m ()
-renderPlayer Player{..} Camera{..} = do  
+renderPlayer Player{..} c = do  
   mwr <- sdlGetWindowM mainWindowName
   case mwr of 
     Nothing -> return ()
     Just (_, r) -> do 
       rendererDrawColor r $= transColor playerColor 
-      fillRect r $ Just square
+      drawLines r transformedSquare
   where
     transColor :: V3 Double -> V4 Word8
     transColor (V3 r g b) = V4 (round $ r * 255) (round $ g * 255) (round $ b * 255) 255
 
-    square :: Rectangle CInt
-    square = Rectangle (P $ V2 100 100) (V2 100 100)
+    playerSize :: Double 
+    playerSize = 50 
+
+    square :: Double -> V.Vector (V2 Double)
+    square s = V.fromList [
+        V2 s s 
+      , V2 (-s) s
+      , V2 (-s) (-s)
+      , V2 s (-s)
+      , V2 s s
+      ]
+
+    playerMtx :: M33 Double 
+    playerMtx = translate2D playerPos !*! cameraMatrix c
+
+    transformedSquare :: V.Vector (Point V2 CInt)
+    transformedSquare = V.map (P . fmap round . applyTransform2D playerMtx) $ square playerSize

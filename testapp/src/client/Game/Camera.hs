@@ -3,9 +3,11 @@ module Game.Camera(
   , CameraId(..)
   , CameraMessage(..)
   , cameraWire
+  , cameraMatrix
   ) where
 
 import Control.DeepSeq
+import Control.Lens 
 import Control.Wire
 import Control.Wire.Unsafe.Event
 import Data.Typeable 
@@ -16,11 +18,11 @@ import Prelude hiding (id, (.))
 import Game.Core
 import Game.GoreAndAsh.Actor
 import Game.GoreAndAsh.SDL
+import Math 
 
 data Camera = Camera {
   cameraId :: !CameraId
 , cameraPos :: !(V2 Double)
-, cameraRot :: !Double 
 , cameraZoom :: !Double
 } deriving (Generic)
 
@@ -64,3 +66,8 @@ cameraWire initialCamera = stateActor initialCamera process $ \_ -> proc (_, c) 
             cameraZoom = max (-3) $ min (-0.01) $ cameraZoom c + z * k
           }
       returnA -< event c (newCam . fromIntegral) e 
+
+-- | Calculate transformation matrix for camera
+cameraMatrix :: Camera -> M33 Double
+cameraMatrix Camera{..} = scale2D (V2 cameraZoom cameraZoom) 
+  !*! translate2D (V2 (-cameraPos^._x) (-cameraPos^._y))

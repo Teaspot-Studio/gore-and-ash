@@ -14,6 +14,8 @@ module Game.GoreAndAsh.SDL.API(
   , mouseScroll
   , mouseScrollX
   , mouseScrollY
+  -- | Window arrow API
+  , windowClosed
   ) where
 
 import Control.Lens ((^.))
@@ -285,9 +287,8 @@ keyScancode sc im = liftGameMonad $ do
     then NoEvent
     else Event . S.filter isNeeded $! es 
   where
-    isNeeded KeyboardEventData{..} = case keysymScancode keyboardEventKeysym of 
-      sc -> keyboardEventKeyMotion == im
-      _ -> False
+    isNeeded KeyboardEventData{..} = keyboardEventKeyMotion == im 
+      && sc == keysymScancode keyboardEventKeysym 
 
 -- | Fires when specific scancode key is pressed
 keyPress :: MonadSDL m => Scancode -> GameWire m a (Event (Seq KeyboardEventData))
@@ -312,3 +313,20 @@ mouseScrollX = mapE (^. _x) . mouseScroll
 -- | Returns accumulated mouse scroll scince last frame
 mouseScrollY :: MonadSDL m => GameWire m a (Event Int32)
 mouseScrollY = mapE (^. _y) . mouseScroll
+
+-- | Fires when window with specific name is closed
+windowClosed :: MonadSDL m => Text -> GameWire m a (Event ())
+windowClosed n = go Nothing 
+  where
+  go Nothing = mkGen $ \_ _ -> do 
+    mr <- sdlGetWindowM n
+    return $! case mr of 
+      Nothing -> (Right NoEvent, go Nothing)
+      Just (w, _) -> (Right NoEvent, go $ Just w)
+  go (Just w) = liftGameMonad $ do 
+    es <- S.filter isNeeded <$> sdlWindowClosedEventsM
+    return $! if S.null es 
+      then NoEvent
+      else Event ()
+    where
+      isNeeded WindowClosedEventData{..} = windowClosedEventWindow == w

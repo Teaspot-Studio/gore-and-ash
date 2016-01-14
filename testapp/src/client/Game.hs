@@ -9,6 +9,7 @@ module Game(
 
 import Control.DeepSeq
 import Control.Wire
+import Control.Wire.Unsafe.Event (event)
 import Data.Text (pack)
 import GHC.Generics (Generic)
 import Prelude hiding (id, (.))
@@ -21,6 +22,7 @@ import Game.GoreAndAsh.Network
 import Game.GoreAndAsh.SDL
 import Game.GoreAndAsh.Sync 
 
+import Consts
 import Game.Camera 
 import Game.Core
 import Game.Player
@@ -76,7 +78,7 @@ playGame pid peer = do
   actorMaker $ proc (_, mg) -> do 
     c <- runActor' $ cameraWire initialCamera -< ()
     p <- runActor' $ playerActor pid peer -< c
-    ex <- liftGameMonad sdlQuitEventM -< ()
+    ex <- exitCheck -< ()
     rps <- case mg of 
       Nothing -> returnA -< []
       Just g -> processRemotePlayers -< g
@@ -99,9 +101,13 @@ playGame pid peer = do
         , gameExit = ex
         }
   where
+  exitCheck = proc _ -> do 
+    e <- windowClosed mainWindowName -< ()
+    q <- liftGameMonad sdlQuitEventM -< ()
+    returnA -< event False (const True) e || q
 
   -- | Maker of startup camera
-  initialCamera i = Camera i 0 0 (-0.1)
+  initialCamera i = Camera i 0 (-0.1)
 
   -- | Helper to hide some boring processing of inner state, messages and networking
   actorMaker = netStateActorFixed globalGameId Nothing process
