@@ -74,8 +74,8 @@ playGame :: PlayerId -> Peer -> AppActor GameId a (Maybe Game)
 playGame pid peer = do
   peerSendIndexedM peer (ChannelID 0) globalGameId ReliableMessage PlayerRequestOthers
   actorMaker $ proc (_, mg) -> do 
-    p <- runActor' $ playerActor pid peer -< ()
     c <- runActor' $ cameraWire initialCamera -< ()
+    p <- runActor' $ playerActor pid peer -< c
     ex <- liftGameMonad sdlQuitEventM -< ()
     rps <- case mg of 
       Nothing -> returnA -< []

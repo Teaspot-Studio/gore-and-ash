@@ -14,11 +14,13 @@ import Linear
 import Prelude hiding (id, (.))
 
 import Game.Core
+import Game.GoreAndAsh
 import Game.GoreAndAsh.Actor
 import Game.GoreAndAsh.Network
 import Game.GoreAndAsh.SDL 
 import Game.GoreAndAsh.Sync
 
+import Game.Camera 
 import Game.Player.Shared
 
 data Player = Player {
@@ -46,9 +48,10 @@ instance ActorMessage PlayerId where
 instance NetworkMessage PlayerId where 
   type NetworkMessageType PlayerId = PlayerNetMessage
   
-playerActor :: PlayerId -> Peer -> AppActor PlayerId a Player 
-playerActor i peer = actorMaker $ proc (_, p) -> do 
+playerActor :: PlayerId -> Peer -> AppActor PlayerId Camera Player 
+playerActor i peer = actorMaker $ proc (c, p) -> do 
   peerSendIndexed peer (ChannelID 0) i ReliableMessage . now -< NetMsgPlayerRequest
+  liftGameMonad2 renderPlayer -< (p, c)
   forceNF . controlPlayer i -< p
   where
     actorMaker = netStateActorFixed i initialPlayer process 
@@ -90,3 +93,7 @@ playerActor i peer = actorMaker $ proc (_, p) -> do
           posMsg = let V2 x y = playerPos newPlayer in NetMsgPlayerPos x y
       peerSendIndexed peer (ChannelID 0) pid UnreliableMessage -< const posMsg <$> e
       returnA -< event p (const newPlayer) e
+
+-- | Function of rendering player
+renderPlayer :: MonadSDL m => Player -> Camera -> m ()
+renderPlayer Player{..} Camera{..} = return ()

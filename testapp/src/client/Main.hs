@@ -53,7 +53,7 @@ main = withModule (Proxy :: Proxy AppMonad) $ do
         addr <- liftIO $ getAddr host (fromIntegral port)
         _ <- networkConnect addr 2 0
         (_, r) <- sdlCreateWindowM mainWindowName "Gore&Ash Client" defaultWindow defaultRenderer
-        rendererDrawColor r $= V4 0 0 255 255
+        rendererDrawColor r $= V4 200 200 200 255
       gameLoop fps gs'
 
     gameLoop fps gs = do
