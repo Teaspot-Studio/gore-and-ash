@@ -42,7 +42,10 @@ data NetworkState s = NetworkState {
 , networkNextState :: !s
 } deriving (Generic)
 
-instance NFData (Ptr a) where 
+instance NFData Host where 
+  rnf p = p `seq` ()
+
+instance NFData Peer where 
   rnf p = p `seq` ()
 
 instance NFData s => NFData (NetworkState s)

@@ -1,21 +1,72 @@
 module Game.GoreAndAsh.SDL.API(
-    SDLMonad(..)
+    MonadSDL(..)
+  , WindowConfig(..)
+  , RendererConfig(..)
+  , RendererType(..)
+  , Window
+  , Renderer
+  , module ReExport
+  -- | Keyboard arrow API
+  , keyScancode
+  , keyPress
+  , keyRelease
+  -- | Mouse arrow API
+  , mouseScroll
+  , mouseScrollX
+  , mouseScrollY
   ) where
 
+import Control.Lens ((^.))
+import Control.Monad.Catch
 import Control.Monad.State.Strict
+import Control.Wire
+import Control.Wire.Unsafe.Event
+import Data.Int 
 import Data.Sequence (Seq)
+import Data.Text (Text)
+import GHC.Generics 
+import Linear 
 import Prelude hiding (id, (.))
+import qualified Data.HashMap.Strict as H 
 import qualified Data.Sequence as S 
 
-import SDL hiding (get)
-import SDL.Event 
+import SDL as ReExport hiding (get, Event)
+import SDL.Event as ReExport hiding (Event)
+import SDL.Input.Keyboard.Codes as ReExport
 
 import Game.GoreAndAsh
 import Game.GoreAndAsh.SDL.State
 import Game.GoreAndAsh.SDL.Module
 
+-- | Module specific exceptions
+data SDL'ModuleException = 
+  -- | Tried to register two windows with equal names
+  SDL'ConflictingWindows !Text
+  deriving (Generic, Show)
+
+instance Exception SDL'ModuleException
+
 -- | Low level API for module
-class MonadIO m => SDLMonad m where 
+class (MonadIO m, MonadThrow m) => MonadSDL m where 
+  -- | Creates window and stores in module context
+  --
+  -- Throws @SDL'ConflictingWindows@ on name conflict
+  sdlCreateWindowM :: 
+       Text -- ^ Window name that is used to get the window (and renderer) from the module later
+    -> Text -- ^ Title of the window
+    -> WindowConfig -- ^ Window configuration
+    -> RendererConfig -- ^ Renderer configuration
+    -> m (Window, Renderer)
+
+  -- | Getting window and renderer by name
+  sdlGetWindowM :: 
+       Text -- ^ Window name that was used at @sdlCreateWindowM@ call
+    -> m (Maybe (Window, Renderer))
+
+  -- | Destroying window and renderer by name
+  sdlDestroyWindowM ::
+       Text -- ^ Window name that was used at @sdlCreateWindowM@ call
+    -> m ()
 
   -- | Getting window shown events that occurs scince last frame
   sdlWindowShownEventsM :: m (Seq WindowShownEventData)
@@ -95,13 +146,40 @@ class MonadIO m => SDLMonad m where
   sdlMultiGestureEventsM :: m (Seq MultiGestureEventData)
   -- | Getting touch events that occurs scince last frame
   sdlDollarGestureEventsM :: m (Seq DollarGestureEventData)
-  
+
   -- | Getting file opened events that occurs scince last frame
   sdlDropEventsM :: m (Seq DropEventData)
   -- | Getting clipboard changed events that occurs scince last frame
   sdlClipboardUpdateEventsM :: m (Seq ClipboardUpdateEventData)
 
-instance {-# OVERLAPPING #-} MonadIO m => SDLMonad (SDLT s m) where
+instance {-# OVERLAPPING #-} (MonadIO m, MonadThrow m) => MonadSDL (SDLT s m) where
+  sdlCreateWindowM n t wc rc = do 
+    w <- createWindow t wc
+    r <- createRenderer w (-1) rc
+    s <- SDLT get
+    case H.lookup n . sdlWindows $! s of 
+      Just _ -> throwM . SDL'ConflictingWindows $! n
+      Nothing -> do
+        SDLT . put $! s {
+            sdlWindows = H.insert n (w, r) . sdlWindows $! s
+          }
+        return (w, r)
+
+  sdlGetWindowM n = do 
+    s <- SDLT get 
+    return . H.lookup n . sdlWindows $! s 
+
+  sdlDestroyWindowM n = do 
+    s <- SDLT get 
+    case H.lookup n . sdlWindows $! s of 
+      Just (w, r) -> do 
+        destroyRenderer r 
+        destroyWindow w
+        SDLT . put $! s {
+          sdlWindows = H.delete n . sdlWindows $! s
+        }
+      Nothing -> return ()
+
   sdlWindowShownEventsM = sdlWindowShownEvents <$> get
   sdlWindowHiddenEventsM = sdlWindowHiddenEvents <$> get
   sdlWindowExposedEventsM = sdlWindowExposedEvents <$> get
@@ -139,7 +217,11 @@ instance {-# OVERLAPPING #-} MonadIO m => SDLMonad (SDLT s m) where
   sdlDropEventsM = sdlDropEvents <$> get
   sdlClipboardUpdateEventsM = sdlClipboardUpdateEvents <$> get
 
-instance {-# OVERLAPPABLE #-} (MonadIO (mt m), SDLMonad m, MonadTrans mt) => SDLMonad (mt m) where 
+instance {-# OVERLAPPABLE #-} (MonadIO (mt m), MonadThrow (mt m), MonadSDL m, MonadTrans mt) => MonadSDL (mt m) where 
+  sdlCreateWindowM n t wc rc = lift $ sdlCreateWindowM n t wc rc
+  sdlGetWindowM = lift . sdlGetWindowM
+  sdlDestroyWindowM = lift . sdlDestroyWindowM
+
   sdlWindowShownEventsM = lift sdlWindowShownEventsM
   sdlWindowHiddenEventsM = lift sdlWindowHiddenEventsM
   sdlWindowExposedEventsM = lift sdlWindowExposedEventsM
@@ -176,3 +258,39 @@ instance {-# OVERLAPPABLE #-} (MonadIO (mt m), SDLMonad m, MonadTrans mt) => SDL
   sdlDollarGestureEventsM = lift sdlDollarGestureEventsM
   sdlDropEventsM = lift sdlDropEventsM
   sdlClipboardUpdateEventsM = lift sdlClipboardUpdateEventsM
+
+-- | Fires when specific scancode key is pressed/unpressed
+keyScancode :: MonadSDL m => Scancode -> InputMotion -> GameWire m a (Event (Seq KeyboardEventData))
+keyScancode sc im = liftGameMonad $ do 
+  es <- sdlKeyboardEventsM
+  return $! if S.null es 
+    then NoEvent
+    else Event . S.filter isNeeded $! es 
+  where
+    isNeeded KeyboardEventData{..} = case keysymScancode keyboardEventKeysym of 
+      sc -> keyboardEventKeyMotion == im
+      _ -> False
+
+-- | Fires when specific scancode key is pressed
+keyPress :: MonadSDL m => Scancode -> GameWire m a (Event (Seq KeyboardEventData))
+keyPress sc = keyScancode sc Pressed 
+
+-- | Fires when specific scancode key is released
+keyRelease :: MonadSDL m => Scancode -> GameWire m a (Event (Seq KeyboardEventData))
+keyRelease sc = keyScancode sc Released 
+
+-- | Returns accumulated mouse scroll scince last frame
+mouseScroll :: MonadSDL m => GameWire m a (Event (V2 Int32))
+mouseScroll = liftGameMonad $ do 
+  es <- sdlMouseWheelEventsM
+  return $! if S.null es 
+    then NoEvent
+    else Event . sumV . fmap mouseWheelEventPos $! es
+
+-- | Returns accumulated mouse scroll scince last frame
+mouseScrollX :: MonadSDL m => GameWire m a (Event Int32)
+mouseScrollX = mapE (^. _x) . mouseScroll
+
+-- | Returns accumulated mouse scroll scince last frame
+mouseScrollY :: MonadSDL m => GameWire m a (Event Int32)
+mouseScrollY = mapE (^. _y) . mouseScroll

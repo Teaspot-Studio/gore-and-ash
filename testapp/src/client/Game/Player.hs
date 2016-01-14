@@ -15,8 +15,8 @@ import Prelude hiding (id, (.))
 
 import Game.Core
 import Game.GoreAndAsh.Actor
-import Game.GoreAndAsh.GLFW 
 import Game.GoreAndAsh.Network
+import Game.GoreAndAsh.SDL 
 import Game.GoreAndAsh.Sync
 
 import Game.Player.Shared
@@ -76,14 +76,14 @@ playerActor i peer = actorMaker $ proc (_, p) -> do
 
     controlPlayer :: PlayerId -> AppWire Player Player
     controlPlayer pid = 
-        movePlayer pid (V2 1 0) Key'Left 
-      . movePlayer pid (V2 (-1) 0) Key'Right
-      . movePlayer pid (V2 0 1) Key'Down
-      . movePlayer pid (V2 0 (-1)) Key'Up
+        movePlayer pid (V2 1 0) ScancodeLeft 
+      . movePlayer pid (V2 (-1) 0) ScancodeRight
+      . movePlayer pid (V2 0 1) ScancodeDown
+      . movePlayer pid (V2 0 (-1)) ScancodeUp
 
-    movePlayer :: PlayerId -> V2 Double -> Key -> AppWire Player Player
+    movePlayer :: PlayerId -> V2 Double -> Scancode -> AppWire Player Player
     movePlayer pid dv k = proc p -> do 
-      e <- keyPressing k -< ()
+      e <- keyPress k -< ()
       let newPlayer = p {
             playerPos = playerPos p + dv * V2 (playerSpeed p) (playerSpeed p)
           }

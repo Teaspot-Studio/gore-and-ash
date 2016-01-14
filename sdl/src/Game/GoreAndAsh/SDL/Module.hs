@@ -8,6 +8,7 @@ import Control.Monad.Fix
 import Control.Monad.IO.Class 
 import Control.Monad.State.Strict
 import qualified Data.Foldable as F 
+import qualified Data.HashMap.Strict as H 
 import qualified Data.Sequence as S 
 
 import SDL
@@ -24,6 +25,7 @@ instance GameModule m s => GameModule (SDLT s m) (SDLState s) where
   runModule (SDLT m) s = do
     s' <- processEvents s 
     ((a, s''), nextState) <- runModule (runStateT m s') (sdlNextState s')
+    drawWindows s
     return (a, flashSDLState $ s'' { 
         sdlNextState = nextState
       })
@@ -31,6 +33,14 @@ instance GameModule m s => GameModule (SDLT s m) (SDLState s) where
   newModuleState = emptySDLState <$> newModuleState
   withModule _ io = initializeAll >> io
   cleanupModule _ = quit
+
+-- | Takes all window and renderers and update them
+drawWindows :: MonadIO m => SDLState s -> m ()
+drawWindows SDLState{..} = mapM_ go . H.elems $! sdlWindows
+  where 
+  go (_, r) = do 
+    clear r 
+    present r 
 
 -- | Catch all SDL events
 processEvents :: MonadIO m => SDLState s -> m (SDLState s)

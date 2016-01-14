@@ -5,8 +5,9 @@ module Game.GoreAndAsh.SDL.State(
   ) where
 
 import Control.DeepSeq 
-import GHC.Generics (Generic)
+import Data.Text 
 import Foreign 
+import GHC.Generics (Generic)
 
 import SDL.Event 
 import SDL.Input.Keyboard
@@ -16,9 +17,14 @@ import SDL.Internal.Types
 import Data.Sequence (Seq)
 import qualified Data.Sequence as S 
 
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as H 
+
 -- | Inner state of logger
 data SDLState s = SDLState {
   sdlNextState :: !s
+, sdlWindows :: !(HashMap Text (Window, Renderer))
+
 , sdlWindowShownEvents :: !(Seq WindowShownEventData)
 , sdlWindowHiddenEvents :: !(Seq WindowHiddenEventData)
 , sdlWindowExposedEvents :: !(Seq WindowExposedEventData)
@@ -85,13 +91,10 @@ instance NFData JoyButtonEventData
 instance NFData JoyDeviceEventData 
 instance NFData ControllerAxisEventData 
 instance NFData ControllerButtonEventData 
-instance NFData ControllerDeviceEventData 
-instance NFData UserEventData 
-instance NFData SysWMEventData 
+instance NFData ControllerDeviceEventData
 instance NFData TouchFingerEventData 
 instance NFData MultiGestureEventData 
 instance NFData DollarGestureEventData 
-instance NFData DropEventData
 instance NFData ClipboardUpdateEventData
 instance NFData Keysym
 instance NFData MouseButton
@@ -104,13 +107,28 @@ instance NFData KeyModifier
 instance NFData Window where
   rnf = (`seq` ())
 
-instance NFData (Ptr a) where
+instance NFData Renderer where
   rnf = (`seq` ())
+
+instance NFData SysWMEventData where
+  rnf SysWMEventData{..} = sysWMEventMsg `seq` ()
+
+instance NFData UserEventData where
+  rnf UserEventData{..} = userEventWindow 
+    `seq` userEventCode
+    `seq` userEventData1
+    `seq` userEventData2
+    `seq` ()
+
+instance NFData DropEventData where
+  rnf DropEventData{..} = dropEventFile `seq` ()
 
 -- | Creates empty module state
 emptySDLState :: s -> SDLState s 
 emptySDLState s = SDLState {
     sdlNextState = s
+  , sdlWindows = H.empty 
+
   , sdlWindowShownEvents = S.empty
   , sdlWindowHiddenEvents = S.empty
   , sdlWindowExposedEvents = S.empty

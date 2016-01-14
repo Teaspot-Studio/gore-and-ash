@@ -20,6 +20,7 @@ executable gore-and-ash-client
   
   other-modules:       
                        FPS
+                       Consts
                        Game
                        Game.Camera
                        Game.Core
@@ -43,9 +44,9 @@ executable gore-and-ash-client
                      , GLFW-b >= 1.4.7.3
                      , gore-and-ash
                      , gore-and-ash-actor
-                     , gore-and-ash-glfw
                      , gore-and-ash-logging
                      , gore-and-ash-network
+                     , gore-and-ash-sdl
                      , gore-and-ash-sync
                      , hashable >= 1.2.3.3
                      , lens >= 4.12.3

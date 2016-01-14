@@ -1,22 +1,23 @@
 module Main where  
 
---import Control.Monad (join)
---import Control.Monad.IO.Class
---import Data.Proxy 
---import Game 
---import Game.GoreAndAsh
---import Game.GoreAndAsh.Network
---import Game.GoreAndAsh.Sync
---import Graphics
---import Network.BSD (getHostByName, hostAddress)
---import Network.Socket (SockAddr(..))
---import Render 
+import Consts
+import Control.DeepSeq 
+import Control.Monad (join)
+import Control.Monad.IO.Class
+import Data.Maybe (fromMaybe)
+import Data.Proxy 
+import FPS
+import Game 
+import Game.GoreAndAsh
+import Game.GoreAndAsh.Network
+import Game.GoreAndAsh.SDL
+import Game.GoreAndAsh.Sync
+import Network.BSD (getHostByName, hostAddress)
+import Network.Socket (SockAddr(..))
 import System.Environment
 import Text.Read 
 
-import SDL
 import Linear (V4(..))
-import Control.Monad (unless)
 
 gameFPS :: Int 
 gameFPS = 60 
@@ -30,38 +31,39 @@ parseArgs = do
       Just pint -> return (h, pint)
     _ -> fail "Misuse of arguments: gore-and-ash-client HOST PORT"
 
-{-
+
 main :: IO ()
 main = withModule (Proxy :: Proxy AppMonad) $ do
   gs <- newGameState mainWire
   (host, port) <- liftIO parseArgs
-  firstLoop fps host port rs gs 
+  fps <- makeFPSBounder 60
+  firstLoop fps host port gs 
   where 
     -- | Resolve given hostname and port
     getAddr s p = do
       he <- getHostByName s
       return $ SockAddrInet p $ hostAddress he
 
-    firstLoop fps host port rs gs = do 
+    firstLoop fps host port gs = do 
       (_, gs') <- stepGame gs $ do 
         networkSetDetailedLoggingM False
         syncSetLoggingM True
         syncSetRoleM SyncSlave
         networkBind Nothing 1 2 0 0
-        setBufferSizeM 2
         addr <- liftIO $ getAddr host (fromIntegral port)
-        networkConnect addr 2 0
-      gameLoop fps rs gs'
+        _ <- networkConnect addr 2 0
+        (_, r) <- sdlCreateWindowM mainWindowName "Gore&Ash Client" defaultWindow defaultRenderer
+        rendererDrawColor r $= V4 0 0 255 255
+      gameLoop fps gs'
 
-    gameLoop fps rs gs = do 
-      (mg, gs') <- stepGame gs rs
-      rs2 <- case join mg of 
-        Nothing -> renderEmptyScreen rs
-        Just g -> renderGame g =<< stepRenderState rs
-      if isClosedRequest rs2 
+    gameLoop fps gs = do
+      waitFPSBound fps 
+      (mg, gs') <- stepGame gs (return ())
+      mg `deepseq` if fromMaybe False $ gameExit <$> join mg
         then cleanupGameState gs'
-        else gameLoop fps rs2 gs' -}
+        else gameLoop fps gs'
 
+{-
 main :: IO ()
 main = do
   initializeAll
@@ -82,4 +84,4 @@ appLoop renderer = do
   rendererDrawColor renderer $= V4 0 0 255 255
   clear renderer
   present renderer
-  unless qPressed (appLoop renderer)
+  unless qPressed (appLoop renderer) -}

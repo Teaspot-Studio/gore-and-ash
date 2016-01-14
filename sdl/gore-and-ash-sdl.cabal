@@ -25,9 +25,14 @@ library
                      , deepseq >= 1.4.1.1
                      , exceptions >= 0.8.0.2
                      , gore-and-ash >= 0.1.0.0
+                     , lens >= 4.13
+                     , linear >= 1.20.3
                      , mtl >= 2.2.1
+                     , netwire >= 5.0.1
                      , sdl2 >= 2.1.1
+                     , text >= 1.2.2.0
                      , transformers >= 0.4.2.0
+                     , unordered-containers >= 0.2.5.1
                      
   default-extensions:    
                        DeriveGeneric
@@ -35,5 +40,6 @@ library
                        GeneralizedNewtypeDeriving
                        MultiParamTypeClasses
                        OverloadedStrings
+                       RecordWildCards
                        TypeFamilies
                        UndecidableInstances

@@ -18,6 +18,7 @@ import Game.GoreAndAsh
 import Game.GoreAndAsh.Actor 
 import Game.GoreAndAsh.Logging
 import Game.GoreAndAsh.Network
+import Game.GoreAndAsh.SDL
 import Game.GoreAndAsh.Sync 
 
 import Game.Camera 
@@ -33,6 +34,7 @@ data Game = Game {
 , gameRemotePlayers :: ![RemotePlayer] 
 , gameAddPlayers :: ![PlayerId]
 , gameRemovePlayers :: ![PlayerId]
+, gameExit :: !Bool
 } deriving (Generic)
 
 instance NFData Game 
@@ -74,6 +76,7 @@ playGame pid peer = do
   actorMaker $ proc (_, mg) -> do 
     p <- runActor' $ playerActor pid peer -< ()
     c <- runActor' $ cameraWire initialCamera -< ()
+    ex <- liftGameMonad sdlQuitEventM -< ()
     rps <- case mg of 
       Nothing -> returnA -< []
       Just g -> processRemotePlayers -< g
@@ -85,6 +88,7 @@ playGame pid peer = do
         , gameRemotePlayers = rps
         , gameAddPlayers = []
         , gameRemovePlayers = []
+        , gameExit = ex
         }
       Just g -> g {
           gamePlayer = p
@@ -92,6 +96,7 @@ playGame pid peer = do
         , gameRemotePlayers = rps
         , gameAddPlayers = []
         , gameRemovePlayers = []
+        , gameExit = ex
         }
   where
 

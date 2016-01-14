@@ -15,13 +15,13 @@ import GHC.Generics (Generic)
 import Prelude hiding (id, (.))
 
 import Game.GoreAndAsh.Actor
-import Game.GoreAndAsh.GLFW 
 import Game.GoreAndAsh.Logging
 import Game.GoreAndAsh.Network
+import Game.GoreAndAsh.SDL 
 import Game.GoreAndAsh.Sync 
 
 -- | Application monad is monad stack build from given list of modules over base monad (IO)
-type AppStack = ModuleStack [LoggingT, ActorT, GLFWInputT, NetworkT, SyncT] IO
+type AppStack = ModuleStack [LoggingT, ActorT, NetworkT, SyncT, SDLT] IO
 newtype AppState = AppState (ModuleState AppStack)
   deriving (Generic)
 
@@ -29,7 +29,7 @@ instance NFData AppState
 
 -- | Wrapper around type family
 newtype AppMonad a = AppMonad (AppStack a)
-  deriving (Functor, Applicative, Monad, MonadFix, MonadIO, MonadGLFWInput, LoggingMonad, NetworkMonad, ActorMonad, MonadCatch, MonadThrow)
+  deriving (Functor, Applicative, Monad, MonadFix, MonadIO, LoggingMonad, NetworkMonad, ActorMonad, MonadCatch, MonadThrow, MonadSDL)
 
 -- | Current GHC (7.10.3) isn't able to derive this
 instance SyncMonad AppMonad where 
