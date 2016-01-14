@@ -9,6 +9,7 @@ import Control.DeepSeq
 import Control.Wire
 import Control.Wire.Unsafe.Event
 import Data.Typeable 
+import Data.Word 
 import GHC.Generics (Generic)
 import Linear
 import Prelude hiding (id, (.))
@@ -20,8 +21,13 @@ import Game.GoreAndAsh.Network
 import Game.GoreAndAsh.SDL 
 import Game.GoreAndAsh.Sync
 
+import Consts
 import Game.Camera 
 import Game.Player.Shared
+
+--import SDL 
+import Linear.Affine
+import Foreign.C.Types
 
 data Player = Player {
   playerId :: !PlayerId
@@ -95,5 +101,17 @@ playerActor i peer = actorMaker $ proc (c, p) -> do
       returnA -< event p (const newPlayer) e
 
 -- | Function of rendering player
-renderPlayer :: MonadSDL m => Player -> Camera -> m ()
-renderPlayer Player{..} Camera{..} = return ()
+renderPlayer :: MonadSDL m => Player -> Camera -> GameMonadT m ()
+renderPlayer Player{..} Camera{..} = do  
+  mwr <- sdlGetWindowM mainWindowName
+  case mwr of 
+    Nothing -> return ()
+    Just (_, r) -> do 
+      rendererDrawColor r $= transColor playerColor 
+      fillRect r $ Just square
+  where
+    transColor :: V3 Double -> V4 Word8
+    transColor (V3 r g b) = V4 (round $ r * 255) (round $ g * 255) (round $ b * 255) 255
+
+    square :: Rectangle CInt
+    square = Rectangle (P $ V2 100 100) (V2 100 100)

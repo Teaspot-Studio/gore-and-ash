@@ -24,8 +24,9 @@ instance GameModule m s => GameModule (SDLT s m) (SDLState s) where
   type ModuleState (SDLT s m) = SDLState s
   runModule (SDLT m) s = do
     s' <- processEvents s 
+    clearWindows s'
     ((a, s''), nextState) <- runModule (runStateT m s') (sdlNextState s')
-    drawWindows s
+    drawWindows s''
     return (a, flashSDLState $ s'' { 
         sdlNextState = nextState
       })
@@ -38,9 +39,15 @@ instance GameModule m s => GameModule (SDLT s m) (SDLState s) where
 drawWindows :: MonadIO m => SDLState s -> m ()
 drawWindows SDLState{..} = mapM_ go . H.elems $! sdlWindows
   where 
-  go (_, r) = do 
-    clear r 
-    present r 
+  go (_, r, _) = present r 
+
+-- | Clear surface of all windows
+clearWindows :: MonadIO m => SDLState s -> m ()
+clearWindows SDLState{..} = mapM_ go . H.elems $! sdlWindows
+  where 
+  go (_, r, c) = do 
+    rendererDrawColor r $= c
+    clear r
 
 -- | Catch all SDL events
 processEvents :: MonadIO m => SDLState s -> m (SDLState s)

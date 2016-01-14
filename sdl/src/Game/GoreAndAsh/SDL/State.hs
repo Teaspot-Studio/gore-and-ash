@@ -6,8 +6,10 @@ module Game.GoreAndAsh.SDL.State(
 
 import Control.DeepSeq 
 import Data.Text 
+import Data.Word 
 import Foreign 
 import GHC.Generics (Generic)
+import Linear
 
 import SDL.Event 
 import SDL.Input.Keyboard
@@ -23,7 +25,7 @@ import qualified Data.HashMap.Strict as H
 -- | Inner state of logger
 data SDLState s = SDLState {
   sdlNextState :: !s
-, sdlWindows :: !(HashMap Text (Window, Renderer))
+, sdlWindows :: !(HashMap Text (Window, Renderer, V4 Word8))
 
 , sdlWindowShownEvents :: !(Seq WindowShownEventData)
 , sdlWindowHiddenEvents :: !(Seq WindowHiddenEventData)

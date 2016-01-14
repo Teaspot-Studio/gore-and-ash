@@ -24,6 +24,7 @@ import Control.Wire.Unsafe.Event
 import Data.Int 
 import Data.Sequence (Seq)
 import Data.Text (Text)
+import Data.Word 
 import GHC.Generics 
 import Linear 
 import Prelude hiding (id, (.))
@@ -66,6 +67,12 @@ class (MonadIO m, MonadThrow m) => MonadSDL m where
   -- | Destroying window and renderer by name
   sdlDestroyWindowM ::
        Text -- ^ Window name that was used at @sdlCreateWindowM@ call
+    -> m ()
+
+  -- | Setup background color for window
+  sdlSetBackColor :: 
+       Text -- ^ Window name that was used at @sdlCreateWindowM@ call
+    -> V4 Word8 -- ^ Color to set
     -> m ()
 
   -- | Getting window shown events that occurs scince last frame
@@ -161,22 +168,32 @@ instance {-# OVERLAPPING #-} (MonadIO m, MonadThrow m) => MonadSDL (SDLT s m) wh
       Just _ -> throwM . SDL'ConflictingWindows $! n
       Nothing -> do
         SDLT . put $! s {
-            sdlWindows = H.insert n (w, r) . sdlWindows $! s
+            sdlWindows = H.insert n (w, r, defColor) . sdlWindows $! s
           }
         return (w, r)
+    where 
+      defColor = V4 0 0 0 255
 
   sdlGetWindowM n = do 
     s <- SDLT get 
-    return . H.lookup n . sdlWindows $! s 
+    return . fmap (\(w, r, _) -> (w, r)) . H.lookup n . sdlWindows $! s 
 
   sdlDestroyWindowM n = do 
     s <- SDLT get 
     case H.lookup n . sdlWindows $! s of 
-      Just (w, r) -> do 
+      Just (w, r, _) -> do 
         destroyRenderer r 
         destroyWindow w
         SDLT . put $! s {
           sdlWindows = H.delete n . sdlWindows $! s
+        }
+      Nothing -> return ()
+
+  sdlSetBackColor n c = do 
+    s <- SDLT get 
+    case H.lookup n . sdlWindows $! s of 
+      Just (w, r, _) -> SDLT . put $! s {
+          sdlWindows = H.insert n (w, r, c) . sdlWindows $! s 
         }
       Nothing -> return ()
 
@@ -221,6 +238,7 @@ instance {-# OVERLAPPABLE #-} (MonadIO (mt m), MonadThrow (mt m), MonadSDL m, Mo
   sdlCreateWindowM n t wc rc = lift $ sdlCreateWindowM n t wc rc
   sdlGetWindowM = lift . sdlGetWindowM
   sdlDestroyWindowM = lift . sdlDestroyWindowM
+  sdlSetBackColor a b = lift $ sdlSetBackColor a b 
 
   sdlWindowShownEventsM = lift sdlWindowShownEventsM
   sdlWindowHiddenEventsM = lift sdlWindowHiddenEventsM
