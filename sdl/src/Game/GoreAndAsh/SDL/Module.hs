@@ -17,8 +17,8 @@ instance GameModule m s => GameModule (SDLT s m) (SDLState s) where
   type ModuleState (SDLT s m) = SDLState s
   runModule (SDLT m) s = do
     ((a, s'), nextState) <- runModule (runStateT m s) (sdlNextState s)
-    return (a, s' { 
-        sdlNextState = nextState 
+    return (a, flashSDLState $ s' { 
+        sdlNextState = nextState
       })
 
   newModuleState = emptySDLState <$> newModuleState
