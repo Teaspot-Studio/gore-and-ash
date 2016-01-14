@@ -11,9 +11,6 @@ packages:
 - '../logging'
 - '../network'
 - '../sync'
-- location:
-    git: git@github.com:jaredloomis/andromeda.git
-    commit: 98ac1785cd30117ea804fae1b19c29511d9b6eb4
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps: []

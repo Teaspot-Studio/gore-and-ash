@@ -34,7 +34,6 @@ executable gore-and-ash-client
                        Render
                        
   build-depends:       base >= 4.7 && < 5
-                     , andromeda >= 0.1.1.0
                      , bytestring >= 0.10.6.0
                      , cereal >= 0.4.1.1
                      , containers >= 0.5.6.2
@@ -53,13 +52,13 @@ executable gore-and-ash-client
                      , linear >= 1.19
                      , netwire >= 5.0.1
                      , network >= 2.6.2.1
+                     , OpenGL >= 3.0.0.0
+                     , sdl2 >= 2.1.1 
                      , text >= 1.2.1
                      , text-show >= 2
                      , transformers >= 0.4.2
                      , unordered-containers >= 0.2.5.1
-                     , Vec >= 1.0.5
                      , vector >= 0.11.0.0
-                     , OpenGL >= 3.0.0.0
                      
   default-extensions:  
                        Arrows
