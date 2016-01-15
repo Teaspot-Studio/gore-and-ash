@@ -10,8 +10,7 @@ import Linear
 
 import Game.Camera
 import Game.Core
-import Game.Player 
-import Game.Player.Shared
+import Game.Player.Data
 import Game.Shared 
 import Graphics.Square
 

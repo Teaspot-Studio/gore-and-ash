@@ -14,6 +14,7 @@ import Data.Text (pack)
 import GHC.Generics (Generic)
 import Prelude hiding (id, (.))
 import qualified Data.Sequence as S 
+import qualified Data.HashMap.Strict as H 
 
 import Game.GoreAndAsh
 import Game.GoreAndAsh.Actor 
@@ -23,11 +24,12 @@ import Game.GoreAndAsh.SDL
 import Game.GoreAndAsh.Sync 
 
 import Consts
+import Game.Bullet 
 import Game.Camera 
 import Game.Core
 import Game.Player
-import Game.Shared
 import Game.RemotePlayer
+import Game.Shared
 
 data Game = Game {
   gameId :: !GameId
@@ -36,6 +38,7 @@ data Game = Game {
 , gameRemotePlayers :: ![RemotePlayer] 
 , gameAddPlayers :: ![PlayerId]
 , gameRemovePlayers :: ![PlayerId]
+, gameBullets :: !(H.HashMap BulletId Bullet)
 , gameExit :: !Bool
 } deriving (Generic)
 
@@ -90,6 +93,7 @@ playGame pid peer = do
         , gameRemotePlayers = rps
         , gameAddPlayers = []
         , gameRemovePlayers = []
+        , gameBullets = H.empty
         , gameExit = ex
         }
       Just g -> g {
@@ -98,6 +102,7 @@ playGame pid peer = do
         , gameRemotePlayers = rps
         , gameAddPlayers = []
         , gameRemovePlayers = []
+        , gameBullets = H.empty
         , gameExit = ex
         }
   where

@@ -1,53 +1,22 @@
 module Game.Player(
-    Player(..)
-  , PlayerId(..)
-  , PlayerMessage(..)
+    module ReExport
   , playerActor
   ) where
 
-import Control.DeepSeq
 import Control.Wire
 import Control.Wire.Unsafe.Event
-import Data.Typeable
-import GHC.Generics (Generic)
 import Linear
 import Prelude hiding (id, (.))
 
 import Game.Core
 import Game.GoreAndAsh
-import Game.GoreAndAsh.Actor
 import Game.GoreAndAsh.Network
 import Game.GoreAndAsh.SDL 
 import Game.GoreAndAsh.Sync
 
 import Game.Camera 
-import Game.Player.Shared
+import Game.Player.Data as ReExport
 import Graphics.Square
-
-data Player = Player {
-  playerId :: !PlayerId
-, playerPos :: !(V2 Double)
-, playerColor :: !(V3 Double) 
-, playerRot :: !Double
-, playerSpeed :: !Double
-, playerPeer :: !Peer 
-} deriving (Generic, Show)
-
-instance NFData Player 
-
-newtype PlayerId = PlayerId { unPlayerId :: Int } deriving (Eq, Show, Generic)
-instance NFData PlayerId 
-
-data PlayerMessage = PlayerMessageStub deriving (Typeable, Generic)
-instance NFData PlayerMessage 
-
-instance ActorMessage PlayerId where
-  type ActorMessageType PlayerId = PlayerMessage
-  toCounter = unPlayerId
-  fromCounter = PlayerId
-
-instance NetworkMessage PlayerId where 
-  type NetworkMessageType PlayerId = PlayerNetMessage
   
 playerActor :: PlayerId -> Peer -> AppActor PlayerId Camera Player 
 playerActor i peer = actorMaker $ proc (c, p) -> do 

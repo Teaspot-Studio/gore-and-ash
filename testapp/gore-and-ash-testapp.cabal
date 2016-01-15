@@ -22,6 +22,9 @@ executable gore-and-ash-client
                        FPS
                        Consts
                        Game
+                       Game.Bullet
+                       Game.Bullet.Data
+                       Game.Bullet.Shared
                        Game.Camera
                        Game.Core
                        Game.Player
@@ -86,6 +89,9 @@ executable gore-and-ash-server
   other-modules:       
                        FPS
                        Game
+                       Game.Bullet
+                       Game.Bullet.Data
+                       Game.Bullet.Shared
                        Game.Core
                        Game.Data
                        Game.Player

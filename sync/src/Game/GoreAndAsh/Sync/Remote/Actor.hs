@@ -17,11 +17,7 @@ import Game.GoreAndAsh.Sync.Message
 class NetworkMessage i => RemoteActor i a | i -> a, a -> i where
   type RemoteActorState i :: *
   type RemoteActorId a :: *
-  -- | Unique id for synchronization actor attached to your actor
-  remoteActorFingerprint :: Proxy i -> Word64 
-  -- | Unique id for synchronization collection of remote actors
-  remoteActorCollectionFingerprint :: Proxy i -> Word64 
-
+  
 -- | Id of synchronization actor build over another actor
 newtype RemActorId i = RemActorId { unRemActorId :: i }
   deriving (Show, Eq, Ord, Generic)
