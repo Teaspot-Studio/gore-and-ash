@@ -12,6 +12,7 @@ import Linear
 import Linear.Affine
 import Math 
 import qualified Data.Vector.Storable as V 
+import SDL 
 
 -- | Function of rendering player
 renderSquare :: MonadSDL m => Double -> V2 Double -> V3 Double -> Camera -> GameMonadT m ()
@@ -19,9 +20,10 @@ renderSquare size pos col c = do
   mwr <- sdlGetWindowM mainWindowName
   case mwr of 
     Nothing -> return ()
-    Just (_, r) -> do 
+    Just (w, r) -> do 
+      wsize <- fmap (fmap fromIntegral) . get $ windowSize w
       rendererDrawColor r $= transColor col 
-      drawLines r transformedSquare
+      drawLines r $ transformedSquare wsize
   where
     transColor :: V3 Double -> V4 Word8
     transColor (V3 r g b) = V4 (round $ r * 255) (round $ g * 255) (round $ b * 255) 255
@@ -35,8 +37,8 @@ renderSquare size pos col c = do
       , V2 s s
       ]
 
-    modelMtx :: M33 Double 
-    modelMtx = translate2D pos !*! cameraMatrix c
+    modelMtx :: V2 Double -> M33 Double 
+    modelMtx wsize = translate2D (pos + wsize*0.5) !*! cameraMatrix c
 
-    transformedSquare :: V.Vector (Point V2 CInt)
-    transformedSquare = V.map (P . fmap round . applyTransform2D modelMtx) $ square size
+    transformedSquare :: V2 Double -> V.Vector (Point V2 CInt)
+    transformedSquare wsize = V.map (P . fmap round . applyTransform2D (modelMtx wsize)) $ square size
