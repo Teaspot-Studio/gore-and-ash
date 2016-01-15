@@ -10,6 +10,7 @@ module Game.GoreAndAsh.SDL.API(
   , keyScancode
   , keyPress
   , keyRelease
+  , keyPressing
   -- | Mouse arrow API
   , mouseScroll
   , mouseScrollX
@@ -297,6 +298,20 @@ keyPress sc = keyScancode sc Pressed
 -- | Fires when specific scancode key is released
 keyRelease :: MonadSDL m => Scancode -> GameWire m a (Event (Seq KeyboardEventData))
 keyRelease sc = keyScancode sc Released 
+
+-- | Fires event from moment of press until release of given key
+keyPressing :: MonadSDL m => Scancode -> GameWire m a (Event KeyboardEventData)
+keyPressing sc = go NoEvent 
+  where
+    go !e = mkGen $ \_ _ -> do 
+      !mks <- S.viewr . S.filter isNeeded <$> sdlKeyboardEventsM
+      return $! case mks of 
+        S.EmptyR -> (Right e, go e)
+        _ S.:> mds@KeyboardEventData{..} -> case keyboardEventKeyMotion of 
+          Pressed -> (Right $! Event mds, go $! Event mds)
+          Released -> (Right NoEvent, go NoEvent)
+
+    isNeeded KeyboardEventData{..} = sc == keysymScancode keyboardEventKeysym   
 
 -- | Returns accumulated mouse scroll scince last frame
 mouseScroll :: MonadSDL m => GameWire m a (Event (V2 Int32))

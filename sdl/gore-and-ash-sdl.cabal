@@ -35,6 +35,7 @@ library
                      , unordered-containers >= 0.2.5.1
                      
   default-extensions:    
+                       BangPatterns
                        DeriveGeneric
                        FlexibleInstances
                        GeneralizedNewtypeDeriving

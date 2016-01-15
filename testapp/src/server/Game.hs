@@ -77,7 +77,7 @@ mainWire = actorMaker $ proc (_, g) -> do
       , playerColor = c
       , playerRot = 0
       , playerPeer = p
-      , playerSpeed = 0.5
+      , playerSpeed = 5
       }
 
     -- | Detects player id by peer for despawning

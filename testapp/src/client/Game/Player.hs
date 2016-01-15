@@ -93,7 +93,7 @@ playerActor i peer = actorMaker $ proc (c, p) -> do
 
     movePlayer :: PlayerId -> V2 Double -> Scancode -> AppWire Player Player
     movePlayer pid dv k = proc p -> do 
-      e <- keyPress k -< ()
+      e <- keyPressing k -< ()
       let newPlayer = p {
             playerPos = playerPos p + dv * V2 (playerSpeed p) (playerSpeed p)
           }
@@ -115,7 +115,7 @@ renderPlayer Player{..} c = do
     transColor (V3 r g b) = V4 (round $ r * 255) (round $ g * 255) (round $ b * 255) 255
 
     playerSize :: Double 
-    playerSize = 100 
+    playerSize = 200 
 
     square :: Double -> V.Vector (V2 Double)
     square s = V.fromList [
