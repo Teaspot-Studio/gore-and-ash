@@ -127,4 +127,4 @@ playGame pid peer = do
     reme <- became (not . null) -< gameRemovePlayers g
     traceEvent (\ids -> "New remote players: " <> pack (show ids)) -< adde
     traceEvent (\ids -> "Removed remote players: " <> pack (show ids)) -< reme
-    dDynCollection [] -< ((), fmap (remotePlayerActor peer) <$> adde, reme)
+    dDynCollection [] -< (gameCamera g, fmap (remotePlayerActor peer) <$> adde, reme)

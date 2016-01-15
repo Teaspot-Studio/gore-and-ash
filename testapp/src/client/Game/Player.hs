@@ -8,8 +8,7 @@ module Game.Player(
 import Control.DeepSeq
 import Control.Wire
 import Control.Wire.Unsafe.Event
-import Data.Typeable 
-import Data.Word 
+import Data.Typeable
 import GHC.Generics (Generic)
 import Linear
 import Prelude hiding (id, (.))
@@ -21,14 +20,9 @@ import Game.GoreAndAsh.Network
 import Game.GoreAndAsh.SDL 
 import Game.GoreAndAsh.Sync
 
-import Consts
 import Game.Camera 
 import Game.Player.Shared
-import Math
-
-import Linear.Affine
-import Foreign.C.Types
-import qualified Data.Vector.Storable as V 
+import Graphics.Square
 
 data Player = Player {
   playerId :: !PlayerId
@@ -58,7 +52,7 @@ instance NetworkMessage PlayerId where
 playerActor :: PlayerId -> Peer -> AppActor PlayerId Camera Player 
 playerActor i peer = actorMaker $ proc (c, p) -> do 
   peerSendIndexed peer (ChannelID 0) i ReliableMessage . now -< NetMsgPlayerRequest
-  liftGameMonad2 renderPlayer -< (p, c)
+  liftGameMonad3 (renderSquare 200) -< (playerPos p, playerColor p, c)
   forceNF . controlPlayer i -< p
   where
     actorMaker = netStateActorFixed i initialPlayer process 
@@ -100,34 +94,3 @@ playerActor i peer = actorMaker $ proc (c, p) -> do
           posMsg = let V2 x y = playerPos newPlayer in NetMsgPlayerPos x y
       peerSendIndexed peer (ChannelID 0) pid UnreliableMessage -< const posMsg <$> e
       returnA -< event p (const newPlayer) e
-
--- | Function of rendering player
-renderPlayer :: MonadSDL m => Player -> Camera -> GameMonadT m ()
-renderPlayer Player{..} c = do  
-  mwr <- sdlGetWindowM mainWindowName
-  case mwr of 
-    Nothing -> return ()
-    Just (_, r) -> do 
-      rendererDrawColor r $= transColor playerColor 
-      drawLines r transformedSquare
-  where
-    transColor :: V3 Double -> V4 Word8
-    transColor (V3 r g b) = V4 (round $ r * 255) (round $ g * 255) (round $ b * 255) 255
-
-    playerSize :: Double 
-    playerSize = 200 
-
-    square :: Double -> V.Vector (V2 Double)
-    square s = V.fromList [
-        V2 s s 
-      , V2 (-s) s
-      , V2 (-s) (-s)
-      , V2 s (-s)
-      , V2 s s
-      ]
-
-    playerMtx :: M33 Double 
-    playerMtx = translate2D playerPos !*! cameraMatrix c
-
-    transformedSquare :: V.Vector (Point V2 CInt)
-    transformedSquare = V.map (P . fmap round . applyTransform2D playerMtx) $ square playerSize

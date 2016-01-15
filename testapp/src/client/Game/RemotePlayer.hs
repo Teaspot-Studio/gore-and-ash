@@ -8,11 +8,14 @@ import Control.DeepSeq
 import GHC.Generics 
 import Linear
 
+import Game.Camera
 import Game.Core
 import Game.Player 
 import Game.Player.Shared
 import Game.Shared 
+import Graphics.Square
 
+import Game.GoreAndAsh
 import Game.GoreAndAsh.Actor
 import Game.GoreAndAsh.Network 
 import Game.GoreAndAsh.Sync
@@ -28,10 +31,11 @@ data RemotePlayer = RemotePlayer {
 instance NFData RemotePlayer
 
 -- | Actor for updating local state of remote player on server
-remotePlayerActor :: Peer -> PlayerId -> AppActor PlayerId a RemotePlayer
+remotePlayerActor :: Peer -> PlayerId -> AppActor PlayerId Camera RemotePlayer
 remotePlayerActor peer pid = do 
   peerSendIndexedM peer (ChannelID 0) globalGameId ReliableMessage $ PlayerRequestData $ toCounter pid
-  actorMaker $ proc (_, p) -> do 
+  actorMaker $ proc (c, p) -> do 
+    liftGameMonad3 (renderSquare 200) -< (remotePlayerPos p, remotePlayerCol p, c)
     forceNF -< p
     where
     actorMaker = netStateActorFixed pid initPlayer process 
