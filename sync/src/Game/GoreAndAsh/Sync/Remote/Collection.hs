@@ -77,8 +77,9 @@ emptyClientRemCollState = ClientRemCollState {
 remoteActorCollectionClient :: forall m i a b c . (SyncMonad m, LoggingMonad m, ActorMonad m, NetworkMonad m, Eq i, RemoteActor i b, DynCollection c, FilterConstraint c (GameWireIndexed m i a b), FilterConstraint c (Either () b), DynConsConstr c i) 
   => RemActorCollId -- ^ Corresponding server collection id
   -> Peer -- ^ Server peer
+  -> (i -> GameActor m i a b) -- ^ How to construct client side actors
   -> GameActor m RemActorCollId a (c b)
-remoteActorCollectionClient cid peer = makeFixedActor cid $ proc a -> do
+remoteActorCollectionClient cid peer mkActor = makeFixedActor cid $ proc a -> do
   cs <- peerProcessIndexed peer (ChannelID 0) cid processNet -< emptyClientRemCollState
   addEvent <- became (not . null) -< clientRemCollNewActors cs
   remEvent <- became (not . null) -< clientRemCollDelActors cs
@@ -89,6 +90,3 @@ remoteActorCollectionClient cid peer = makeFixedActor cid $ proc a -> do
     RemActorCollNetSpawn i -> cs { clientRemCollNewActors = fromCounter i `consDynColl` clientRemCollNewActors cs }
     RemActorCollNetDespawn i -> cs { clientRemCollDelActors = fromCounter i : clientRemCollDelActors cs }
     RemActorCollRequestOthers -> cs
-
-  mkActor :: i -> GameActor m i a b
-  mkActor _ = undefined

@@ -1,5 +1,6 @@
 module Game.GoreAndAsh.Actor.Collection.Data(
     DynCollection(..)
+  , ElementWithId(..)
   , rightsDynColl
   ) where
 

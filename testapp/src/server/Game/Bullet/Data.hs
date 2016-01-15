@@ -13,10 +13,10 @@ import Linear
 import Prelude hiding (id, (.))
 
 import Game.GoreAndAsh.Actor
-import Game.GoreAndAsh.Network 
 import Game.GoreAndAsh.Sync
 
 import Game.Player.Data 
+import Game.Bullet.Shared 
 
 data Bullet = Bullet {
   bulletId :: !BulletId
@@ -41,3 +41,6 @@ instance ActorMessage BulletId where
   
 instance NetworkMessage BulletId where 
   type NetworkMessageType BulletId = BulletNetMessage
+
+instance ElementWithId Bullet BulletId where
+    elementId = bulletId

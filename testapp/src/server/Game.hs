@@ -9,9 +9,10 @@ import Data.Maybe
 import Data.Text (pack)
 import Linear
 import Prelude hiding (id, (.))
-import qualified Data.HashMap.Strict as H 
 import qualified Data.Foldable as F 
+import qualified Data.HashMap.Strict as H 
 
+import Game.Bullet 
 import Game.Core
 import Game.Data
 import Game.Player
@@ -36,7 +37,7 @@ playerColors = dDispense [
 
 mainWire :: AppActor GameId a Game
 mainWire = actorMaker $ proc (_, g) -> do 
-  forceNF . processPlayers -< g
+  forceNF . processBullets . processPlayers -< g
   where 
     actorMaker = stateActorFixed globalGameId initGame processMessages
     processMessages g _ = g 
@@ -46,6 +47,7 @@ mainWire = actorMaker $ proc (_, g) -> do
         gameId = globalGameId
       , gamePlayers = H.empty
       , gamePlayerPeers = H.empty
+      , gameBullets = H.empty
       }
 
     -- | Handles process of players connection and disconnections
@@ -99,3 +101,20 @@ mainWire = actorMaker $ proc (_, g) -> do
           else mkMsg <$> pids
           where
           mkMsg pid = (playerPeer p, globalGameId, PlayerDespawn $ toCounter pid)
+
+    -- | Handle bullets actors
+    processBullets :: AppWire Game Game 
+    processBullets = proc g -> do 
+      addEvent <- mapE (fmap $ bulletActor . newBullet) . never -< ()
+      remEvent <- mapE (const []) . never -< ()
+      bs <- runActor' $ remoteActorCollectionServer [] -< (g, addEvent, remEvent)
+      returnA -< g {
+          gameBullets = H.fromList $ fmap bulletId bs `zip` bs
+        }
+      where
+        newBullet p i = Bullet {
+            bulletId = i 
+          , bulletPos = 0
+          , bulletVel = 5
+          , bulletOwner = p
+          }
