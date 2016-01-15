@@ -122,7 +122,7 @@ instance {-# OVERLAPPING #-} MonadIO m => NetworkMonad (NetworkT s m) where
 
   networkPeersM = do 
     NetworkState{..} <- NetworkT get 
-    return networkPeers  
+    return $! networkPeers S.><  networkConnectedPeers
 
   networkSetDetailedLoggingM f = do 
     s <- NetworkT get 

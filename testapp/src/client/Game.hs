@@ -44,7 +44,7 @@ instance NFData Game
 mainWire :: AppWire a (Maybe Game)
 mainWire = waitConnection
   where
-    waitConnection = switch $ proc _ -> do 
+    waitConnection = dSwitch $ proc _ -> do 
       e <- mapE seqLeftHead . peersConnected -< ()
       traceEvent (const "Connected to server") -< e
       returnA -< (Nothing, waitPlayerId <$> e) 

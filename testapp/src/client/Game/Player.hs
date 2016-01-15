@@ -13,7 +13,6 @@ import Data.Word
 import GHC.Generics (Generic)
 import Linear
 import Prelude hiding (id, (.))
-import Data.Text (pack)
 
 import Game.Core
 import Game.GoreAndAsh
@@ -21,7 +20,6 @@ import Game.GoreAndAsh.Actor
 import Game.GoreAndAsh.Network
 import Game.GoreAndAsh.SDL 
 import Game.GoreAndAsh.Sync
-import Game.GoreAndAsh.Logging
 
 import Consts
 import Game.Camera 
@@ -88,15 +86,14 @@ playerActor i peer = actorMaker $ proc (c, p) -> do
 
     controlPlayer :: PlayerId -> AppWire Player Player
     controlPlayer pid = 
-        movePlayer pid (V2 1 0) ScancodeLeft 
-      . movePlayer pid (V2 (-1) 0) ScancodeRight
+        movePlayer pid (V2 (-1) 0) ScancodeLeft 
+      . movePlayer pid (V2 1 0) ScancodeRight
       . movePlayer pid (V2 0 1) ScancodeDown
       . movePlayer pid (V2 0 (-1)) ScancodeUp
 
     movePlayer :: PlayerId -> V2 Double -> Scancode -> AppWire Player Player
     movePlayer pid dv k = proc p -> do 
       e <- keyPress k -< ()
-      traceEvent (const . pack . show $ k) -< e
       let newPlayer = p {
             playerPos = playerPos p + dv * V2 (playerSpeed p) (playerSpeed p)
           }
@@ -118,7 +115,7 @@ renderPlayer Player{..} c = do
     transColor (V3 r g b) = V4 (round $ r * 255) (round $ g * 255) (round $ b * 255) 255
 
     playerSize :: Double 
-    playerSize = 50 
+    playerSize = 100 
 
     square :: Double -> V.Vector (V2 Double)
     square s = V.fromList [

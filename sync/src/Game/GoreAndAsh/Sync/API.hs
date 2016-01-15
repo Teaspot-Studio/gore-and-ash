@@ -109,7 +109,7 @@ instance {-# OVERLAPPING #-} MonadIO m => SyncMonad (SyncT s m) where
 
   syncRequestIdM peer p = do
     s <- SyncT get
-    syncLog s $ "Sync module: request id of actor " <> pack (show $ actorFingerprint p)
+    syncLog s $ "request id of actor " <> pack (show $ actorFingerprint p)
     s' <- syncRequestIdInternal peer p s
     SyncT . put $! s'
 

@@ -39,8 +39,9 @@ instance (NetworkMonad m, LoggingMonad m, ActorMonad m, GameModule m s) => GameM
       })  
     where
     runCurrentModule = do 
-      s' <- processServiceMessages s
-      runStateT m s'
+      (a, s') <- runStateT m s
+      s'' <- processServiceMessages s'
+      return (a, s'')
 
   newModuleState = emptySyncState <$> newModuleState
   withModule _ = id

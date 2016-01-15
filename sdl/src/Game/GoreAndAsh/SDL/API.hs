@@ -282,10 +282,10 @@ instance {-# OVERLAPPABLE #-} (MonadIO (mt m), MonadThrow (mt m), MonadSDL m, Mo
 -- | Fires when specific scancode key is pressed/unpressed
 keyScancode :: MonadSDL m => Scancode -> InputMotion -> GameWire m a (Event (Seq KeyboardEventData))
 keyScancode sc im = liftGameMonad $ do 
-  es <- sdlKeyboardEventsM
+  es <- S.filter isNeeded <$> sdlKeyboardEventsM
   return $! if S.null es 
     then NoEvent
-    else Event . S.filter isNeeded $! es 
+    else Event es 
   where
     isNeeded KeyboardEventData{..} = keyboardEventKeyMotion == im 
       && sc == keysymScancode keyboardEventKeysym 
