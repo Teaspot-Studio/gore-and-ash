@@ -10,6 +10,8 @@ module Game.GoreAndAsh.Network.API(
   ) where
 
 import Control.DeepSeq 
+import Control.Exception.Base (IOException)
+import Control.Monad.Catch
 import Control.Monad.State.Strict
 import Control.Wire.Core 
 import Control.Wire.Unsafe.Event
@@ -31,7 +33,7 @@ import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as H 
 import qualified Data.Sequence as S
 
-class MonadIO m => NetworkMonad m where
+class (MonadIO m, MonadCatch m) => NetworkMonad m where
   -- | Start listening for messages, should be called once
   networkBind :: LoggingMonad m => Maybe SockAddr -- ^ Address to listen, Nothing is client
     -> Word -- ^ Maximum count of connections
@@ -67,7 +69,7 @@ class MonadIO m => NetworkMonad m where
   -- | Return count of allocated network channels
   networkChannels :: m Word 
 
-instance {-# OVERLAPPING #-} MonadIO m => NetworkMonad (NetworkT s m) where
+instance {-# OVERLAPPING #-} (MonadIO m, MonadCatch m) => NetworkMonad (NetworkT s m) where
   networkBind addr conCount chanCount inBandth outBandth = do
     nstate <- NetworkT get 
     phost <- liftIO $ create addr (fromIntegral conCount) (fromIntegral chanCount) inBandth outBandth
@@ -118,7 +120,11 @@ instance {-# OVERLAPPING #-} MonadIO m => NetworkMonad (NetworkT s m) where
     nstate <- NetworkT get 
     when (networkDetailedLogging nstate) $ putMsgLnM $ "Network: sending packet via channel "
       <> pack (show ch) <> ", payload: " <> pack (show msg)
-    liftIO $ send peer ch =<< P.poke (messageToPacket msg)
+    -- IOError
+    let sendAction = liftIO $ send peer ch =<< P.poke (messageToPacket msg)
+    catch sendAction $ \(e :: IOException) -> do 
+      putMsgLnM $ "Network: failed to send packet '" <> pack (show e) <> "'"
+    
 
   networkPeersM = do 
     NetworkState{..} <- NetworkT get 
@@ -132,7 +138,7 @@ instance {-# OVERLAPPING #-} MonadIO m => NetworkMonad (NetworkT s m) where
     s <- NetworkT get 
     return $ networkMaximumChannels s 
 
-instance {-# OVERLAPPABLE #-} (Monad (mt m), MonadIO (mt m), LoggingMonad m, NetworkMonad m, MonadTrans mt) => NetworkMonad (mt m) where 
+instance {-# OVERLAPPABLE #-} (MonadIO (mt m), MonadCatch (mt m), LoggingMonad m, NetworkMonad m, MonadTrans mt) => NetworkMonad (mt m) where 
   networkBind a mc mch ib ob = lift $ networkBind a mc mch ib ob
   peersConnectedM = lift peersConnectedM
   peersDisconnectedM = lift peersDisconnectedM

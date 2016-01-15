@@ -40,14 +40,15 @@ library
                      , exceptions >= 0.8.0.2
                      
   default-extensions:  
+                       BangPatterns
                        DeriveGeneric
                        FlexibleInstances
                        GeneralizedNewtypeDeriving
                        MultiParamTypeClasses
                        OverloadedStrings
                        RecordWildCards
+                       ScopedTypeVariables
                        TupleSections
                        TypeFamilies
                        TypeSynonymInstances
                        UndecidableInstances
-                       BangPatterns
