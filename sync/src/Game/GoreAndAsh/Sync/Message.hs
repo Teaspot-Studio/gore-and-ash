@@ -11,16 +11,10 @@ module Game.GoreAndAsh.Sync.Message(
   , peerSendIndexedDyn
   , peerSendIndexedMany
   , peerSendIndexedManyDyn
-  -- | Helpers for actors
-  , netStateActor
-  , netStateActorM
-  , netStateActorFixed
-  , netStateActorFixedM
   -- | Helpers
   , filterMsgs
   ) where
 
-import Control.Monad.Fix 
 import Control.Wire
 import Control.Wire.Unsafe.Event
 import Data.Maybe 
@@ -178,60 +172,6 @@ peerProcessIndexedM p chid i f = proc a -> do
   liftGameMonad2 (\emsgs a -> case emsgs of
     NoEvent -> return a 
     Event msgs -> F.foldlM f a msgs) -< (emsgs, a) 
-
--- | Helper to create stateful actors, same as @stateActor@
-netStateActor :: (SyncMonad m, ActorMonad m, NetworkMonad m, LoggingMonad m, MonadFix m, NetworkMessage i, Typeable (ActorMessageType i), Serialize (NetworkMessageType i))
-  => (i -> b) -- ^ Inital value of state
-  -> (i -> b -> ActorMessageType i -> b) -- ^ Handler for messages
-  -> (b -> Peer) -- ^ Way to get peer value from inital getter
-  -> Word8 -- ^ Channels count to listen
-  -> (i -> ChannelID -> b -> NetworkMessageType i -> b) -- ^ Handler for network messages
-  -> (i -> GameWire m (a, b) b) -- ^ Handler that transforms current state
-  -> GameActor m i a b -- ^ Resulting actor incapsulating @b@ in itself
-netStateActor bi f getPeer channels fn w = stateActor bi f $ \i -> proc (a, b) -> do 
-  b' <- chainWires ((\ch -> peerProcessIndexed (getPeer $ bi i) ch i (fn i ch)) . ChannelID <$> [0 .. channels-1]) -< b
-  w i -< (a, b')
-
--- | Helper to create stateful actors, same as @stateActor@
-netStateActorM :: (SyncMonad m, ActorMonad m, NetworkMonad m, LoggingMonad m, MonadFix m, NetworkMessage i, Typeable (ActorMessageType i), Serialize (NetworkMessageType i))
-  => (i -> b) -- ^ Inital value of state
-  -> (i -> b -> ActorMessageType i -> GameMonadT m b) -- ^ Handler for messages
-  -> (b -> Peer) -- ^ Way to get peer value from inital getter
-  -> Word8 -- ^ Channels count to listen
-  -> (i -> ChannelID -> b -> NetworkMessageType i -> GameMonadT m b) -- ^ Handler for network messages
-  -> (i -> GameWire m (a, b) b) -- ^ Handler that transforms current state
-  -> GameActor m i a b -- ^ Resulting actor incapsulating @b@ in itself
-netStateActorM bi f getPeer channels fn w = stateActorM bi f $ \i -> proc (a, b) -> do 
-  b' <- chainWires ((\ch -> peerProcessIndexedM (getPeer $ bi i) ch i (fn i ch)) . ChannelID <$> [0 .. channels-1]) -< b
-  w i -< (a, b')
-
--- | Helper to create stateful actors with specific id, same as @stateActor@
-netStateActorFixed :: (SyncMonad m, ActorMonad m, NetworkMonad m, LoggingMonad m, MonadFix m, NetworkMessage i, Typeable (ActorMessageType i), Serialize (NetworkMessageType i))
-  => i -- ^ Fixed id of actor
-  -> b -- ^ Inital value of state
-  -> (b -> ActorMessageType i -> b) -- ^ Handler for messages
-  -> Peer -- ^ Peer to use for listening
-  -> Word8 -- ^ Channels count to listen
-  -> (ChannelID -> b -> NetworkMessageType i -> b) -- ^ Handler for network messages
-  -> GameWire m (a, b) b -- ^ Handler that transforms current state
-  -> GameActor m i a b -- ^ Resulting actor incapsulating @b@ in itself
-netStateActorFixed i bi f peer channels fn w = stateActorFixed i bi f $ proc (a, b) -> do 
-  b' <- chainWires ((\ch -> peerProcessIndexed peer ch i (fn ch)) . ChannelID <$> [0 .. channels-1]) -< b
-  w -< (a, b')
-
--- | Helper to create stateful actors with specific id, same as @stateActorM@
-netStateActorFixedM :: (SyncMonad m, ActorMonad m, NetworkMonad m, LoggingMonad m, MonadFix m, NetworkMessage i, Typeable (ActorMessageType i), Serialize (NetworkMessageType i))
-  => i -- ^ Fixed id of actor
-  -> b -- ^ Inital value of state
-  -> (b -> ActorMessageType i -> GameMonadT m b) -- ^ Handler for messages
-  -> Peer -- ^ Peer to use for listening
-  -> Word8 -- ^ Channels count to listen
-  -> (ChannelID -> b -> NetworkMessageType i -> GameMonadT m b) -- ^ Handler for network messages
-  -> GameWire m (a, b) b -- ^ Handler that transforms current state
-  -> GameActor m i a b -- ^ Resulting actor incapsulating @b@ in itself
-netStateActorFixedM i bi f peer channels fn w = stateActorFixedM i bi f $ proc (a, b) -> do 
-  b' <- chainWires ((\ch -> peerProcessIndexedM peer ch i (fn ch)) . ChannelID <$> [0 .. channels-1]) -< b
-  w -< (a, b')
 
 -- | Helper to filter output of @peerIndexedMessages@
 filterMsgs :: (Monad m)

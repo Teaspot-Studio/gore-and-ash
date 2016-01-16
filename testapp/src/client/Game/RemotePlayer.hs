@@ -10,6 +10,7 @@ import Linear
 
 import Game.Camera
 import Game.Core
+import Game.Data()
 import Game.Player.Data
 import Game.Shared 
 import Graphics.Square
@@ -24,6 +25,7 @@ data RemotePlayer = RemotePlayer {
 , remotePlayerPos :: !(V2 Double)
 , remotePlayerRot :: !Double 
 , remotePlayerCol :: !(V3 Double)
+, remotePlayerSize :: !Double
 , remotePlayerSpeed :: !Double
 } deriving Generic
 
@@ -33,28 +35,26 @@ instance NFData RemotePlayer
 remotePlayerActor :: Peer -> PlayerId -> AppActor PlayerId Camera RemotePlayer
 remotePlayerActor peer pid = do 
   peerSendIndexedM peer (ChannelID 0) globalGameId ReliableMessage $ PlayerRequestData $ toCounter pid
-  actorMaker $ proc (c, p) -> do 
-    liftGameMonad3 (renderSquare 200) -< (remotePlayerPos p, remotePlayerCol p, c)
-    forceNF -< p
+  makeFixedActor pid $ stateWire initPlayer $ proc (c, p) -> do 
+    p2 <- peerProcessIndexed peer (ChannelID 0) pid netProcess -< p
+    liftGameMonad4 renderSquare -< (remotePlayerSize p2, remotePlayerPos p2, remotePlayerCol p2, c)
+    forceNF -< p2
     where
-    actorMaker = netStateActorFixed pid initPlayer process 
-      peer 1 netProcess
-
     initPlayer = RemotePlayer {
         remotePlayerId = pid 
       , remotePlayerPos = 0 
       , remotePlayerRot = 0
       , remotePlayerCol = 0
       , remotePlayerSpeed = 0
+      , remotePlayerSize = 1
       }
 
-    process :: RemotePlayer -> PlayerMessage -> RemotePlayer 
-    process p _ = p 
-
-    netProcess :: ChannelID -> RemotePlayer -> PlayerNetMessage -> RemotePlayer 
-    netProcess _ p msg = case msg of 
+    netProcess :: RemotePlayer -> PlayerNetMessage -> RemotePlayer 
+    netProcess p msg = case msg of 
       NetMsgPlayerPos x y -> p { remotePlayerPos = V2 x y }
       NetMsgPlayerRot r -> p { remotePlayerRot = r }
       NetMsgPlayerColor r g b -> p { remotePlayerCol = V3 r g b }
       NetMsgPlayerSpeed v -> p { remotePlayerSpeed = v }
+      NetMsgPlayerSize s -> p { remotePlayerSize = s }
       NetMsgPlayerRequest -> p
+      _ -> p

@@ -5,8 +5,6 @@ module Game.GoreAndAsh.Sync.Remote.Actor(
   ) where
 
 import Control.Wire
-import Data.Proxy 
-import Data.Word 
 import GHC.Generics
 import Prelude hiding ((.), id)
 

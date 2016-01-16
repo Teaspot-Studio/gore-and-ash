@@ -6,7 +6,6 @@ module Game.GoreAndAsh.Actor.Module(
 import Control.Monad.Catch
 import Control.Monad.Fix 
 import Control.Monad.State.Strict
-import qualified Data.HashMap.Strict as H 
 
 import Game.GoreAndAsh
 import Game.GoreAndAsh.Actor.State
@@ -18,18 +17,12 @@ instance GameModule m s => GameModule (ActorT s m) (ActorState s) where
   type ModuleState (ActorT s m) = ActorState s
   runModule (ActorT m) s = do
     ((a, s'), nextState) <- runModule (runStateT m s) (actorNextState s)
-    return (a, s' { 
+    let s'' = moveSendedMessages s'
+    return (a, s'' { 
        actorNextState = nextState 
       })
 
-  newModuleState = do
-    s <- newModuleState
-    return $ ActorState {
-        actorBoxes = H.empty
-      , actorNextId = H.empty
-      , actorNameMap = H.empty
-      , actorNextState = s
-      }
+  newModuleState = emptyActorState <$> newModuleState
 
   withModule _ = id
   cleanupModule _ = return ()

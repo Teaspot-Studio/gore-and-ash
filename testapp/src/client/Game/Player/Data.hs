@@ -23,6 +23,7 @@ data Player = Player {
 , playerColor :: !(V3 Double) 
 , playerRot :: !Double
 , playerSpeed :: !Double
+, playerSize :: !Double
 , playerPeer :: !Peer 
 } deriving (Generic, Show)
 

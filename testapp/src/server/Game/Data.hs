@@ -1,5 +1,7 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Game.Data(
     Game(..)
+  , GameMessage(..)
   , PlayerMap
   , PlayerPeerMap
   , BulletsMap
@@ -9,16 +11,32 @@ import Control.DeepSeq
 import GHC.Generics (Generic)
 import Prelude hiding (id, (.))
 import qualified Data.HashMap.Strict as H 
+import Linear 
 
 import Game.Bullet.Data
 import Game.Player.Data
 import Game.Shared
 
+import Game.GoreAndAsh.Actor
 import Game.GoreAndAsh.Network
+import Game.GoreAndAsh.Sync 
 
 type PlayerMap = H.HashMap PlayerId Player
 type PlayerPeerMap = H.HashMap Peer PlayerId 
 type BulletsMap = H.HashMap BulletId Bullet 
+
+data GameMessage = 
+    -- | Spawn bullet at given pos with given velocity and owner
+    GameSpawnBullet !(V2 Double) !(V2 Double) !PlayerId 
+  deriving (Generic)
+
+instance ActorMessage GameId where
+  type ActorMessageType GameId = GameMessage 
+  toCounter = unGameId
+  fromCounter = GameId
+
+instance NetworkMessage GameId where 
+  type NetworkMessageType GameId = GameNetMessage
 
 data Game = Game {
   gameId :: !GameId

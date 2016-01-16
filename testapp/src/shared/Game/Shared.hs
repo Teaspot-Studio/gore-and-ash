@@ -13,9 +13,6 @@ import Control.DeepSeq
 import GHC.Generics
 import Data.Serialize
 
-import Game.GoreAndAsh.Actor 
-import Game.GoreAndAsh.Sync 
-
 -- | Fake id for game global space
 newtype GameId = GameId { unGameId :: Int } deriving (Eq, Generic)
 
@@ -24,9 +21,6 @@ instance NFData GameId
 -- | Statically known game id
 globalGameId :: GameId 
 globalGameId = GameId 0 
-
--- | Opaque data for game message
-data GameMessage
 
 -- | Generic messages that are not binded to specific actor
 data GameNetMessage = 
@@ -40,14 +34,6 @@ data GameNetMessage =
 
 instance NFData GameNetMessage
 instance Serialize GameNetMessage
-
-instance ActorMessage GameId where
-  type ActorMessageType GameId = GameMessage 
-  toCounter = unGameId
-  fromCounter = GameId
-
-instance NetworkMessage GameId where 
-  type NetworkMessageType GameId = GameNetMessage
 
 isPlayerSpawn :: GameNetMessage -> Bool
 isPlayerSpawn m = case m of 

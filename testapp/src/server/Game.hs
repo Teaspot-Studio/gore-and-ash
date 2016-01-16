@@ -36,11 +36,11 @@ playerColors = dDispense [
   ]
 
 mainWire :: AppActor GameId a Game
-mainWire = actorMaker $ proc (_, g) -> do 
+mainWire = makeFixedActor globalGameId $ stateWire initGame $ proc (_, g) -> do 
   forceNF . processBullets . processPlayers -< g
   where 
-    actorMaker = stateActorFixed globalGameId initGame processMessages
-    processMessages g _ = g 
+    --processMessages g msg = case msg of 
+    --  GameSpawnBullet p v i -> g 
 
     -- | Game at start of the simulation
     initGame = Game {
@@ -80,6 +80,7 @@ mainWire = actorMaker $ proc (_, g) -> do
       , playerRot = 0
       , playerPeer = p
       , playerSpeed = 5
+      , playerSize = 200
       }
 
     -- | Detects player id by peer for despawning

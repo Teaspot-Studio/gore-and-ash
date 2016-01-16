@@ -11,6 +11,7 @@ import Game.Bullet.Data as ReExport
 import Game.Core 
 import Game.Data 
 
+import Game.GoreAndAsh
 import Game.GoreAndAsh.Sync 
 import Game.GoreAndAsh.Actor
 
@@ -19,12 +20,8 @@ instance RemoteActor BulletId Bullet where
   type RemoteActorId Bullet = BulletId
 
 bulletActor :: (BulletId -> Bullet) -> AppActor BulletId Game Bullet 
-bulletActor initalBullet = actorMaker mainController
+bulletActor initalBullet = makeActor $ \i -> stateWire (initalBullet i) $ mainController i
   where
-  actorMaker = stateActor initalBullet process 
-
-  process :: BulletId -> Bullet -> BulletMessage -> Bullet
-  process _ b _ = b
 
   mainController :: BulletId -> AppWire (Game, Bullet) Bullet
   mainController _ = proc (_, b) -> do 

@@ -11,6 +11,7 @@ import Linear
 import Prelude hiding (id, (.))
 import qualified Data.HashMap.Strict as H 
 
+import Game.Bullet.Data
 import Game.Core
 import Game.Data
 import Game.Player.Data
@@ -23,15 +24,8 @@ import Game.GoreAndAsh.Network
 import Game.GoreAndAsh.Sync
 
 playerActor :: (PlayerId -> Player) -> AppActor PlayerId Game Player 
-playerActor initialPlayer = actorMaker mainController
+playerActor initialPlayer = makeActor $ \i -> stateWire (initialPlayer i) $ mainController i
   where
-  -- | Helper to make actor
-  actorMaker = stateActor initialPlayer process
-
-  -- | Process local messages between local actors
-  process :: PlayerId -> Player -> PlayerMessage -> Player 
-  process _ p _ = p 
-
   mainController i = proc (g, p) -> do
     p2 <- peerProcessIndexedM peer (ChannelID 0) i netProcess -< p
     (_, p3) <- peerProcessIndexedM peer (ChannelID 0) globalGameId globalNetProcess -< (g, p2)
@@ -50,6 +44,7 @@ playerActor initialPlayer = actorMaker mainController
       sendF (NetMsgPlayerRot . playerRot)
       sendF ((\(V3 x y z) -> NetMsgPlayerColor x y z) . playerColor)
       sendF (NetMsgPlayerSpeed . playerSpeed)
+      sendF (NetMsgPlayerSize . playerSize)
 
     -- | Process player specific net messages
     netProcess :: Player -> PlayerNetMessage -> GameMonadT AppMonad Player 
@@ -58,7 +53,15 @@ playerActor initialPlayer = actorMaker mainController
       NetMsgPlayerRot r -> return $ p { playerRot = r }
       NetMsgPlayerColor r g b -> return $ p { playerColor = V3 r g b }
       NetMsgPlayerSpeed v -> return $ p { playerSpeed = v }
+      NetMsgPlayerSize s -> return $ p { playerSize = s }
       NetMsgPlayerRequest -> sendFullData (playerPeer p) p >> return p
+      NetMsgPlayerFire v -> do 
+        let d = normalize v 
+            v2 a = V2 a a
+            pos = playerPos p + d * v2 (playerSize p)
+            vel = d * v2 bulletSpeed
+        actorSendM globalGameId $ GameSpawnBullet pos vel $ playerId p
+        return p 
 
     -- | Process global net messages from given peer (player)
     globalNetProcess :: (Game, Player) -> GameNetMessage -> GameMonadT AppMonad (Game, Player)
@@ -107,6 +110,7 @@ playerActor initialPlayer = actorMaker mainController
       fieldChanges pid changes playerRot NetMsgPlayerRot -< (p, ps)
       fieldChanges pid changes playerColor (\(V3 x y z) -> NetMsgPlayerColor x y z) -< (p, ps)
       fieldChanges pid changes playerSpeed NetMsgPlayerSpeed -< (p, ps)
+      fieldChanges pid changes playerSize NetMsgPlayerSize -< (p, ps)
 
       returnA -< ()
 
@@ -120,6 +124,7 @@ playerActor initialPlayer = actorMaker mainController
       fieldChanges pid emake playerRot NetMsgPlayerRot -< (p, ps)
       fieldChanges pid emake playerColor (\(V3 x y z) -> NetMsgPlayerColor x y z) -< (p, ps)
       fieldChanges pid emake playerSpeed NetMsgPlayerSpeed -< (p, ps)
+      fieldChanges pid emake playerSize NetMsgPlayerSize -< (p, ps)
 
       returnA -< ()
       where

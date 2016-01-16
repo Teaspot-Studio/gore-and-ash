@@ -13,20 +13,15 @@ module Game.GoreAndAsh.Actor.API(
   , makeFixedActor
   , runActor
   , runActor'
-  , stateActor
-  , stateActorM
-  , stateActorFixed
-  , stateActorFixedM
   -- | Helpers for libraries
   , getActorFingerprint
   ) where
 
 import Control.Monad.Catch
-import Control.Monad.Fix 
 import Control.Monad.State.Strict
 import Control.Wire
 import Data.Dynamic
-import Data.Maybe (catMaybes)
+import Data.Maybe (isJust, fromJust)
 import GHC.Generics 
 import Prelude hiding (id, (.))
 import qualified Data.Foldable as F
@@ -65,10 +60,10 @@ class MonadThrow m => ActorMonad m where
   actorSendM :: (ActorMessage i, Typeable (ActorMessageType i)) 
     => i -> ActorMessageType i -> m ()
 
-  -- | Get all messages that were collected for given actor's id and
-  -- clear the queue
+  -- | Get all messages that were collected for given actor's id
+  -- Note: Doesn't clears the queue
   actorGetMessagesM :: (ActorMessage i, Typeable (ActorMessageType i))
-    => i -> m [ActorMessageType i]
+    => i -> m (S.Seq (ActorMessageType i))
 
   -- | Find type representation of actor by it type name
   findActorTypeRepM :: String -> m (Maybe HashableTypeRep)
@@ -82,7 +77,7 @@ instance {-# OVERLAPPING #-} MonadThrow m => ActorMonad (ActorT s m) where
     astate <- ActorT get 
     let (fpt, i, astate') = pushActorNextId astate 
     ActorT . put $! astate' {
-        actorBoxes = H.insert (fpt, toCounter i) S.empty $! actorBoxes astate'
+        actorBoxes = H.insert (fpt, toCounter i) (S.empty, S.empty) $! actorBoxes astate'
       , actorNameMap = H.insert (show fpt) fpt $! actorNameMap astate'
       }
     return i 
@@ -108,9 +103,8 @@ instance {-# OVERLAPPING #-} MonadThrow m => ActorMonad (ActorT s m) where
 
   actorGetMessagesM i = do 
     astate <- ActorT get 
-    let (msgs, astate') = getActorMessages i astate 
-    ActorT . put $! astate'
-    return . catMaybes $! fromDynamic <$> msgs
+    let msgs = getActorMessages i astate 
+    return . catMaybesSeq . fmap fromDynamic $! msgs
 
   findActorTypeRepM n = do 
     astate <- ActorT get 
@@ -132,7 +126,12 @@ instance {-# OVERLAPPABLE #-} (MonadThrow (mt m), ActorMonad m, MonadTrans mt) =
   actorGetMessagesM = lift . actorGetMessagesM
   findActorTypeRepM = lift . findActorTypeRepM
   registerActorTypeRepM = lift . registerActorTypeRepM
-  
+
+-- | Leaves only Just values  
+catMaybesSeq :: S.Seq (Maybe a) -> S.Seq a 
+catMaybesSeq = fmap fromJust . S.filter isJust
+
+-- | Helper to get actor fingerprint from id value
 getActorFingerprint :: forall i . ActorMessage i => i -> HashableTypeRep
 getActorFingerprint _ = actorFingerprint (Proxy :: Proxy i)
 
@@ -161,7 +160,7 @@ regActorFixedId :: forall i s . ActorMessage i => i -> ActorState s -> Maybe (Ac
 regActorFixedId !i !s = case H.lookup k (actorBoxes s) of 
   Just _ -> Nothing
   Nothing -> Just $! s {
-      actorBoxes = H.insert k S.empty . actorBoxes $! s
+      actorBoxes = H.insert k (S.empty, S.empty) . actorBoxes $! s
     , actorNameMap = H.insert (show fingerprint) fingerprint . actorNameMap $! s
     }
   where
@@ -191,20 +190,18 @@ isActorIdRegistered !i !s = case H.lookup k . actorBoxes $! s of
 putActorMessage :: forall i s . ActorMessage i => i -> Dynamic -> ActorState s -> ActorState s
 putActorMessage !i !msg !s = case H.lookup k . actorBoxes $! s of 
   Nothing -> s
-  Just msgs -> s {
-      actorBoxes = H.insert k (msgs S.|> msg) . actorBoxes $! s
+  Just (msgsR, msgsS) -> s {
+      actorBoxes = H.insert k (msgsR, msgsS S.|> msg) . actorBoxes $! s
     }
   where
     fingerprint = actorFingerprint (Proxy :: Proxy i)
     k = (fingerprint, toCounter i)
 
--- | Return all messages in corresponding mailbox and cleanup it
-getActorMessages :: forall i s . ActorMessage i => i -> ActorState s -> ([Dynamic], ActorState s)
+-- | Return all messages in corresponding mailbox
+getActorMessages :: forall i s . ActorMessage i => i -> ActorState s -> S.Seq Dynamic
 getActorMessages !i !s = case H.lookup k . actorBoxes $! s of 
-  Nothing -> ([], s)
-  Just msgs -> (F.toList msgs, s {
-      actorBoxes = H.insert k S.empty . actorBoxes $! s
-    })
+  Nothing -> S.empty
+  Just (msgs, _) -> msgs
   where
     fingerprint = actorFingerprint (Proxy :: Proxy i)
     k = (fingerprint, toCounter i)
@@ -282,45 +279,3 @@ runActor' :: ActorMonad m
   => GameActor m i a b -- ^ Actor creator
   -> GameWire m a b -- ^ Usual wire
 runActor' actor = arr fst . runActor actor
-
--- | Helper to create stateful actors, same as @stateWire@
-stateActor :: (ActorMonad m, MonadFix m, ActorMessage i, Typeable (ActorMessageType i))
-  => (i -> b) -- ^ Inital value of state
-  -> (i -> b -> ActorMessageType i -> b) -- ^ Handler for messages
-  -> (i -> GameWire m (a, b) b) -- ^ Handler that transforms current state
-  -> GameActor m i a b -- ^ Resulting actor incapsulating @b@ in itself
-stateActor bi f w = makeActor $ \i -> stateWire (bi i) $ proc (a, b) -> do 
-  b' <- actorProcessMessages i (f i) -< b
-  w i -< (a, b')
-
--- | Helper to create stateful actors, same as @stateWire@, monadic version of @stateActor@
-stateActorM :: (ActorMonad m, MonadFix m, ActorMessage i, Typeable (ActorMessageType i))
-  => (i -> b) -- ^ Inital value of state
-  -> (i -> b -> ActorMessageType i -> GameMonadT m b) -- ^ Handler for messages
-  -> (i -> GameWire m (a, b) b) -- ^ Handler that transforms current state
-  -> GameActor m i a b -- ^ Resulting actor incapsulating @b@ in itself
-stateActorM bi f w = makeActor $ \i -> stateWire (bi i) $ proc (a, b) -> do 
-  b' <- actorProcessMessagesM i (f i) -< b
-  w i -< (a, b')
-
--- | Helper to create stateful actors, same as @stateWire@
-stateActorFixed :: (ActorMonad m, MonadFix m, ActorMessage i, Typeable (ActorMessageType i))
-  => i -- ^ Fixed id
-  -> b -- ^ Inital value of state
-  -> (b -> ActorMessageType i -> b) -- ^ Handler for messages
-  -> GameWire m (a, b) b -- ^ Handler that transforms current state
-  -> GameActor m i a b -- ^ Resulting actor incapsulating @b@ in itself
-stateActorFixed i bi f w = makeFixedActor i $ stateWire bi $ proc (a, b) -> do 
-  b' <- actorProcessMessages i f -< b
-  w -< (a, b')
-
--- | Helper to create stateful actors, same as @stateWire@, monadic version
-stateActorFixedM :: (ActorMonad m, MonadFix m, ActorMessage i, Typeable (ActorMessageType i))
-  => i -- ^ Fixed id
-  -> b -- ^ Inital value of state
-  -> (b -> ActorMessageType i -> GameMonadT m b) -- ^ Handler for messages, monadic
-  -> GameWire m (a, b) b -- ^ Handler that transforms current state
-  -> GameActor m i a b -- ^ Resulting actor incapsulating @b@ in itself
-stateActorFixedM i bi f w = makeFixedActor i $ stateWire bi $ proc (a, b) -> do 
-  b' <- actorProcessMessagesM i f -< b
-  w -< (a, b')

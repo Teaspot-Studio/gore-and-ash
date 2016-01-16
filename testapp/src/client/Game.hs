@@ -27,6 +27,7 @@ import Consts
 import Game.Bullet 
 import Game.Camera 
 import Game.Core
+import Game.Data()
 import Game.Player
 import Game.RemotePlayer
 import Game.Shared
@@ -78,7 +79,8 @@ mainWire = waitConnection
 playGame :: PlayerId -> Peer -> AppActor GameId a (Maybe Game)
 playGame pid peer = do
   peerSendIndexedM peer (ChannelID 0) globalGameId ReliableMessage PlayerRequestOthers
-  actorMaker $ proc (_, mg) -> do 
+  makeFixedActor globalGameId $ stateWire Nothing $ proc (_, mg_) -> do 
+    mg <- peerProcessIndexed peer (ChannelID 0) globalGameId netProcess -< mg_
     c <- runActor' $ cameraWire initialCamera -< ()
     p <- runActor' $ playerActor pid peer -< c
     ex <- exitCheck -< ()
@@ -114,13 +116,8 @@ playGame pid peer = do
   -- | Maker of startup camera
   initialCamera i = Camera i 0 (-0.1)
 
-  -- | Helper to hide some boring processing of inner state, messages and networking
-  actorMaker = netStateActorFixed globalGameId Nothing process
-    peer 1 netProcess
-  process g _ = g -- ^ Empty message handler
-
-  netProcess _ Nothing _ = Nothing
-  netProcess _ (Just g) msg = Just $ case msg of 
+  netProcess Nothing _ = Nothing
+  netProcess (Just g) msg = Just $ case msg of 
     PlayerSpawn i -> g { gameAddPlayers = fromCounter i : gameAddPlayers g} 
     PlayerDespawn i -> g { gameRemovePlayers = fromCounter i : gameRemovePlayers g} 
     _ -> g 

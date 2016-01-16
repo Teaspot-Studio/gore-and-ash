@@ -3,6 +3,7 @@ module Game.Bullet.Data(
   , Bullet(..)
   , BulletMessage(..)
   , BulletNetMessage(..)
+  , bulletSpeed
   ) where
 
 import Control.DeepSeq
@@ -44,3 +45,6 @@ instance NetworkMessage BulletId where
 
 instance ElementWithId Bullet BulletId where
     elementId = bulletId
+
+bulletSpeed :: Double 
+bulletSpeed = 100
