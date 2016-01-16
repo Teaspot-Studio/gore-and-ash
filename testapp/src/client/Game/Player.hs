@@ -48,17 +48,19 @@ playerActor i peer = makeFixedActor i $ stateWire initialPlayer $ proc (c, p) ->
       
     controlPlayer :: PlayerId -> AppWire Player Player
     controlPlayer pid = 
-        movePlayer pid (V2 (-1) 0) ScancodeLeft 
-      . movePlayer pid (V2 1 0) ScancodeRight
-      . movePlayer pid (V2 0 1) ScancodeDown
-      . movePlayer pid (V2 0 (-1)) ScancodeUp
+        movePlayer pid (V2 (-1) 0) ScancodeRight
+      . movePlayer pid (V2 1 0) ScancodeLeft
+      . movePlayer pid (V2 0 1) ScancodeUp
+      . movePlayer pid (V2 0 (-1)) ScancodeDown
 
     movePlayer :: PlayerId -> V2 Double -> Scancode -> AppWire Player Player
     movePlayer pid dv k = proc p -> do 
       e <- keyPressing k -< ()
+      dt <- deltaTime -< ()
       let newPlayer = p {
-            playerPos = playerPos p + dv * V2 (playerSpeed p) (playerSpeed p)
+            playerPos = playerPos p + dv * v2 (dt * playerSpeed p)
           }
+          v2 a = V2 a a 
           posMsg = let V2 x y = playerPos newPlayer in NetMsgPlayerPos x y
       peerSendIndexed peer (ChannelID 0) pid UnreliableMessage -< const posMsg <$> e
       returnA -< event p (const newPlayer) e

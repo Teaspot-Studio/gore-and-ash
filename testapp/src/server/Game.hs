@@ -79,8 +79,8 @@ mainWire = makeFixedActor globalGameId $ stateWire initGame $ proc (_, g) -> do
       , playerColor = c
       , playerRot = 0
       , playerPeer = p
-      , playerSpeed = 5
-      , playerSize = 200
+      , playerSpeed = 6
+      , playerSize = 1
       }
 
     -- | Detects player id by peer for despawning

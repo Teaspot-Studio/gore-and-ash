@@ -37,6 +37,7 @@ library
   default-extensions:  Arrows
                        DataKinds
                        DeriveGeneric
+                       FlexibleContexts
                        FlexibleInstances
                        FunctionalDependencies
                        GeneralizedNewtypeDeriving

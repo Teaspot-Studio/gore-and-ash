@@ -26,6 +26,8 @@ module Game.GoreAndAsh.Core.Arrow(
   , chainWires
   , dispense
   , dDispense
+  -- | Time
+  , deltaTime
   ) where
 
 import Control.Monad.Fix
@@ -202,3 +204,7 @@ dDispense = go . cycle
     go (a:as) = mkPureN $ \e -> case e of 
       NoEvent -> (Right a, go $ a:as)
       Event _ -> (Right a, go as)
+
+-- | Returns delta time scince last frame
+deltaTime :: (Fractional b, Monad m) => GameWire m a b 
+deltaTime = mkSF $ \ds _ -> let t = realToFrac (dtime ds) in t `seq` (t, deltaTime)

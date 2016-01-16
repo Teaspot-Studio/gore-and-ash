@@ -3,8 +3,6 @@ module Game.GoreAndAsh.SDL.API(
   , WindowConfig(..)
   , RendererConfig(..)
   , RendererType(..)
-  , Window
-  , Renderer
   , module ReExport
   -- | Keyboard arrow API
   , keyScancode
@@ -35,8 +33,6 @@ import qualified Data.HashMap.Strict as H
 import qualified Data.Sequence as S 
 
 import SDL as ReExport hiding (get, Event)
-import SDL.Event as ReExport hiding (Event)
-import SDL.Input.Keyboard.Codes as ReExport
 
 import Game.GoreAndAsh
 import Game.GoreAndAsh.SDL.State

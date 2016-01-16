@@ -12,7 +12,6 @@ import qualified Data.HashMap.Strict as H
 import qualified Data.Sequence as S 
 
 import SDL
-import SDL.Event 
 
 import Game.GoreAndAsh
 import Game.GoreAndAsh.SDL.State
@@ -51,9 +50,9 @@ clearWindows SDLState{..} = mapM_ go . H.elems $! sdlWindows
 
 -- | Catch all SDL events
 processEvents :: MonadIO m => SDLState s -> m (SDLState s)
-processEvents s = do 
+processEvents sdlState = do 
   es <- pollEvents
-  return $! F.foldl' process s (eventPayload <$> es)
+  return $! F.foldl' process sdlState (eventPayload <$> es)
   where 
   process s e = case e of 
     WindowShownEvent d -> s { sdlWindowShownEvents = sdlWindowShownEvents s S.|> d }

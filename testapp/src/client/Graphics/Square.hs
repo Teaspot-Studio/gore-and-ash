@@ -38,7 +38,7 @@ renderSquare size pos col c = do
       ]
 
     modelMtx :: V2 Double -> M33 Double 
-    modelMtx wsize = translate2D (pos + wsize*0.5) !*! cameraMatrix c
+    modelMtx wsize = viewportTransform2D 0 wsize !*! cameraMatrix c !*! translate2D pos
 
     transformedSquare :: V2 Double -> V.Vector (Point V2 CInt)
     transformedSquare wsize = V.map (P . fmap round . applyTransform2D (modelMtx wsize)) $ square size
