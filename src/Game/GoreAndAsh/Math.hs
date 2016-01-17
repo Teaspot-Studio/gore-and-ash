@@ -1,4 +1,4 @@
-module Math(
+module Game.GoreAndAsh.Math(
   -- | 3D matrix transformations
     scale
   , rotationZ
@@ -72,9 +72,9 @@ viewportTransform2D :: Floating a
   -> V2 a -- ^ Viewport right bottom corner
   -> M33 a
 viewportTransform2D (V2 l t) (V2 r b) = V3 
-  (V3 ((r-l)/2) 0         ((r+l)/2))
-  (V3 0         ((t-b)/2) ((t+b)/2))
-  (V3 0         0         1)
+  (V3 ((r-l)/2) 0          ((r+l)/2))
+  (V3 0         (-(t-b)/2) ((t+b)/2))
+  (V3 0         0          1)
   !*! scale2D (V2 1 a)
   where
     a = (r-l)/(t-b)

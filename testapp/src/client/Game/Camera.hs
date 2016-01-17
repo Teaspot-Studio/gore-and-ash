@@ -16,8 +16,8 @@ import Prelude hiding (id, (.))
 import Game.Core
 import Game.GoreAndAsh
 import Game.GoreAndAsh.Actor
+import Game.GoreAndAsh.Math 
 import Game.GoreAndAsh.SDL
-import Math 
 
 data Camera = Camera {
   cameraId :: !CameraId
@@ -40,8 +40,8 @@ instance ActorMessage CameraId where
 cameraWire :: (CameraId -> Camera) -> AppActor CameraId a Camera 
 cameraWire initialCamera = makeActor $ \i -> stateWire (initialCamera i) $ proc (_, c) -> do 
   forceNF
-    . moveCamera (V2 0 (-cameraSpeed)) ScancodeS 
-    . moveCamera (V2 0 cameraSpeed) ScancodeW 
+    . moveCamera (V2 0 (-cameraSpeed)) ScancodeW 
+    . moveCamera (V2 0 cameraSpeed) ScancodeS 
     . moveCamera (V2 cameraSpeed 0) ScancodeA
     . moveCamera (V2 (-cameraSpeed) 0) ScancodeD
     . zoomCamera 0.1 -< c

@@ -34,10 +34,7 @@ executable gore-and-ash-client
                        Game.RemotePlayer
                        Game.Shared
                        Graphics
-                       Graphics.Camera
                        Graphics.Square
-                       Math
-                       Render
                        
   build-depends:       base >= 4.7 && < 5
                      , bytestring >= 0.10.6.0
@@ -100,7 +97,6 @@ executable gore-and-ash-server
                        Game.Player.Data
                        Game.Player.Shared
                        Game.Shared
-                       Math
                        
   build-depends:       base >= 4.7 && < 5
                      , gore-and-ash

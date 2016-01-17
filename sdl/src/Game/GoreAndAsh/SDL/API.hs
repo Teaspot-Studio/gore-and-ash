@@ -13,6 +13,7 @@ module Game.GoreAndAsh.SDL.API(
   , mouseScroll
   , mouseScrollX
   , mouseScrollY
+  , mouseClick
   -- | Window arrow API
   , windowClosed
   ) where
@@ -26,17 +27,22 @@ import Data.Int
 import Data.Sequence (Seq)
 import Data.Text (Text)
 import Data.Word 
+import Foreign 
 import GHC.Generics 
 import Linear 
+import Linear.Affine
 import Prelude hiding (id, (.))
 import qualified Data.HashMap.Strict as H 
 import qualified Data.Sequence as S 
 
 import SDL as ReExport hiding (get, Event)
+import SDL.Internal.Types
+import qualified SDL.Raw as SDLRaw 
 
 import Game.GoreAndAsh
-import Game.GoreAndAsh.SDL.State
+import Game.GoreAndAsh.Math
 import Game.GoreAndAsh.SDL.Module
+import Game.GoreAndAsh.SDL.State
 
 -- | Module specific exceptions
 data SDL'ModuleException = 
@@ -341,3 +347,27 @@ windowClosed n = go Nothing
       else Event ()
     where
       isNeeded WindowClosedEventData{..} = windowClosedEventWindow == w
+
+-- | Fires when user clicks within window. Click coordinates are in [-1 .. 1] range
+mouseClick :: MonadSDL m => MouseButton -> GameWire m a (Event (V2 Double))
+mouseClick mb = liftGameMonad $ do 
+  es <- S.filter isNeeded <$> sdlMouseButtonEventsM
+  case S.viewr es of 
+    S.EmptyR -> return NoEvent
+    _ S.:> MouseButtonEventData{..} -> do
+      (size :: V2 Int) <- getWindowSize mouseButtonEventWindow
+      return . Event $! transformCoords size mouseButtonEventPos
+  where
+    isNeeded MouseButtonEventData{..} = mouseButtonEventButton == mb
+    transformCoords (V2 w h) (P (V2 xi yi)) = 
+      inv33 (viewportTransform2D 0 (V2 (fromIntegral w) (fromIntegral h)))
+      `applyTransform2D`
+      V2 (fromIntegral xi) (fromIntegral yi)
+
+-- | Helper to hide pointer manipulation while getting window size
+getWindowSize :: (MonadIO m, Integral a) => Window -> m (V2 a)
+getWindowSize (Window wptr) = liftIO $ with 0 $ \xptr -> with 0 $ \yptr -> do 
+  SDLRaw.getWindowSize wptr xptr yptr
+  x <- peek xptr 
+  y <- peek yptr 
+  return $! V2 (fromIntegral x) (fromIntegral y)

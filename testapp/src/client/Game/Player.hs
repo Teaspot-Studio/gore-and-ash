@@ -19,11 +19,17 @@ import Game.Camera
 import Game.Player.Data as ReExport
 import Graphics.Square
   
+import Game.GoreAndAsh.Logging 
+import Data.Text (pack)
+
 playerActor :: PlayerId -> Peer -> AppActor PlayerId Camera Player 
 playerActor i peer = makeFixedActor i $ stateWire initialPlayer $ proc (c, p) -> do 
   p2 <- peerProcessIndexed peer (ChannelID 0) i netProcess -< p
   peerSendIndexed peer (ChannelID 0) i ReliableMessage . now -< NetMsgPlayerRequest
   liftGameMonad4 renderSquare -< (playerSize p2, playerPos p2, playerColor p2, c)
+
+  traceEvent (pack . show) . mouseClick ButtonLeft -< ()
+
   forceNF . controlPlayer i -< p2
   where
     initialPlayer = Player {
@@ -50,8 +56,8 @@ playerActor i peer = makeFixedActor i $ stateWire initialPlayer $ proc (c, p) ->
     controlPlayer pid = 
         movePlayer pid (V2 (-1) 0) ScancodeRight
       . movePlayer pid (V2 1 0) ScancodeLeft
-      . movePlayer pid (V2 0 1) ScancodeUp
-      . movePlayer pid (V2 0 (-1)) ScancodeDown
+      . movePlayer pid (V2 0 1) ScancodeDown
+      . movePlayer pid (V2 0 (-1)) ScancodeUp
 
     movePlayer :: PlayerId -> V2 Double -> Scancode -> AppWire Player Player
     movePlayer pid dv k = proc p -> do 

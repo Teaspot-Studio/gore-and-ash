@@ -42,5 +42,6 @@ library
                        MultiParamTypeClasses
                        OverloadedStrings
                        RecordWildCards
+                       ScopedTypeVariables
                        TypeFamilies
                        UndecidableInstances

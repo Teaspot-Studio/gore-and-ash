@@ -7,10 +7,10 @@ import Data.Word
 import Foreign.C.Types
 import Game.Camera 
 import Game.GoreAndAsh
+import Game.GoreAndAsh.Math 
 import Game.GoreAndAsh.SDL 
 import Linear
 import Linear.Affine
-import Math 
 import qualified Data.Vector.Storable as V 
 import SDL 
 

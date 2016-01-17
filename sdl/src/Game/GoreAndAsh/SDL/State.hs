@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Game.GoreAndAsh.SDL.State(
     SDLState(..)
   , emptySDLState
@@ -6,8 +7,7 @@ module Game.GoreAndAsh.SDL.State(
 
 import Control.DeepSeq 
 import Data.Text 
-import Data.Word 
-import Foreign 
+import Data.Word
 import GHC.Generics (Generic)
 import Linear
 
