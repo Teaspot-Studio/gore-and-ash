@@ -18,9 +18,6 @@ import Game.GoreAndAsh.Sync
 import Game.Camera 
 import Game.Player.Data as ReExport
 import Graphics.Square
-  
-import Game.GoreAndAsh.Logging 
-import Data.Text (pack)
 
 playerActor :: PlayerId -> Peer -> AppActor PlayerId Camera Player 
 playerActor i peer = makeFixedActor i $ stateWire initialPlayer $ proc (c, p) -> do 
@@ -74,5 +71,6 @@ playerActor i peer = makeFixedActor i $ stateWire initialPlayer $ proc (c, p) ->
       e <- mouseClick ButtonLeft -< ()
       let wpos = cameraToWorld c <$> e
       let edir = (\v -> normalize $ v - playerPos p) <$> wpos 
-      traceEvent (pack . show) -< edir
+      let emsg = NetMsgPlayerFire <$> edir
+      peerSendIndexed peer (ChannelID 0) i ReliableMessage -< emsg
       returnA -< ()

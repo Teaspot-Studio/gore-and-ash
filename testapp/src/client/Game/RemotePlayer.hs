@@ -4,8 +4,6 @@ module Game.RemotePlayer(
   ) where
 
 import Control.Wire
-import Control.DeepSeq
-import GHC.Generics 
 import Linear
 
 import Game.Camera
@@ -20,16 +18,7 @@ import Game.GoreAndAsh.Actor
 import Game.GoreAndAsh.Network 
 import Game.GoreAndAsh.Sync
 
-data RemotePlayer = RemotePlayer {
-  remotePlayerId :: !PlayerId 
-, remotePlayerPos :: !(V2 Double)
-, remotePlayerRot :: !Double 
-, remotePlayerCol :: !(V3 Double)
-, remotePlayerSize :: !Double
-, remotePlayerSpeed :: !Double
-} deriving Generic
-
-instance NFData RemotePlayer
+import Game.RemotePlayer.Data
 
 -- | Actor for updating local state of remote player on server
 remotePlayerActor :: Peer -> PlayerId -> AppActor PlayerId Camera RemotePlayer

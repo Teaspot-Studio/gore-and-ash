@@ -5,6 +5,8 @@ module Game.Data(
   , PlayerMap
   , PlayerPeerMap
   , BulletsMap
+  -- | Helpers
+  , isGameSpawnBullet
   ) where
 
 import Control.DeepSeq
@@ -28,7 +30,7 @@ type BulletsMap = H.HashMap BulletId Bullet
 data GameMessage = 
     -- | Spawn bullet at given pos with given velocity and owner
     GameSpawnBullet !(V2 Double) !(V2 Double) !PlayerId 
-  deriving (Generic)
+  deriving (Generic, Show)
 
 instance ActorMessage GameId where
   type ActorMessageType GameId = GameMessage 
@@ -43,6 +45,13 @@ data Game = Game {
 , gamePlayers :: !PlayerMap
 , gamePlayerPeers :: !PlayerPeerMap
 , gameBullets :: !BulletsMap
+, gameBulletColId :: !RemActorCollId 
 } deriving (Generic)
 
 instance NFData Game 
+
+-- | Detect specific message
+isGameSpawnBullet :: GameMessage -> Bool
+isGameSpawnBullet m = case m of 
+  GameSpawnBullet _ _ _ -> True
+--  _ -> False

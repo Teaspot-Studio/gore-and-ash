@@ -4,6 +4,7 @@ module Game.Camera(
   , cameraWire
   , cameraMatrix
   , cameraToWorld
+  , cameraFromWorld
   ) where
 
 import Control.DeepSeq
@@ -74,3 +75,7 @@ cameraMatrix Camera{..} = translate2D (V2 (-cameraPos^._x) (-cameraPos^._y))
 -- | Transform camera local coords to world
 cameraToWorld :: Camera -> V2 Double -> V2 Double
 cameraToWorld c v = inv33 (cameraMatrix c) `applyTransform2D` v
+
+-- | Transform world coords to camera coords
+cameraFromWorld :: Camera -> V2 Double -> V2 Double 
+cameraFromWorld c v = cameraMatrix c `applyTransform2D` v

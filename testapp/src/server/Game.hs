@@ -39,15 +39,13 @@ mainWire :: AppActor GameId a Game
 mainWire = makeFixedActor globalGameId $ stateWire initGame $ proc (_, g) -> do 
   forceNF . processBullets . processPlayers -< g
   where 
-    --processMessages g msg = case msg of 
-    --  GameSpawnBullet p v i -> g 
-
     -- | Game at start of the simulation
     initGame = Game {
         gameId = globalGameId
       , gamePlayers = H.empty
       , gamePlayerPeers = H.empty
       , gameBullets = H.empty
+      , gameBulletColId = fromCounter (-1)
       }
 
     -- | Handles process of players connection and disconnections
@@ -106,16 +104,19 @@ mainWire = makeFixedActor globalGameId $ stateWire initGame $ proc (_, g) -> do
     -- | Handle bullets actors
     processBullets :: AppWire Game Game 
     processBullets = proc g -> do 
-      addEvent <- mapE (fmap $ bulletActor . newBullet) . never -< ()
+      addEvent <- mapE (fmap (bulletActor . newBullet) . F.toList) . actorMessages globalGameId isGameSpawnBullet -< ()
+      traceEvent (pack . show) . actorMessages globalGameId isGameSpawnBullet -< ()
       remEvent <- mapE (const []) . never -< ()
-      bs <- runActor' $ remoteActorCollectionServer [] -< (g, addEvent, remEvent)
+      (bs, i) <- runActor $ remoteActorCollectionServer [] -< (g, addEvent, remEvent)
       returnA -< g {
           gameBullets = H.fromList $ fmap bulletId bs `zip` bs
+        , gameBulletColId = i
         }
       where
-        newBullet p i = Bullet {
+        newBullet (GameSpawnBullet pos vel owner) i = Bullet {
             bulletId = i 
-          , bulletPos = 0
-          , bulletVel = 5
-          , bulletOwner = p
+          , bulletPos = pos
+          , bulletVel = vel
+          , bulletOwner = owner
           }
+        -- newBullet _ _ = error "newBullet: wrong message"

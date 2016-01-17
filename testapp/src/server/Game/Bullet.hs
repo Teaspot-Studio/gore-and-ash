@@ -14,6 +14,7 @@ import Game.Data
 import Game.GoreAndAsh
 import Game.GoreAndAsh.Sync 
 import Game.GoreAndAsh.Actor
+import Game.GoreAndAsh.Logging 
 
 instance RemoteActor BulletId Bullet where
   type RemoteActorState BulletId = Bullet
@@ -25,4 +26,5 @@ bulletActor initalBullet = makeActor $ \i -> stateWire (initalBullet i) $ mainCo
 
   mainController :: BulletId -> AppWire (Game, Bullet) Bullet
   mainController _ = proc (_, b) -> do 
+    traceEvent (const "Bullet created") . now -< ()
     returnA -< b

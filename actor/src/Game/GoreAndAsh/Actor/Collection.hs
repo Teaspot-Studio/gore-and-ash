@@ -20,7 +20,7 @@ import Game.GoreAndAsh.Actor.Collection.Data as ReExport
 
 -- | Helper that performs monadic action over value of event or returns default value
 -- Note: the function is isomorphic to @Data.Maybe.maybe@
-onEvent :: Monad m => b -> Event a -> (a -> GameMonadT m b) -> GameMonadT m b
+onEvent :: Monad m => b -> Event a -> (a -> m b) -> m b
 onEvent def e f = case e of 
   NoEvent -> return def 
   Event a -> f a 
@@ -47,7 +47,7 @@ dynCollection initialActors = mkGen $ \ds input -> do
 
     -- | Adding new wires
     newAddedWires <- onEvent currentWires addEvent $ \newActors -> do 
-      addWires <- sequence newActors 
+      addWires <- sequence newActors
       return $ currentWires `concatDynColl` addWires
 
     -- | Removing wires

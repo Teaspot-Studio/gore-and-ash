@@ -40,6 +40,7 @@ library
                      , exceptions >= 0.8.0.2
                      
   default-extensions:  
+                       Arrows
                        BangPatterns
                        DeriveGeneric
                        FlexibleInstances

@@ -1,22 +1,24 @@
 module Game.GoreAndAsh.Network.API(
     NetworkMonad(..)
+  -- | Peer handling
   , peersConnected
   , peersDisconnected
   , peerDisconnected
   , currentPeers
+  , onPeers
+  -- | Messaging support
   , peerMessages
   , peerSend
   , peerSendMany
   ) where
 
-import Control.DeepSeq 
+import Control.DeepSeq hiding (force)
 import Control.Exception.Base (IOException)
 import Control.Monad.Catch
 import Control.Monad.State.Strict
-import Control.Wire.Core 
+import Control.Wire hiding (when)
 import Control.Wire.Unsafe.Event
 import Data.Maybe (fromMaybe)
-import Data.Monoid ((<>))
 import Data.Text
 import Foreign
 import Game.GoreAndAsh
@@ -28,6 +30,7 @@ import Network.ENet.Host
 import Network.ENet.Packet as P
 import Network.ENet.Peer
 import Network.Socket (SockAddr)
+import Prelude hiding ((.), id)
 import qualified Data.ByteString as BS 
 import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as H 
@@ -192,3 +195,27 @@ peerSend peer chid = liftGameMonadEvent1 $ peerSendM peer chid
 -- | Send several messages to given peer with given channel id
 peerSendMany :: (LoggingMonad m, NetworkMonad m, F.Foldable t) => Peer -> ChannelID -> GameWire m (Event (t Message)) (Event ())
 peerSendMany peer chid = liftGameMonadEvent1 $ mapM_ (peerSendM peer chid) 
+
+-- | Sometimes you want to listen all peers and use statefull computations at the same time.
+--
+-- The helper maintance internal collection of current peers and switches over it each time
+-- it changes.
+onPeers :: forall m a b . (MonadFix m, LoggingMonad m, NetworkMonad m)
+  => (S.Seq Peer -> GameWire m a b) -- ^ Wire that uses current peer collection
+  -> GameWire m a b
+onPeers w = proc a -> do 
+  conEvent <- peersConnected -< ()
+  disEvent <- peersDisconnected -< ()
+
+  -- | Local state loop to catch up peers
+  rec curPeers' <- delay S.empty -< curPeers
+      let addEvent = (\ps -> curPeers' S.>< ps) <$> conEvent
+      let remEvent = (F.foldl' (\ps p -> S.filter (/= p) ps) curPeers') <$> disEvent
+      let ew = fmap listenPeers $ addEvent `mergeR` remEvent 
+      (curPeers, b) <- force . rSwitch (listenPeers S.empty) -< (a, ew)
+  returnA -< b
+  where
+    listenPeers :: S.Seq Peer -> GameWire m a (S.Seq Peer, b)
+    listenPeers peers = proc a -> do 
+      b <- w peers -< a 
+      returnA -< (peers, b)

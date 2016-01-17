@@ -7,14 +7,14 @@ module Game(
   , AppMonad
   ) where
 
-import Control.DeepSeq
 import Control.Wire
 import Control.Wire.Unsafe.Event (event)
+import Data.Hashable
 import Data.Text (pack)
-import GHC.Generics (Generic)
 import Prelude hiding (id, (.))
-import qualified Data.Sequence as S 
+import qualified Data.Foldable as F 
 import qualified Data.HashMap.Strict as H 
+import qualified Data.Sequence as S 
 
 import Game.GoreAndAsh
 import Game.GoreAndAsh.Actor 
@@ -27,23 +27,10 @@ import Consts
 import Game.Bullet 
 import Game.Camera 
 import Game.Core
-import Game.Data()
+import Game.Data
 import Game.Player
 import Game.RemotePlayer
 import Game.Shared
-
-data Game = Game {
-  gameId :: !GameId
-, gamePlayer :: !Player 
-, gameCamera :: !Camera
-, gameRemotePlayers :: ![RemotePlayer] 
-, gameAddPlayers :: ![PlayerId]
-, gameRemovePlayers :: ![PlayerId]
-, gameBullets :: !(H.HashMap BulletId Bullet)
-, gameExit :: !Bool
-} deriving (Generic)
-
-instance NFData Game 
 
 mainWire :: AppWire a (Maybe Game)
 mainWire = waitConnection
@@ -63,30 +50,34 @@ mainWire = waitConnection
       traceEvent (const "Waiting for player id") -< emsg
       
       e <- mapE seqLeftHead . filterMsgs isPlayerResponseId . peerIndexedMessages peer (ChannelID 0) globalGameId -< () 
-      traceEvent (\(PlayerResponseId i) -> "Got player id: " <> pack (show i)) -< e
+      traceEvent (\(PlayerResponseId i _) -> "Got player id: " <> pack (show i)) -< e
       
-      let nextWire = (\(PlayerResponseId i) -> untilDisconnected peer $ PlayerId i) <$> e
+      let nextWire = (\(PlayerResponseId i bulletsColId) -> untilDisconnected peer (PlayerId i) (fromCounter bulletsColId)) <$> e
       returnA -< (Nothing, nextWire)
 
-    untilDisconnected peer pid = switch $ proc _ -> do 
+    untilDisconnected peer pid bulletsColId = switch $ proc _ -> do 
       e <- peerDisconnected peer -< ()
       traceEvent (const "Disconnected from server") -< e
-      g <- runActor' (playGame pid peer) -< ()
+      g <- runActor' (playGame pid peer bulletsColId) -< ()
       returnA -< (g, const disconnected <$> e)
 
     disconnected = pure Nothing
 
-playGame :: PlayerId -> Peer -> AppActor GameId a (Maybe Game)
-playGame pid peer = do
+playGame :: PlayerId -> Peer -> RemActorCollId -> AppActor GameId a (Maybe Game)
+playGame pid peer bulletsColId = do
   peerSendIndexedM peer (ChannelID 0) globalGameId ReliableMessage PlayerRequestOthers
   makeFixedActor globalGameId $ stateWire Nothing $ proc (_, mg_) -> do 
     mg <- peerProcessIndexed peer (ChannelID 0) globalGameId netProcess -< mg_
     c <- runActor' $ cameraWire initialCamera -< ()
     p <- runActor' $ playerActor pid peer -< c
     ex <- exitCheck -< ()
-    rps <- case mg of 
-      Nothing -> returnA -< []
-      Just g -> processRemotePlayers -< g
+    (rps, bs) <- case mg of 
+      Nothing -> returnA -< ([], H.empty)
+      Just g -> do 
+        rps <- processRemotePlayers -< g
+        bs <- processBullets bulletsColId -< g
+        returnA -< (rps, bs)
+
     forceNF -< Just $! case mg of 
       Nothing -> Game {
           gameId = globalGameId
@@ -95,7 +86,7 @@ playGame pid peer = do
         , gameRemotePlayers = rps
         , gameAddPlayers = []
         , gameRemovePlayers = []
-        , gameBullets = H.empty
+        , gameBullets = bs
         , gameExit = ex
         }
       Just g -> g {
@@ -104,7 +95,7 @@ playGame pid peer = do
         , gameRemotePlayers = rps
         , gameAddPlayers = []
         , gameRemovePlayers = []
-        , gameBullets = H.empty
+        , gameBullets = bs
         , gameExit = ex
         }
   where
@@ -130,3 +121,13 @@ playGame pid peer = do
     traceEvent (\ids -> "New remote players: " <> pack (show ids)) -< adde
     traceEvent (\ids -> "Removed remote players: " <> pack (show ids)) -< reme
     dDynCollection [] -< (gameCamera g, fmap (remotePlayerActor peer) <$> adde, reme)
+
+  -- | Handles spawing/despawing of bullets
+  processBullets :: RemActorCollId -> AppWire Game BulletMap
+  processBullets cid = proc g -> do 
+    bs <- runActor' $ remoteActorCollectionClient cid peer bulletActor -< g
+    returnA -< mapFromSeq $ fmap bulletId bs `S.zip` bs
+
+-- | Construct HashMap from sequence
+mapFromSeq :: (Hashable i, Eq i) => S.Seq (i, a) -> H.HashMap i a 
+mapFromSeq = F.foldl' (\acc (i, a) -> H.insert i a acc) H.empty

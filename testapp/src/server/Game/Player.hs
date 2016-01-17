@@ -60,6 +60,7 @@ playerActor initialPlayer = makeActor $ \i -> stateWire (initialPlayer i) $ main
             v2 a = V2 a a
             pos = playerPos p + d * v2 (playerSize p)
             vel = d * v2 bulletSpeed
+        putMsgLnM $ "Fire bullet at " <> pack (show pos) <> " with velocity " <> pack (show vel)
         actorSendM globalGameId $ GameSpawnBullet pos vel $ playerId p
         return p 
 
@@ -68,7 +69,7 @@ playerActor initialPlayer = makeActor $ \i -> stateWire (initialPlayer i) $ main
     globalNetProcess (g, p) msg = case msg of 
       PlayerRequestId -> do
         peerSendIndexedM peer (ChannelID 0) globalGameId ReliableMessage $ 
-          PlayerResponseId $ toCounter i
+          PlayerResponseId (toCounter i) (toCounter $ gameBulletColId g)
         return (g, p)
       PlayerRequestOthers -> do 
         notifyAboutSpawn i g 

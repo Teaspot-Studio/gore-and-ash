@@ -8,6 +8,7 @@ module Game.GoreAndAsh.Actor.API(
   , actorSendManyDyn
   , actorProcessMessages
   , actorProcessMessagesM
+  , actorMessages
   -- | Actor API
   , makeActor
   , makeFixedActor
@@ -20,6 +21,7 @@ module Game.GoreAndAsh.Actor.API(
 import Control.Monad.Catch
 import Control.Monad.State.Strict
 import Control.Wire
+import Control.Wire.Unsafe.Event
 import Data.Dynamic
 import Data.Maybe (isJust, fromJust)
 import GHC.Generics 
@@ -279,3 +281,13 @@ runActor' :: ActorMonad m
   => GameActor m i a b -- ^ Actor creator
   -> GameWire m a b -- ^ Usual wire
 runActor' actor = arr fst . runActor actor
+
+-- | Non-centric style of subscribing to messages
+actorMessages :: (ActorMonad m, ActorMessage i, Typeable (ActorMessageType i))
+  => i -- ^ Actor id which messages we look for
+  -> (ActorMessageType i -> Bool) -- ^ Filter function, leaves only with True return value
+  -> GameWire m a (Event (S.Seq (ActorMessageType i)))
+actorMessages i f = liftGameMonad $ do 
+  msgs <- S.filter f <$> actorGetMessagesM i 
+  return $! if S.null msgs then NoEvent
+    else Event msgs

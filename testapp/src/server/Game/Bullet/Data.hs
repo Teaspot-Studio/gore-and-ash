@@ -47,4 +47,4 @@ instance ElementWithId Bullet BulletId where
     elementId = bulletId
 
 bulletSpeed :: Double 
-bulletSpeed = 100
+bulletSpeed = 0.5

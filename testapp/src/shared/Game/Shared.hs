@@ -27,7 +27,7 @@ data GameNetMessage =
     PlayerSpawn !Int
   | PlayerDespawn !Int 
   | PlayerRequestId
-  | PlayerResponseId !Int
+  | PlayerResponseId !Int !Int -- ^ Id of player and bullet collection
   | PlayerRequestOthers
   | PlayerRequestData !Int -- Id of player we want info about
   deriving (Generic, Show)
@@ -52,7 +52,7 @@ isPlayerRequestId m = case m of
 
 isPlayerResponseId :: GameNetMessage -> Bool 
 isPlayerResponseId m = case m of 
-  PlayerResponseId _ -> True 
+  PlayerResponseId _ _ -> True 
   _ -> False
 
 isPlayerRequestOthers :: GameNetMessage -> Bool 

@@ -358,7 +358,7 @@ mouseClick mb = liftGameMonad $ do
       (size :: V2 Int) <- getWindowSize mouseButtonEventWindow
       return . Event $! transformCoords size mouseButtonEventPos
   where
-    isNeeded MouseButtonEventData{..} = mouseButtonEventButton == mb
+    isNeeded MouseButtonEventData{..} = mouseButtonEventButton == mb && mouseButtonEventMotion == Pressed
     transformCoords (V2 w h) (P (V2 xi yi)) = 
       inv33 (viewportTransform2D 0 (V2 (fromIntegral w) (fromIntegral h)))
       `applyTransform2D`

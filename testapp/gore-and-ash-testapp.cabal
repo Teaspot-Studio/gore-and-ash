@@ -32,6 +32,7 @@ executable gore-and-ash-client
                        Game.Player.Data
                        Game.Player.Shared
                        Game.RemotePlayer
+                       Game.RemotePlayer.Data
                        Game.Shared
                        Graphics
                        Graphics.Square
