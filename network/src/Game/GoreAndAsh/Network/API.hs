@@ -200,7 +200,7 @@ peerSendMany peer chid = liftGameMonadEvent1 $ mapM_ (peerSendM peer chid)
 --
 -- The helper maintance internal collection of current peers and switches over it each time
 -- it changes.
-onPeers :: forall m a b . (MonadFix m, LoggingMonad m, NetworkMonad m, NFData b)
+onPeers :: forall m a b . (MonadFix m, LoggingMonad m, NetworkMonad m)
   => (S.Seq Peer -> GameWire m a b) -- ^ Wire that uses current peer collection
   -> GameWire m a b
 onPeers w = switch $ proc _ -> do -- Trick to immediate switch to current set of peers
@@ -212,11 +212,11 @@ onPeers w = switch $ proc _ -> do -- Trick to immediate switch to current set of
     disEvent <- peersDisconnected -< ()
 
     -- | Local state loop to catch up peers
-    rec curPeers' <- delay initalPeers -< curPeers
+    rec curPeers' <- forceNF . delay initalPeers -< curPeers
         let addEvent = (\ps -> curPeers' S.>< ps) <$> conEvent
         let remEvent = (F.foldl' (\ps p -> S.filter (/= p) ps) curPeers') <$> disEvent
         let ew = fmap listenPeers $ addEvent `mergeR` remEvent 
-        (curPeers, b) <- forceNF . rSwitch (listenPeers initalPeers) -< (a, ew)
+        (curPeers, b) <- rSwitch (listenPeers initalPeers) -< (a, ew)
     returnA -< b
     where
       listenPeers :: S.Seq Peer -> GameWire m a (S.Seq Peer, b)

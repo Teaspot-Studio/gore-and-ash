@@ -154,7 +154,7 @@ remoteActorCollectionServer initialActors = makeActor $ \cid -> proc (a, addEven
       let is = indexedId <$> newRemovedWires :: c i
       let bs' = (\(eb, i) -> (, i) <$> eb) <$> bs `zipDynColl` is :: c (Either () (b, i))
       let bs'' = unzipDynColl $ rightsDynColl bs' :: (c b, c i)
-      return $ length newWires `seq` (Right bs'', mkGen $ go newWires)
+      return $ length newWires `seq` length is `seq` (Right bs'', mkGen $ go newWires)
 
 
 -- | Client side collection of network actors that are automatically
