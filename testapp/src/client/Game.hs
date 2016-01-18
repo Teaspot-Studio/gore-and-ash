@@ -105,7 +105,7 @@ playGame pid peer bulletsColId = do
     returnA -< event False (const True) e || q
 
   -- | Maker of startup camera
-  initialCamera i = Camera i 0 (-0.1)
+  initialCamera i = Camera i 0 0.1
 
   netProcess Nothing _ = Nothing
   netProcess (Just g) msg = Just $ case msg of 
@@ -125,7 +125,7 @@ playGame pid peer bulletsColId = do
   -- | Handles spawing/despawing of bullets
   processBullets :: RemActorCollId -> AppWire Game BulletMap
   processBullets cid = proc g -> do 
-    bs <- runActor' $ remoteActorCollectionClient cid peer bulletActor -< g
+    bs <- runActor' $ remoteActorCollectionClient cid peer (bulletActor peer) -< g
     returnA -< mapFromSeq $ fmap bulletId bs `S.zip` bs
 
 -- | Construct HashMap from sequence

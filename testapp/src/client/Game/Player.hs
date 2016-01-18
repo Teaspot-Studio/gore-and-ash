@@ -49,10 +49,10 @@ playerActor i peer = makeFixedActor i $ stateWire initialPlayer $ proc (c, p) ->
       
     controlPlayer :: PlayerId -> AppWire Player Player
     controlPlayer pid = 
-        movePlayer pid (V2 (-1) 0) ScancodeLeft
-      . movePlayer pid (V2 1 0) ScancodeRight
-      . movePlayer pid (V2 0 1) ScancodeUp
-      . movePlayer pid (V2 0 (-1)) ScancodeDown
+        movePlayer pid (V2 (-1) 0) ScancodeRight
+      . movePlayer pid (V2 1 0) ScancodeLeft
+      . movePlayer pid (V2 0 1) ScancodeDown
+      . movePlayer pid (V2 0 (-1)) ScancodeUp
 
     movePlayer :: PlayerId -> V2 Double -> Scancode -> AppWire Player Player
     movePlayer pid dv k = proc p -> do 

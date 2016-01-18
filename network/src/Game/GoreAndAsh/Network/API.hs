@@ -200,22 +200,26 @@ peerSendMany peer chid = liftGameMonadEvent1 $ mapM_ (peerSendM peer chid)
 --
 -- The helper maintance internal collection of current peers and switches over it each time
 -- it changes.
-onPeers :: forall m a b . (MonadFix m, LoggingMonad m, NetworkMonad m)
+onPeers :: forall m a b . (MonadFix m, LoggingMonad m, NetworkMonad m, NFData b)
   => (S.Seq Peer -> GameWire m a b) -- ^ Wire that uses current peer collection
   -> GameWire m a b
-onPeers w = proc a -> do 
-  conEvent <- peersConnected -< ()
-  disEvent <- peersDisconnected -< ()
-
-  -- | Local state loop to catch up peers
-  rec curPeers' <- delay S.empty -< curPeers
-      let addEvent = (\ps -> curPeers' S.>< ps) <$> conEvent
-      let remEvent = (F.foldl' (\ps p -> S.filter (/= p) ps) curPeers') <$> disEvent
-      let ew = fmap listenPeers $ addEvent `mergeR` remEvent 
-      (curPeers, b) <- force . rSwitch (listenPeers S.empty) -< (a, ew)
-  returnA -< b
+onPeers w = switch $ proc _ -> do -- Trick to immediate switch to current set of peers
+  epeers <- now . currentPeers -< ()
+  returnA -< (error "onPeers: impossible", go <$> epeers)
   where
-    listenPeers :: S.Seq Peer -> GameWire m a (S.Seq Peer, b)
-    listenPeers peers = proc a -> do 
-      b <- w peers -< a 
-      returnA -< (peers, b)
+  go initalPeers = proc a -> do 
+    conEvent <- peersConnected -< ()
+    disEvent <- peersDisconnected -< ()
+
+    -- | Local state loop to catch up peers
+    rec curPeers' <- delay initalPeers -< curPeers
+        let addEvent = (\ps -> curPeers' S.>< ps) <$> conEvent
+        let remEvent = (F.foldl' (\ps p -> S.filter (/= p) ps) curPeers') <$> disEvent
+        let ew = fmap listenPeers $ addEvent `mergeR` remEvent 
+        (curPeers, b) <- forceNF . rSwitch (listenPeers initalPeers) -< (a, ew)
+    returnA -< b
+    where
+      listenPeers :: S.Seq Peer -> GameWire m a (S.Seq Peer, b)
+      listenPeers peers = proc a -> do 
+        b <- w peers -< a 
+        returnA -< (peers, b)

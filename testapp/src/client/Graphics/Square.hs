@@ -11,7 +11,6 @@ import Game.GoreAndAsh.Math
 import Game.GoreAndAsh.SDL 
 import Linear
 import Linear.Affine
-import qualified Data.Vector.Storable as V 
 import SDL 
 
 -- | Function of rendering player
@@ -23,22 +22,16 @@ renderSquare size pos col c = do
     Just (w, r) -> do 
       wsize <- fmap (fmap fromIntegral) . get $ windowSize w
       rendererDrawColor r $= transColor col 
-      drawLines r $ transformedSquare wsize
+      fillRect r $ Just $ transformedSquare wsize
   where
     transColor :: V3 Double -> V4 Word8
     transColor (V3 r g b) = V4 (round $ r * 255) (round $ g * 255) (round $ b * 255) 255
 
-    square :: Double -> V.Vector (V2 Double)
-    square s = V.fromList [
-        V2 s s 
-      , V2 (-s) s
-      , V2 (-s) (-s)
-      , V2 s (-s)
-      , V2 s s
-      ]
-
     modelMtx :: V2 Double -> M33 Double 
     modelMtx wsize = viewportTransform2D 0 wsize !*! cameraMatrix c !*! translate2D pos
 
-    transformedSquare :: V2 Double -> V.Vector (Point V2 CInt)
-    transformedSquare wsize = V.map (P . fmap round . applyTransform2D (modelMtx wsize)) $ square size
+    transformedSquare :: V2 Double -> Rectangle CInt
+    transformedSquare wsize = Rectangle (P topleft) (botright - topleft) 
+      where
+      topleft = fmap round . applyTransform2D (modelMtx wsize) $ V2 (-size/2) (-size/2)
+      botright = fmap round . applyTransform2D (modelMtx wsize) $ V2 (size/2) (size/2)

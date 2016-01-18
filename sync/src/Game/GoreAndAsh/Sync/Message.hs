@@ -142,10 +142,10 @@ peerSendIndexedMany p chid i mt = liftGameMonadEvent1 . F.mapM_ $ peerSendIndexe
 
 -- | Encodes a message for specific actor type and send it to remote host, arrow version.
 -- Takes peer, id and message as arrow input.
-peerSendIndexedManyDyn :: (ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i))
+peerSendIndexedManyDyn :: (ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m, NetworkMessage i, Serialize (NetworkMessageType i), F.Foldable t)
   => ChannelID -- ^ Which channel we are sending within
   -> MessageType -- ^ Strategy of the message (reliable, unordered etc.)
-  -> GameWire m (Event [(Peer, i, NetworkMessageType i)]) (Event ())
+  -> GameWire m (Event (t (Peer, i, NetworkMessageType i))) (Event ())
 peerSendIndexedManyDyn chid mt = liftGameMonadEvent1 . F.mapM_ $ \(p, i, msg) -> peerSendIndexedM p chid i mt msg
 
 

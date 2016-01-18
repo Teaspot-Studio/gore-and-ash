@@ -1,3 +1,0 @@
-module Graphics(
-
-  ) where

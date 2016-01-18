@@ -105,7 +105,6 @@ mainWire = makeFixedActor globalGameId $ stateWire initGame $ proc (_, g) -> do
     processBullets :: AppWire Game Game 
     processBullets = proc g -> do 
       addEvent <- mapE (fmap (bulletActor . newBullet) . F.toList) . actorMessages globalGameId isGameSpawnBullet -< ()
-      traceEvent (pack . show) . actorMessages globalGameId isGameSpawnBullet -< ()
       remEvent <- mapE (const []) . never -< ()
       (bs, i) <- runActor $ remoteActorCollectionServer [] -< (g, addEvent, remEvent)
       returnA -< g {

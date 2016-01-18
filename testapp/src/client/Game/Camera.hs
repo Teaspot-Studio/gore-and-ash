@@ -63,7 +63,7 @@ cameraWire initialCamera = makeActor $ \i -> stateWire (initialCamera i) $ proc 
     zoomCamera z = proc c -> do 
       e <- mouseScrollY -< ()
       let newCam k = c {
-            cameraZoom = min 3 $ max 0.01 $ cameraZoom c + z * k
+            cameraZoom = min 3 $ max 0.01 $ cameraZoom c + 0.2 * z * k
           }
       returnA -< event c (newCam . fromIntegral) e 
 

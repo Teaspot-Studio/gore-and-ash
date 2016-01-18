@@ -34,7 +34,7 @@ executable gore-and-ash-client
                        Game.RemotePlayer
                        Game.RemotePlayer.Data
                        Game.Shared
-                       Graphics
+                       Graphics.Bullet
                        Graphics.Square
                        
   build-depends:       base >= 4.7 && < 5
@@ -133,6 +133,7 @@ executable gore-and-ash-server
                        RankNTypes
                        RecordWildCards
                        ScopedTypeVariables
+                       TupleSections
                        TypeFamilies
                        
   ghc-options: -O2 -Wall -Werror -threaded
