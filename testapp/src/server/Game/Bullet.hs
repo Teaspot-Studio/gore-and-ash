@@ -7,11 +7,13 @@ module Game.Bullet(
 import Control.Wire 
 import Prelude hiding (id, (.))
 import qualified Data.Sequence as S 
+import Linear 
 
 import Game.Bullet.Data as ReExport
 import Game.Bullet.Shared 
 import Game.Core 
 import Game.Data 
+import Game.Shared 
 
 import Game.GoreAndAsh
 import Game.GoreAndAsh.Actor 
@@ -31,8 +33,18 @@ bulletActor initalBullet = makeActor $ \i -> stateWire (initalBullet i) $ mainCo
     syncOnRequest -< b
     syncChanges -< b 
     syncPeriodic -< b
-    forceNF -< b
+    forceNF . processBullet -< b
     where
+
+    -- | Actual bullet logic
+    processBullet :: AppWire Bullet Bullet 
+    processBullet = proc b -> do 
+      actorSend globalGameId . at bulletLifespan -< GameDeleteBullet i
+      dt <- deltaTime -< ()
+      let newPos = bulletPos b + V2 dt dt * bulletVel b 
+      returnA -< b {
+          bulletPos = newPos
+        } 
 
     -- | Sends full state of actor to given peer
     sendFullData :: Peer -> Bullet -> GameMonadT AppMonad ()

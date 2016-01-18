@@ -9,10 +9,8 @@ module Game(
 
 import Control.Wire
 import Control.Wire.Unsafe.Event (event)
-import Data.Hashable
 import Data.Text (pack)
 import Prelude hiding (id, (.))
-import qualified Data.Foldable as F 
 import qualified Data.HashMap.Strict as H 
 import qualified Data.Sequence as S 
 
@@ -127,7 +125,3 @@ playGame pid peer bulletsColId = do
   processBullets cid = proc g -> do 
     bs <- runActor' $ remoteActorCollectionClient cid peer (bulletActor peer) -< g
     returnA -< mapFromSeq $ fmap bulletId bs `S.zip` bs
-
--- | Construct HashMap from sequence
-mapFromSeq :: (Hashable i, Eq i) => S.Seq (i, a) -> H.HashMap i a 
-mapFromSeq = F.foldl' (\acc (i, a) -> H.insert i a acc) H.empty

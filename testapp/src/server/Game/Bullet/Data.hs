@@ -4,10 +4,12 @@ module Game.Bullet.Data(
   , BulletMessage(..)
   , BulletNetMessage(..)
   , bulletSpeed
+  , bulletLifespan
   ) where
 
 import Control.DeepSeq
 import Data.Hashable
+import Data.Time.Clock (NominalDiffTime)
 import Data.Typeable 
 import GHC.Generics (Generic)
 import Linear
@@ -47,4 +49,7 @@ instance ElementWithId Bullet BulletId where
     elementId = bulletId
 
 bulletSpeed :: Double 
-bulletSpeed = 0.5
+bulletSpeed = 20
+
+bulletLifespan :: NominalDiffTime 
+bulletLifespan = 5

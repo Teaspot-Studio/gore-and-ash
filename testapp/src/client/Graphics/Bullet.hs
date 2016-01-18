@@ -22,8 +22,9 @@ renderBullet pos vel c = do
       rendererDrawColor r $= V4 0 0 0 255
       drawLine r (apply wsize startPoint) (apply wsize endPoint)
   where
-    startPoint = negate (0.5 * vel)
-    endPoint = 0.5 * vel
+    velScaleFactor = 0.04
+    startPoint = negate (velScaleFactor * 0.5 * vel)
+    endPoint = velScaleFactor * 0.5 * vel
 
     apply wsize = P . fmap round . applyTransform2D (modelMtx wsize)
 

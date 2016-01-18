@@ -11,6 +11,7 @@ import Linear
 import Prelude hiding (id, (.))
 import qualified Data.Foldable as F 
 import qualified Data.HashMap.Strict as H 
+import qualified Data.Sequence as S 
 
 import Game.Bullet 
 import Game.Core
@@ -77,7 +78,7 @@ mainWire = makeFixedActor globalGameId $ stateWire initGame $ proc (_, g) -> do
       , playerColor = c
       , playerRot = 0
       , playerPeer = p
-      , playerSpeed = 6
+      , playerSpeed = 15
       , playerSize = 1
       }
 
@@ -104,11 +105,11 @@ mainWire = makeFixedActor globalGameId $ stateWire initGame $ proc (_, g) -> do
     -- | Handle bullets actors
     processBullets :: AppWire Game Game 
     processBullets = proc g -> do 
-      addEvent <- mapE (fmap (bulletActor . newBullet) . F.toList) . actorMessages globalGameId isGameSpawnBullet -< ()
-      remEvent <- mapE (const []) . never -< ()
-      (bs, i) <- runActor $ remoteActorCollectionServer [] -< (g, addEvent, remEvent)
+      addEvent <- mapE (fmap (bulletActor . newBullet)) . actorMessages globalGameId isGameSpawnBullet -< ()
+      remEvent <- mapE (fmap $ \(GameDeleteBullet i) -> i) . actorMessages globalGameId isGameDeleteBullet -< ()
+      (bs, i) <- runActor $ remoteActorCollectionServer S.empty -< (g, addEvent, remEvent)
       returnA -< g {
-          gameBullets = H.fromList $ fmap bulletId bs `zip` bs
+          gameBullets = mapFromSeq $ fmap bulletId bs `S.zip` bs
         , gameBulletColId = i
         }
       where
@@ -118,4 +119,4 @@ mainWire = makeFixedActor globalGameId $ stateWire initGame $ proc (_, g) -> do
           , bulletVel = vel
           , bulletOwner = owner
           }
-        -- newBullet _ _ = error "newBullet: wrong message"
+        newBullet _ _ = error "newBullet: wrong message"

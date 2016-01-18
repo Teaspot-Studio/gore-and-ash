@@ -7,11 +7,17 @@ module Game.Shared(
   , isPlayerRequestId
   , isPlayerResponseId
   , isPlayerRequestOthers
+  -- | Helpers
+  , mapFromSeq
   ) where
 
 import Control.DeepSeq
-import GHC.Generics
+import Data.Hashable 
 import Data.Serialize
+import GHC.Generics
+import qualified Data.Foldable as F 
+import qualified Data.HashMap.Strict as H 
+import qualified Data.Sequence as S 
 
 -- | Fake id for game global space
 newtype GameId = GameId { unGameId :: Int } deriving (Eq, Generic)
@@ -59,3 +65,7 @@ isPlayerRequestOthers :: GameNetMessage -> Bool
 isPlayerRequestOthers m = case m of 
   PlayerRequestOthers -> True 
   _ -> False
+
+-- | Construct HashMap from sequence
+mapFromSeq :: (Hashable i, Eq i) => S.Seq (i, a) -> H.HashMap i a 
+mapFromSeq = F.foldl' (\acc (i, a) -> H.insert i a acc) H.empty
