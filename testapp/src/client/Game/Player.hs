@@ -21,8 +21,8 @@ import Graphics.Square
 
 playerActor :: PlayerId -> Peer -> AppActor PlayerId Camera Player 
 playerActor i peer = makeFixedActor i $ stateWire initialPlayer $ proc (c, p) -> do 
-  p2 <- peerProcessIndexed peer (ChannelID 0) i netProcess -< p
   peerSendIndexed peer (ChannelID 0) i ReliableMessage . now -< NetMsgPlayerRequest
+  p2 <- peerProcessIndexed peer (ChannelID 0) i netProcess -< p
   processFire -< (c, p2)
   liftGameMonad4 renderSquare -< (playerSize p2, playerPos p2, playerColor p2, c)
   forceNF . controlPlayer i -< p2

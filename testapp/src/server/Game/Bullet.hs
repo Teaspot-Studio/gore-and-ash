@@ -7,12 +7,14 @@ module Game.Bullet(
 import Control.Wire 
 import Prelude hiding (id, (.))
 import qualified Data.Sequence as S 
+import qualified Data.HashMap.Strict as H
 import Linear 
 
 import Game.Bullet.Data as ReExport
 import Game.Bullet.Shared 
 import Game.Core 
 import Game.Data 
+import Game.Player.Data
 import Game.Shared 
 
 import Game.GoreAndAsh
@@ -29,22 +31,38 @@ bulletActor initalBullet = makeActor $ \i -> stateWire (initalBullet i) $ mainCo
   where
 
   mainController :: BulletId -> AppWire (Game, Bullet) Bullet
-  mainController i = proc (_, b) -> do
+  mainController i = proc (g, b) -> do
     syncOnRequest -< b
     syncChanges -< b 
     syncPeriodic -< b
-    forceNF . processBullet -< b
+    forceNF . processBullet -< (b, g)
     where
 
     -- | Actual bullet logic
-    processBullet :: AppWire Bullet Bullet 
-    processBullet = proc b -> do 
+    processBullet :: AppWire (Bullet, Game) Bullet 
+    processBullet = proc (b, g) -> do 
       actorSend globalGameId . at bulletLifespan -< GameDeleteBullet i
+      playersShot -< (b, gamePlayers g)
       dt <- deltaTime -< ()
       let newPos = bulletPos b + V2 dt dt * bulletVel b 
       returnA -< b {
           bulletPos = newPos
         } 
+      where 
+      -- | Test all players was shot
+      playersShot :: AppWire (Bullet, PlayerMap) ()
+      playersShot = liftGameMonad2 $ \b ps -> mapM_ (playerShot b) . H.elems $! ps 
+
+      -- | Test single player was shot
+      playerShot :: Bullet -> Player -> GameMonadT AppMonad ()
+      playerShot b p = do 
+        let V2 px py = playerPos p 
+            V2 bx by = bulletPos b
+            cond = abs (px - bx) <= playerSize p && abs (py - by) <= playerSize p
+        if cond then do 
+            actorSendM globalGameId . GameDeleteBullet $! i
+            actorSendM (playerId p) . PlayerShotMessage . bulletOwner $! b
+          else return ()
 
     -- | Sends full state of actor to given peer
     sendFullData :: Peer -> Bullet -> GameMonadT AppMonad ()

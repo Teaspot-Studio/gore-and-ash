@@ -6,6 +6,7 @@ module Game.Player(
   ) where
 
 import Control.Wire
+import Control.Wire.Unsafe.Event (event)
 import Data.Text (pack)
 import Linear
 import Prelude hiding (id, (.))
@@ -29,12 +30,22 @@ playerActor initialPlayer = makeActor $ \i -> stateWire (initialPlayer i) $ main
   mainController i = proc (g, p) -> do
     p2 <- peerProcessIndexedM peer (ChannelID 0) i netProcess -< p
     (_, p3) <- peerProcessIndexedM peer (ChannelID 0) globalGameId globalNetProcess -< (g, p2)
-    notifyAboutChanges i -< (g, p3)
-    updateClientsState i -< (g, p3)
-    forceNF -< p3
+    (p4, changed) <- playerShot -< p3
+    notifyAboutChanges i -< (g, p4, changed)
+    updateClientsState i -< (g, p4)
+    forceNF -< p4
     where
     -- | Shortcut for peer
     peer = playerPeer $ initialPlayer i
+
+    -- | Handle when player is shot
+    playerShot :: AppWire Player (Player, Bool) 
+    playerShot = proc p -> do 
+      emsg <- actorMessages i isPlayerShotMessage -< ()
+      let newPlayer = p {
+          playerPos = 0
+        }
+      returnA -< event (p, False) (const (newPlayer, True)) emsg
 
     -- | Sends full state of player to given peer and actor id
     sendFullData :: Peer -> Player -> GameMonadT AppMonad ()
@@ -49,7 +60,16 @@ playerActor initialPlayer = makeActor $ \i -> stateWire (initialPlayer i) $ main
     -- | Process player specific net messages
     netProcess :: Player -> PlayerNetMessage -> GameMonadT AppMonad Player 
     netProcess p msg = case msg of 
-      NetMsgPlayerPos x y -> return $ p { playerPos = V2 x y }
+      NetMsgPlayerPos cx cy -> do
+        let v = V2 cx cy
+        if norm (v - playerPos p) > 1.05 * playerSpeed p 
+          then do 
+            let V2 sx sy = playerPos p
+            peerSendIndexedM (playerPeer p) (ChannelID 0) (playerId p) ReliableMessage 
+              $ NetMsgPlayerPos sx sy
+            return p 
+          else return $ p { playerPos = v }
+
       NetMsgPlayerRot r -> return $ p { playerRot = r }
       NetMsgPlayerColor r g b -> return $ p { playerColor = V3 r g b }
       NetMsgPlayerSpeed v -> return $ p { playerSpeed = v }
@@ -58,7 +78,7 @@ playerActor initialPlayer = makeActor $ \i -> stateWire (initialPlayer i) $ main
       NetMsgPlayerFire v -> do 
         let d = normalize v 
             v2 a = V2 a a
-            pos = playerPos p + d * v2 (playerSize p)
+            pos = playerPos p + d * v2 (playerSize p * 1.5)
             vel = d * v2 bulletSpeed
         putMsgLnM $ "Fire bullet at " <> pack (show pos) <> " with velocity " <> pack (show vel)
         actorSendM globalGameId $ GameSpawnBullet pos vel $ playerId p
@@ -103,15 +123,24 @@ playerActor initialPlayer = makeActor $ \i -> stateWire (initialPlayer i) $ main
       mapM_ (peerSendIndexedM peer (ChannelID 0) gameId ReliableMessage) msgs
 
     -- | When player properties changes, spam about them to other players
-    notifyAboutChanges :: PlayerId -> AppWire (Game, Player) ()
-    notifyAboutChanges pid = proc (Game{..}, p) -> do 
-      let ps = filter ((/= pid) . playerId) $ H.elems gamePlayers
-      
-      fieldChanges pid changes playerPos (\(V2 x y) -> NetMsgPlayerPos x y) -< (p, ps)
-      fieldChanges pid changes playerRot NetMsgPlayerRot -< (p, ps)
-      fieldChanges pid changes playerColor (\(V3 x y z) -> NetMsgPlayerColor x y z) -< (p, ps)
-      fieldChanges pid changes playerSpeed NetMsgPlayerSpeed -< (p, ps)
-      fieldChanges pid changes playerSize NetMsgPlayerSize -< (p, ps)
+    notifyAboutChanges :: PlayerId -> AppWire (Game, Player, Bool) ()
+    notifyAboutChanges pid = proc (Game{..}, p, isNotifySelf) -> do 
+      let ps = if isNotifySelf then H.elems gamePlayers
+               else filter ((/= pid) . playerId) $ H.elems gamePlayers
+
+      if isNotifySelf 
+        then do 
+          fieldChanges ReliableMessage pid changes playerPos (\(V2 x y) -> NetMsgPlayerPos x y) -< (p, ps)
+          fieldChanges ReliableMessage pid changes playerRot NetMsgPlayerRot -< (p, ps)
+          fieldChanges ReliableMessage pid changes playerColor (\(V3 x y z) -> NetMsgPlayerColor x y z) -< (p, ps)
+          fieldChanges ReliableMessage pid changes playerSpeed NetMsgPlayerSpeed -< (p, ps)
+          fieldChanges ReliableMessage pid changes playerSize NetMsgPlayerSize -< (p, ps)
+        else do 
+          fieldChanges UnreliableMessage pid changes playerPos (\(V2 x y) -> NetMsgPlayerPos x y) -< (p, ps)
+          fieldChanges UnreliableMessage pid changes playerRot NetMsgPlayerRot -< (p, ps)
+          fieldChanges UnreliableMessage pid changes playerColor (\(V3 x y z) -> NetMsgPlayerColor x y z) -< (p, ps)
+          fieldChanges UnreliableMessage pid changes playerSpeed NetMsgPlayerSpeed -< (p, ps)
+          fieldChanges UnreliableMessage pid changes playerSize NetMsgPlayerSize -< (p, ps)
 
       returnA -< ()
 
@@ -121,21 +150,21 @@ playerActor initialPlayer = makeActor $ \i -> stateWire (initialPlayer i) $ main
     updateClientsState pid = proc (Game{..}, p) -> do 
       let ps = H.elems gamePlayers
 
-      fieldChanges pid emake playerPos (\(V2 x y) -> NetMsgPlayerPos x y) -< (p, ps)
-      fieldChanges pid emake playerRot NetMsgPlayerRot -< (p, ps)
-      fieldChanges pid emake playerColor (\(V3 x y z) -> NetMsgPlayerColor x y z) -< (p, ps)
-      fieldChanges pid emake playerSpeed NetMsgPlayerSpeed -< (p, ps)
-      fieldChanges pid emake playerSize NetMsgPlayerSize -< (p, ps)
+      fieldChanges UnreliableMessage pid emake playerPos (\(V2 x y) -> NetMsgPlayerPos x y) -< (p, ps)
+      fieldChanges UnreliableMessage pid emake playerRot NetMsgPlayerRot -< (p, ps)
+      fieldChanges UnreliableMessage pid emake playerColor (\(V3 x y z) -> NetMsgPlayerColor x y z) -< (p, ps)
+      fieldChanges UnreliableMessage pid emake playerSpeed NetMsgPlayerSpeed -< (p, ps)
+      fieldChanges UnreliableMessage pid emake playerSize NetMsgPlayerSize -< (p, ps)
 
       returnA -< ()
       where
         emake = periodic 4 -- period of update
 
     -- | Helper that sends updates about specific player field to given set of players
-    fieldChanges :: Eq a => PlayerId -> (AppWire a (Event a)) -> (Player -> a) -> (a -> PlayerNetMessage) -> AppWire (Player, [Player]) ()
-    fieldChanges pid eventGen fieldGetter fieldMessage = proc (p, ps) -> do 
+    fieldChanges :: Eq a => MessageType -> PlayerId -> (AppWire a (Event a)) -> (Player -> a) -> (a -> PlayerNetMessage) -> AppWire (Player, [Player]) ()
+    fieldChanges mt pid eventGen fieldGetter fieldMessage = proc (p, ps) -> do 
       let field = fieldGetter p
       efield <- eventGen -< field
       let msgs = (\rp -> (playerPeer rp, pid, fieldMessage field)) <$> ps
-      peerSendIndexedManyDyn (ChannelID 0) UnreliableMessage -< const msgs <$> efield 
+      peerSendIndexedManyDyn (ChannelID 0) mt -< const msgs <$> efield 
       returnA -< ()

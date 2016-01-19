@@ -3,11 +3,13 @@ module Game.Player.Data(
   , PlayerId(..)
   , PlayerMessage(..)
   , PlayerNetMessage(..)
+  , isPlayerShotMessage
   ) where
 
 import Control.DeepSeq
 import Data.Hashable
 import Data.Typeable 
+import Data.Serialize
 import GHC.Generics (Generic)
 import Linear
 import Prelude hiding (id, (.))
@@ -33,8 +35,13 @@ instance NFData Player
 newtype PlayerId = PlayerId { unPlayerId :: Int } deriving (Eq, Show, Generic) 
 instance NFData PlayerId 
 instance Hashable PlayerId 
+instance Serialize PlayerId
 
-data PlayerMessage = PlayerMessageStub deriving (Typeable, Generic)
+data PlayerMessage =
+    -- | The player was shot by specified player
+    PlayerShotMessage !PlayerId 
+  deriving (Typeable, Generic)
+
 instance NFData PlayerMessage 
 
 instance ActorMessage PlayerId where
@@ -44,3 +51,9 @@ instance ActorMessage PlayerId where
   
 instance NetworkMessage PlayerId where 
   type NetworkMessageType PlayerId = PlayerNetMessage
+
+-- | Check specific type of message
+isPlayerShotMessage :: PlayerMessage -> Bool
+isPlayerShotMessage m = case m of 
+  PlayerShotMessage _ -> True
+--  _ -> False

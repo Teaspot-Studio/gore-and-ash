@@ -47,7 +47,7 @@ main = withModule (Proxy :: Proxy AppMonad) $ do
     firstLoop fps host port gs = do 
       (_, gs') <- stepGame gs $ do 
         networkSetDetailedLoggingM False
-        syncSetLoggingM True
+        syncSetLoggingM False
         syncSetRoleM SyncSlave
         networkBind Nothing 1 2 0 0
         addr <- liftIO $ getAddr host (fromIntegral port)
