@@ -214,8 +214,9 @@ onPeers w = switch $ proc _ -> do -- Trick to immediate switch to current set of
     -- | Local state loop to catch up peers
     rec curPeers' <- forceNF . delay initalPeers -< curPeers
         let addEvent = (\ps -> curPeers' S.>< ps) <$> conEvent
-        let remEvent = (F.foldl' (\ps p -> S.filter (/= p) ps) curPeers') <$> disEvent
-        let ew = fmap listenPeers $ addEvent `mergeR` remEvent 
+        let addedPeers = event curPeers' id addEvent -- To not loose added peers when some removed
+        let remEvent = (F.foldl' (\ps p -> S.filter (/= p) ps) addedPeers) <$> disEvent
+        let ew = fmap listenPeers $ addEvent `mergeR` remEvent
         (curPeers, b) <- rSwitch (listenPeers initalPeers) -< (a, ew)
     returnA -< b
     where
