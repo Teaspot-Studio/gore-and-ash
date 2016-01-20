@@ -108,8 +108,8 @@ fullSyncServer ms peer i s = case ms of
     peerSendRemoteActorMsg Dict peer (ChannelID 0) (RemActorId i) ReliableMessage . mkSyncMessage Dict w $! val
     return val
   SyncApp mf ma -> do 
-    a <- fullSyncServer ma peer i s
     f <- fullSyncServer mf peer i s 
+    a <- fullSyncServer ma peer i s
     return $ f a
 
 -- | Perform client side synchronization
@@ -120,14 +120,19 @@ clientSync :: (ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m)
   -> GameWire m s a -- ^ Synchronizing of client state
 clientSync ms peer i = case ms of 
   SyncPure a -> pure a
-  SyncClient _ _ sa -> arr sa
+  SyncClient Dict w sa -> proc s -> do 
+    let val = sa s 
+    liftGameMonad1 (
+      peerSendRemoteActorMsg Dict peer (ChannelID 0) (RemActorId i) ReliableMessage 
+      . mkSyncMessage Dict w) -< val
+    returnA -< sa s
   SyncServer Dict w sa -> proc s -> do 
     emsgs <- filterMsgs (isRemActorSyncValue w) . peerListenRemoteActor Dict peer (ChannelID 0) (RemActorId i) -< ()
     emsg <- filterJustE . mapE (fromSyncMessageLast Dict) -< emsgs
     returnA -< event (sa s) id emsg
   SyncApp mf ma -> proc s -> do 
-    a <- clientSync ma peer i -< s
     f <- clientSync mf peer i -< s
+    a <- clientSync ma peer i -< s
     returnA -< f a
 
 -- | Perform server side synchronization
@@ -145,8 +150,15 @@ serverSync ms i = case ms of
     listenPeer peer = proc _ -> do 
       emsgs <- filterMsgs (isRemActorSyncValue w) . peerListenRemoteActor Dict peer (ChannelID 0) (RemActorId i) -< ()
       filterJustE . mapE (fromSyncMessageLast Dict) -< emsgs
-  SyncServer _ _ sa -> arr sa
+  SyncServer Dict w sa -> onPeers $ \peers -> proc s -> do 
+    let val = sa s
+    sequenceA (syncPeer <$> peers) -< val 
+    returnA -< val
+    where
+    syncPeer peer = liftGameMonad1 $ do
+      peerSendRemoteActorMsg Dict peer (ChannelID 0) (RemActorId i) ReliableMessage 
+      . mkSyncMessage Dict w
   SyncApp mf ma -> proc s -> do 
-    a <- serverSync ma i -< s
     f <- serverSync mf i -< s
+    a <- serverSync ma i -< s
     returnA -< f a
