@@ -2,7 +2,7 @@ module Game.Bullet.Data(
     BulletId(..)
   , Bullet(..)
   , BulletMessage(..)
-  , BulletNetMessage(..)
+  , BulletNetMessage
   , bulletSpeed
   , bulletLifespan
   ) where

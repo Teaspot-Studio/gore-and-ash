@@ -34,14 +34,12 @@ bulletActor peer i = makeFixedActor i $ stateWire initalBullet mainController
 
   mainController :: AppWire (Game, Bullet) Bullet
   mainController = proc (g, b) -> do
-    peerSendIndexed peer (ChannelID 0) i ReliableMessage . now -< BulletRequestState
-    b2 <- peerProcessIndexed peer (ChannelID 0) i netProcess -< b
-    liftGameMonad3 renderBullet -< (bulletPos b2, bulletVel b2, gameCamera g)
-    forceNF -< b2
+    liftGameMonad3 renderBullet -< (bulletPos b, bulletVel b, gameCamera g)
+    forceNF . clientSync bulletSync peer i -< b
 
-  netProcess :: Bullet -> BulletNetMessage -> Bullet 
-  netProcess b m = case m of 
-    BulletNetPos v -> b { bulletPos = v }
-    BulletNetVel v -> b { bulletVel = v }
-    BulletNetOwner v -> b { bulletOwner = fromCounter v } 
-    _ -> b 
+  bulletSync :: FullSync AppMonad BulletId Bullet
+  bulletSync = Bullet 
+    <$> pure i 
+    <*> serverSide 0 bulletPos 
+    <*> serverSide 1 bulletVel 
+    <*> serverSide 2 bulletOwner

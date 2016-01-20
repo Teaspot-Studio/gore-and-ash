@@ -130,17 +130,17 @@ playerActor initialPlayer = makeActor $ \i -> stateWire (initialPlayer i) $ main
 
       if isNotifySelf 
         then do 
-          fieldChanges ReliableMessage pid changes playerPos (\(V2 x y) -> NetMsgPlayerPos x y) -< (p, ps)
-          fieldChanges ReliableMessage pid changes playerRot NetMsgPlayerRot -< (p, ps)
-          fieldChanges ReliableMessage pid changes playerColor (\(V3 x y z) -> NetMsgPlayerColor x y z) -< (p, ps)
-          fieldChanges ReliableMessage pid changes playerSpeed NetMsgPlayerSpeed -< (p, ps)
-          fieldChanges ReliableMessage pid changes playerSize NetMsgPlayerSize -< (p, ps)
+          onFieldChanges ReliableMessage pid changes playerPos (\(V2 x y) -> NetMsgPlayerPos x y) -< (p, ps)
+          onFieldChanges ReliableMessage pid changes playerRot NetMsgPlayerRot -< (p, ps)
+          onFieldChanges ReliableMessage pid changes playerColor (\(V3 x y z) -> NetMsgPlayerColor x y z) -< (p, ps)
+          onFieldChanges ReliableMessage pid changes playerSpeed NetMsgPlayerSpeed -< (p, ps)
+          onFieldChanges ReliableMessage pid changes playerSize NetMsgPlayerSize -< (p, ps)
         else do 
-          fieldChanges UnreliableMessage pid changes playerPos (\(V2 x y) -> NetMsgPlayerPos x y) -< (p, ps)
-          fieldChanges UnreliableMessage pid changes playerRot NetMsgPlayerRot -< (p, ps)
-          fieldChanges UnreliableMessage pid changes playerColor (\(V3 x y z) -> NetMsgPlayerColor x y z) -< (p, ps)
-          fieldChanges UnreliableMessage pid changes playerSpeed NetMsgPlayerSpeed -< (p, ps)
-          fieldChanges UnreliableMessage pid changes playerSize NetMsgPlayerSize -< (p, ps)
+          onFieldChanges UnreliableMessage pid changes playerPos (\(V2 x y) -> NetMsgPlayerPos x y) -< (p, ps)
+          onFieldChanges UnreliableMessage pid changes playerRot NetMsgPlayerRot -< (p, ps)
+          onFieldChanges UnreliableMessage pid changes playerColor (\(V3 x y z) -> NetMsgPlayerColor x y z) -< (p, ps)
+          onFieldChanges UnreliableMessage pid changes playerSpeed NetMsgPlayerSpeed -< (p, ps)
+          onFieldChanges UnreliableMessage pid changes playerSize NetMsgPlayerSize -< (p, ps)
 
       returnA -< ()
 
@@ -150,19 +150,19 @@ playerActor initialPlayer = makeActor $ \i -> stateWire (initialPlayer i) $ main
     updateClientsState pid = proc (Game{..}, p) -> do 
       let ps = H.elems gamePlayers
 
-      fieldChanges UnreliableMessage pid emake playerPos (\(V2 x y) -> NetMsgPlayerPos x y) -< (p, ps)
-      fieldChanges UnreliableMessage pid emake playerRot NetMsgPlayerRot -< (p, ps)
-      fieldChanges UnreliableMessage pid emake playerColor (\(V3 x y z) -> NetMsgPlayerColor x y z) -< (p, ps)
-      fieldChanges UnreliableMessage pid emake playerSpeed NetMsgPlayerSpeed -< (p, ps)
-      fieldChanges UnreliableMessage pid emake playerSize NetMsgPlayerSize -< (p, ps)
+      onFieldChanges UnreliableMessage pid emake playerPos (\(V2 x y) -> NetMsgPlayerPos x y) -< (p, ps)
+      onFieldChanges UnreliableMessage pid emake playerRot NetMsgPlayerRot -< (p, ps)
+      onFieldChanges UnreliableMessage pid emake playerColor (\(V3 x y z) -> NetMsgPlayerColor x y z) -< (p, ps)
+      onFieldChanges UnreliableMessage pid emake playerSpeed NetMsgPlayerSpeed -< (p, ps)
+      onFieldChanges UnreliableMessage pid emake playerSize NetMsgPlayerSize -< (p, ps)
 
       returnA -< ()
       where
         emake = periodic 4 -- period of update
 
     -- | Helper that sends updates about specific player field to given set of players
-    fieldChanges :: Eq a => MessageType -> PlayerId -> (AppWire a (Event a)) -> (Player -> a) -> (a -> PlayerNetMessage) -> AppWire (Player, [Player]) ()
-    fieldChanges mt pid eventGen fieldGetter fieldMessage = proc (p, ps) -> do 
+    onFieldChanges :: Eq a => MessageType -> PlayerId -> (AppWire a (Event a)) -> (Player -> a) -> (a -> PlayerNetMessage) -> AppWire (Player, [Player]) ()
+    onFieldChanges mt pid eventGen fieldGetter fieldMessage = proc (p, ps) -> do 
       let field = fieldGetter p
       efield <- eventGen -< field
       let msgs = (\rp -> (playerPeer rp, pid, fieldMessage field)) <$> ps

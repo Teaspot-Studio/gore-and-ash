@@ -7,6 +7,7 @@ module Game.Player.Data(
 
 import Control.DeepSeq
 import Data.Typeable
+import Data.Serialize
 import GHC.Generics (Generic)
 import Linear
 import Prelude hiding (id, (.))
@@ -31,6 +32,7 @@ instance NFData Player
 
 newtype PlayerId = PlayerId { unPlayerId :: Int } deriving (Eq, Show, Generic)
 instance NFData PlayerId 
+instance Serialize PlayerId 
 
 data PlayerMessage = PlayerMessageStub deriving (Typeable, Generic)
 instance NFData PlayerMessage 

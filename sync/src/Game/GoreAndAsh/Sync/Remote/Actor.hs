@@ -94,7 +94,7 @@ peerListenRemoteActor Dict = peerIndexedMessages
 
 -- | Sends all data to remote client
 serverFullSync :: (SyncMonad m, ActorMonad m, NetworkMonad m, LoggingMonad m) 
-  => Sync i m s a -- ^ Strategy of syncing
+  => Sync m i s a -- ^ Strategy of syncing
   -> Peer -- ^ Which client to send
   -> i -- ^ Id of actor
   -> GameWire m s a
@@ -113,7 +113,7 @@ serverFullSync ms peer i = case ms of
 
 -- | Sends all data to remote server
 clientFullSync :: (ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m) 
-  => Sync i m s a -- ^ Sync strategy
+  => Sync m i s a -- ^ Sync strategy
   -> Peer -- ^ Server connection
   -> i -- ^ Actor id
   -> GameWire m s a -- ^ Synchronizing of client state
@@ -132,7 +132,7 @@ clientFullSync ms peer i = case ms of
 
 -- | Perform partial client side synchronization
 clientPartialSync :: (ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m) 
-  => Sync i m s a -- ^ Sync strategy
+  => Sync m i s a -- ^ Sync strategy
   -> Peer -- ^ Server connection
   -> i -- ^ Actor id
   -> GameWire m s a -- ^ Synchronizing of client state
@@ -160,7 +160,7 @@ clientPartialSync ms peer i = case ms of
 
 -- | Perform partial server side synchronization
 serverPartialSync :: (MonadFix m, ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m) 
-  => Sync i m s a -- ^ Sync strategy
+  => Sync m i s a -- ^ Sync strategy
   -> i -- ^ Actor id
   -> GameWire m s a -- ^ Transformer of state
 serverPartialSync ms i = case ms of 
@@ -193,7 +193,7 @@ serverPartialSync ms i = case ms of
 
 -- | Perform client side synchronization
 clientSync :: (ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m, RemoteActor i a) 
-  => Sync i m s a -- ^ Sync strategy
+  => Sync m i s a -- ^ Sync strategy
   -> Peer -- ^ Server connection
   -> i -- ^ Actor id
   -> GameWire m s a -- ^ Synchronizing of client state
@@ -210,7 +210,7 @@ clientSync ms peer i = proc s -> do
 
 -- | Perform server side synchronization
 serverSync :: (MonadFix m, ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m, RemoteActor i a) 
-  => Sync i m s a -- ^ Sync strategy
+  => Sync m i s a -- ^ Sync strategy
   -> i -- ^ Actor id
   -> GameWire m s a -- ^ Synchronizing of server state
 serverSync ms i = proc s -> do 
