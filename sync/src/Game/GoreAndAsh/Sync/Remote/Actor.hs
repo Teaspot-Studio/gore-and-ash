@@ -186,6 +186,7 @@ clientSync :: (ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m, Remote
   -> i -- ^ Actor id
   -> GameWire m s a -- ^ Synchronizing of client state
 clientSync ms peer i = proc s -> do 
+  peerSendIndexed peer (ChannelID 0) (RemActorId i) ReliableMessage . now -< RemActorSyncRequest
   syncOnRequest -< s 
   clientPartialSync ms peer i -< s
   where 

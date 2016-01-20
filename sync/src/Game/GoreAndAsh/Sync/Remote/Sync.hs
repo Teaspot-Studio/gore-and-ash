@@ -28,6 +28,14 @@ decodish Dict = decode
 -- between client and server for type @a@. Remote collection 
 -- uses the description to generate special code to automatic
 -- synchronization of shared actor state.
+--
+-- - Parameter @i@ means actor unique id type
+-- 
+-- - Parameter @s@ means actor state that is beeing syncing. As soon as you crafted
+--   @Sync i s s@ it means you defined full description how to sync actor state.
+--
+-- - Parameter @a@ is actual value type that the @Sync@ value is describing synchronization for.
+--   As soon as you crafted @Sync i s s@ it means you defined full description how to sync actor state.
 data Sync i s a where
   SyncPure :: a -> Sync i s a -- ^ Statically known value
   SyncClient :: Dict (Serialize a, RemoteActor i a) -> !Word64 -> (s -> a) -> Sync i s a -- ^ The value is controlled by client and synched to server.
