@@ -6,10 +6,12 @@ module Game.GoreAndAsh.Sync.Remote.Sync(
   , RemoteActor(..)
   ) where
 
+import Control.Wire
 import Data.Serialize
 import Data.Word 
 import qualified Data.ByteString as BS 
 
+import Game.GoreAndAsh
 import Game.GoreAndAsh.Sync.Message 
 
 -- | Reify typeclass to dictionary
@@ -36,19 +38,20 @@ decodish Dict = decode
 --
 -- - Parameter @a@ is actual value type that the @Sync@ value is describing synchronization for.
 --   As soon as you crafted @Sync i s s@ it means you defined full description how to sync actor state.
-data Sync i s a where
-  SyncPure :: a -> Sync i s a -- ^ Statically known value
-  SyncClient :: Dict (Serialize a, RemoteActor i a) -> !Word64 -> (s -> a) -> Sync i s a -- ^ The value is controlled by client and synched to server.
+data Sync i m s a where
+  SyncPure :: a -> Sync i m s a -- ^ Statically known value
+  SyncClient :: Dict (Serialize a, RemoteActor i a) -> !Word64 -> (s -> a) -> Sync i m s a -- ^ The value is controlled by client and synched to server.
                                                                                          -- There should be only one client actor to proper semantic
-  SyncServer :: Dict (Serialize a, RemoteActor i a) -> !Word64 -> (s -> a) -> Sync i s a -- ^ The value is controlled by server and synched to clients.
-  SyncApp :: Sync i s (a -> b) -> Sync i s a -> Sync i s b -- ^ Applicative application of actions
+  SyncServer :: Dict (Serialize a, RemoteActor i a) -> !Word64 -> (s -> a) -> Sync i m s a -- ^ The value is controlled by server and synched to clients.
+  SyncCond :: GameWire m s (Event ()) -> (s -> a) -> Sync i m s a -> Sync i m s a -- ^ Conditional synchronization
+  SyncApp :: Sync i m s (a -> b) -> Sync i m s a -> Sync i m s b -- ^ Applicative application of actions
 
-instance Functor (Sync i s) where
+instance Functor (Sync i m s) where
   fmap f s = case s of 
     SyncPure a -> SyncPure (f a)
     _ -> SyncApp (SyncPure f) s
 
-instance Applicative (Sync i s) where
+instance Applicative (Sync i m s) where
   pure = SyncPure
   sf <*> s = SyncApp sf s
 
@@ -58,4 +61,4 @@ class NetworkMessage i => RemoteActor i a | i -> a, a -> i where
   type RemoteActorId a :: *
   
   -- | Description how to sync actor state
-  actorSync :: Sync i a a
+  actorSync :: Sync i m a a
