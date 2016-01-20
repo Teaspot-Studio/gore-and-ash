@@ -2,7 +2,6 @@ module Game.GoreAndAsh.Sync.Remote.Actor(
     RemoteActor(..)
   , RemActorId(..)
   , RemActorNetMessage(..)
-  , fullSyncServer
   , clientSync
   , serverSync
   ) where
@@ -94,31 +93,48 @@ peerListenRemoteActor :: (ActorMonad m, NetworkMonad m, LoggingMonad m, SyncMona
 peerListenRemoteActor Dict = peerIndexedMessages
 
 -- | Sends all data to remote client
-fullSyncServer :: (SyncMonad m, ActorMonad m, NetworkMonad m, LoggingMonad m) 
+serverFullSync :: (SyncMonad m, ActorMonad m, NetworkMonad m, LoggingMonad m) 
   => Sync i s a -- ^ Strategy of syncing
   -> Peer -- ^ Which client to send
   -> i -- ^ Id of actor
-  -> s -- ^ Value to sync
-  -> GameMonadT m a
-fullSyncServer ms peer i s = case ms of 
-  SyncPure a -> return a -- Client already knows the constant value
-  SyncClient _ _ sa -> return (sa s) -- The value is client side
-  SyncServer Dict w sa -> do
+  -> GameWire m s a
+serverFullSync ms peer i = case ms of 
+  SyncPure a -> pure a -- Client already knows the constant value
+  SyncClient _ _ sa -> arr sa -- The value is client side
+  SyncServer Dict w sa -> liftGameMonad1 $ \s -> do
     let val = sa s
     peerSendRemoteActorMsg Dict peer (ChannelID 0) (RemActorId i) ReliableMessage . mkSyncMessage Dict w $! val
     return val
-  SyncApp mf ma -> do 
-    f <- fullSyncServer mf peer i s 
-    a <- fullSyncServer ma peer i s
-    return $ f a
+  SyncApp mf ma -> proc s -> do 
+    f <- serverFullSync mf peer i -< s
+    a <- serverFullSync ma peer i -< s
+    returnA -< f a
 
--- | Perform client side synchronization
-clientSync :: (ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m) 
+-- | Sends all data to remote server
+clientFullSync :: (ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m) 
   => Sync i s a -- ^ Sync strategy
   -> Peer -- ^ Server connection
   -> i -- ^ Actor id
   -> GameWire m s a -- ^ Synchronizing of client state
-clientSync ms peer i = case ms of 
+clientFullSync ms peer i = case ms of 
+  SyncPure a -> pure a -- Client already knows the constant value
+  SyncClient Dict w sa -> liftGameMonad1 $ \s -> do
+    let val = sa s
+    peerSendRemoteActorMsg Dict peer (ChannelID 0) (RemActorId i) ReliableMessage . mkSyncMessage Dict w $! val
+    return val
+  SyncServer _ _ sa -> arr sa -- The value is server side
+  SyncApp mf ma -> proc s -> do 
+    f <- clientFullSync mf peer i -< s
+    a <- clientFullSync ma peer i -< s
+    returnA -< f a
+
+-- | Perform partial client side synchronization
+clientPartialSync :: (ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m) 
+  => Sync i s a -- ^ Sync strategy
+  -> Peer -- ^ Server connection
+  -> i -- ^ Actor id
+  -> GameWire m s a -- ^ Synchronizing of client state
+clientPartialSync ms peer i = case ms of 
   SyncPure a -> pure a
   SyncClient Dict w sa -> proc s -> do 
     let val = sa s 
@@ -131,16 +147,16 @@ clientSync ms peer i = case ms of
     emsg <- filterJustE . mapE (fromSyncMessageLast Dict) -< emsgs
     returnA -< event (sa s) id emsg
   SyncApp mf ma -> proc s -> do 
-    f <- clientSync mf peer i -< s
-    a <- clientSync ma peer i -< s
+    f <- clientPartialSync mf peer i -< s
+    a <- clientPartialSync ma peer i -< s
     returnA -< f a
 
--- | Perform server side synchronization
-serverSync :: (MonadFix m, ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m) 
+-- | Perform partial server side synchronization
+serverPartialSync :: (MonadFix m, ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m) 
   => Sync i s a -- ^ Sync strategy
   -> i -- ^ Actor id
   -> GameWire m s a -- ^ Transformer of state
-serverSync ms i = case ms of 
+serverPartialSync ms i = case ms of 
   SyncPure a -> pure a
   SyncClient Dict w sa -> onPeers $ \peers -> proc s -> do 
     eas <- sequenceA (listenPeer <$> peers) -< s 
@@ -159,6 +175,39 @@ serverSync ms i = case ms of
       peerSendRemoteActorMsg Dict peer (ChannelID 0) (RemActorId i) ReliableMessage 
       . mkSyncMessage Dict w
   SyncApp mf ma -> proc s -> do 
-    f <- serverSync mf i -< s
-    a <- serverSync ma i -< s
+    f <- serverPartialSync mf i -< s
+    a <- serverPartialSync ma i -< s
     returnA -< f a
+
+-- | Perform client side synchronization
+clientSync :: (ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m, RemoteActor i a) 
+  => Sync i s a -- ^ Sync strategy
+  -> Peer -- ^ Server connection
+  -> i -- ^ Actor id
+  -> GameWire m s a -- ^ Synchronizing of client state
+clientSync ms peer i = proc s -> do 
+  syncOnRequest -< s 
+  clientPartialSync ms peer i -< s
+  where 
+    syncOnRequest = proc s -> do 
+      emsgs <- filterMsgs isRemActorSyncRequest . peerIndexedMessages peer (ChannelID 0) (RemActorId i) -< ()
+      case emsgs of 
+        NoEvent -> returnA -< ()
+        Event _ -> pure () . clientFullSync  ms peer i -< s
+
+-- | Perform server side synchronization
+serverSync :: (MonadFix m, ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m, RemoteActor i a) 
+  => Sync i s a -- ^ Sync strategy
+  -> i -- ^ Actor id
+  -> GameWire m s a -- ^ Synchronizing of server state
+serverSync ms i = proc s -> do 
+  syncOnRequest -< s 
+  serverPartialSync ms i -< s
+  where 
+    syncOnRequest = onPeers $ \peers -> sequenceA $ syncOnRequestPeer <$> peers
+
+    syncOnRequestPeer peer = proc s -> do 
+      emsgs <- filterMsgs isRemActorSyncRequest . peerIndexedMessages peer (ChannelID 0) (RemActorId i) -< ()
+      case emsgs of 
+        NoEvent -> returnA -< ()
+        Event _ -> pure () . serverFullSync  ms peer i -< s
