@@ -4,3 +4,4 @@ module Game.GoreAndAsh.Sync.Remote(
 
 import Game.GoreAndAsh.Sync.Remote.Actor as X 
 import Game.GoreAndAsh.Sync.Remote.Collection as X
+import Game.GoreAndAsh.Sync.Remote.Sync as X
