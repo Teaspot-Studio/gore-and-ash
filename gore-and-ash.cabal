@@ -1,13 +1,13 @@
 name:                gore-and-ash
-version:             0.1.0.0
-synopsis:            Simple project template from stack
+version:             1.0.0.0
+synopsis:            Core of FRP game engine called Gore&Ash
 description:         Please see README.md
-homepage:            http://github.com/githubuser/gore-and-ash#readme
+homepage:            https://github.com/Teaspot-Studio/gore-and-ash
 license:             BSD3
 license-file:        LICENSE
-author:              Anton Gushcha
+author:              Anton Gushcha, Levon Oganyan
 maintainer:          ncrashed@gmail.com
-copyright:           2015 Anton Gushcha
+copyright:           2015-2016 Anton Gushcha
 category:            Game
 build-type:          Simple
 cabal-version:       >=1.10
@@ -49,3 +49,7 @@ library
                        TypeFamilies
                        TypeOperators
                        UndecidableInstances
+
+source-repository head
+  type:     git
+  location: https://github.com/Teaspot-Studio/gore-and-ash.git
