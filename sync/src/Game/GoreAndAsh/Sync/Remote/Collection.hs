@@ -11,6 +11,7 @@ import Control.Wire
 import Control.Wire.Unsafe.Event
 import Data.Filterable
 import Data.Hashable 
+import Data.Proxy 
 import Data.Serialize
 import GHC.Generics
 import Prelude hiding ((.), id)
@@ -91,10 +92,13 @@ onEvent def e f = case e of
 remoteActorCollectionServer :: forall m a b c c2 i . (MonadFix m, SyncMonad m, LoggingMonad m, ActorMonad m, NetworkMonad m, Eq i, RemoteActor i b, DynCollection c, FilterConstraint c (GameWireIndexed m i a b), FilterConstraint c (Either () (b, i)), F.Foldable c2, Functor c2) 
   => c (GameActor m i a b) -- ^ Initial set of actors
   -> GameActor m RemActorCollId (a, Event (c (GameActor m i a b)), Event (c2 i)) (c b)
-remoteActorCollectionServer initialActors = makeActor $ \cid -> proc (a, addEvent, remEvent) -> do 
-  (bs, is) <- dynCollection' cid -< (a, addEvent, remEvent)
-  respondRequestOthers cid -< is
-  returnA -< bs 
+remoteActorCollectionServer initialActors = do
+  registerRemoteActor (Proxy :: Proxy i)
+  makeActor $ \cid -> proc (a, addEvent, remEvent) -> do 
+    liftGameMonadOnce (registerActorTypeRepM (Proxy :: Proxy i)) -< ()
+    (bs, is) <- dynCollection' cid -< (a, addEvent, remEvent)
+    respondRequestOthers cid -< is
+    returnA -< bs 
   where 
   -- | If any client asks for other actors, send ids
   respondRequestOthers :: RemActorCollId -> GameWire m (c i) ()
@@ -164,9 +168,11 @@ remoteActorCollectionClient :: forall m i a b . (SyncMonad m, LoggingMonad m, Ac
   -> Peer -- ^ Server peer
   -> (i -> GameActor m i a b) -- ^ How to construct client side actors
   -> GameActor m RemActorCollId a (S.Seq b)
-remoteActorCollectionClient cid peer mkActor = makeFixedActor cid $ proc a -> do
-  peerSendIndexed peer (ChannelID 0) cid ReliableMessage . now -< RemActorCollRequestOthers
-  emsgs <- peerIndexedMessages peer (ChannelID 0) cid -< ()
-  addEvent <- mapE (fmap $ \(RemActorCollNetSpawn i) -> fromCounter i) . filterMsgs isRemActorCollNetSpawn -< emsgs
-  remEvent <- mapE (fmap $ \(RemActorCollNetDespawn i) -> fromCounter i) . filterMsgs isRemActorCollNetDespawn -< emsgs
-  dynCollection emptyDynColl -< (a, fmap mkActor <$> addEvent, remEvent)
+remoteActorCollectionClient cid peer mkActor = do 
+  registerRemoteActor (Proxy :: Proxy i)
+  makeFixedActor cid $ proc a -> do
+    peerSendIndexed peer (ChannelID 0) cid ReliableMessage . now -< RemActorCollRequestOthers
+    emsgs <- peerIndexedMessages peer (ChannelID 0) cid -< ()
+    addEvent <- mapE (fmap $ \(RemActorCollNetSpawn i) -> fromCounter i) . filterMsgs isRemActorCollNetSpawn -< emsgs
+    remEvent <- mapE (fmap $ \(RemActorCollNetDespawn i) -> fromCounter i) . filterMsgs isRemActorCollNetDespawn -< emsgs
+    dynCollection emptyDynColl -< (a, fmap mkActor <$> addEvent, remEvent)

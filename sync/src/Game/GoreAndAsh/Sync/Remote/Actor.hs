@@ -4,11 +4,13 @@ module Game.GoreAndAsh.Sync.Remote.Actor(
   , RemActorNetMessage(..)
   , clientSync
   , serverSync
+  , registerRemoteActor
   ) where
 
 import Control.Monad.Fix 
 import Control.Wire
 import Control.Wire.Unsafe.Event (event, Event(..))
+import Data.Proxy 
 import Data.Serialize 
 import Data.Word
 import GHC.Generics
@@ -28,6 +30,12 @@ import Game.GoreAndAsh.Sync.API
 -- | Id of synchronization actor build over another actor
 newtype RemActorId i = RemActorId { unRemActorId :: i }
   deriving (Show, Eq, Ord, Generic)
+
+-- | Need to be called once for each remote actor (remote collections actually do this)
+registerRemoteActor :: forall proxy i a m . (ActorMonad m, ActorMessage i, RemoteActor i a) 
+  => proxy i -- ^ Proxy of type of base actor id
+  -> GameMonadT m () -- ^ Register basic id
+registerRemoteActor _ = registerActorTypeRepM (Proxy :: Proxy (RemActorId i))
 
 -- | Stub for local remote actor API
 data RemActorMessage i 
