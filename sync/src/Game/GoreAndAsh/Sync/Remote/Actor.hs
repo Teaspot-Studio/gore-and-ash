@@ -107,6 +107,7 @@ serverFullSync :: (SyncMonad m, ActorMonad m, NetworkMonad m, LoggingMonad m)
   -> GameWire m s a
 serverFullSync ms peer i = case ms of 
   SyncPure a -> pure a -- Client already knows the constant value
+  SyncNone sa -> arr sa
   SyncClient Dict _ w sa -> liftGameMonad1 $ \s -> do
     let val = sa s
     peerSendRemoteActorMsg Dict peer (ChannelID 0) (RemActorId i) ReliableMessage . mkSyncMessage Dict w $! val
@@ -130,6 +131,7 @@ clientFullSync :: (ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m)
   -> GameWire m s a -- ^ Synchronizing of client state
 clientFullSync ms peer i = case ms of 
   SyncPure a -> pure a -- Client already knows the constant value
+  SyncNone sa -> arr sa
   SyncClient Dict _ w sa -> liftGameMonad1 $ \s -> do
     let val = sa s
     peerSendRemoteActorMsg Dict peer (ChannelID 0) (RemActorId i) ReliableMessage . mkSyncMessage Dict w $! val
@@ -150,6 +152,7 @@ clientPartialSync :: (ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m)
   -> GameWire m s a -- ^ Synchronizing of client state
 clientPartialSync ms peer i = case ms of 
   SyncPure a -> pure a
+  SyncNone sa -> arr sa
   SyncClient Dict _ w sa -> proc s -> do
     emsgs <- filterMsgs (isRemActorSyncValue w) . peerListenRemoteActor Dict peer (ChannelID 0) (RemActorId i) -< ()
     emsg <- filterJustE . mapE (fromSyncMessageLast Dict) -< emsgs
@@ -194,6 +197,7 @@ serverPartialSync :: (MonadFix m, ActorMonad m, SyncMonad m, NetworkMonad m, Log
   -> GameWire m s a -- ^ Transformer of state
 serverPartialSync ms i = case ms of 
   SyncPure a -> pure a
+  SyncNone sa -> arr sa
   SyncClient Dict сpeer w sa -> onPeers $ \peers -> proc s -> do 
     ea <- listenPeer -< s
     let a = sa s 

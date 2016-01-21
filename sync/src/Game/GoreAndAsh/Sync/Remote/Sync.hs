@@ -3,6 +3,7 @@ module Game.GoreAndAsh.Sync.Remote.Sync(
     Sync(..)
   , FullSync
   , RemoteActor(..)
+  , noSync
   , clientSide
   , serverSide
   , condSync
@@ -55,6 +56,7 @@ decodish Dict = decode
 --   As soon as you crafted @Sync i s s@ it means you defined full description how to sync actor state.
 data Sync m i s a where
   SyncPure :: a -> Sync m i s a -- ^ Statically known value
+  SyncNone :: (s -> a) -> Sync m i s a -- ^ No synchronization, take local value
   SyncClient :: Dict (Eq a, Serialize a, RemoteActor i s) -> Peer -> !Word64 -> (s -> a) -> Sync m i s a -- ^ The value is controlled by client and synched to server.
   SyncServer :: Dict (Serialize a, RemoteActor i s) -> !Word64 -> (s -> a) -> Sync m i s a -- ^ The value is controlled by server and synched to clients.
   SyncCond :: GameWire m s (Event ()) -> (s -> a) -> Sync m i s a -> Sync m i s a -- ^ Conditional synchronization
@@ -77,6 +79,11 @@ type FullSync m i s = Sync m i s s
 class NetworkMessage i => RemoteActor i a | i -> a, a -> i where
   type RemoteActorState i :: *
   type RemoteActorId a :: *
+
+-- | Perphoms no synchronization, the sync primitive returns local value of field
+noSync :: (s -> a) -- ^ Getter of the field
+  -> Sync m i s a
+noSync = SyncNone 
 
 -- | Declares that state field is client side, i.e. it is produced in client actor
 -- and then sent to server. For peers that are not equal to specified (owner of the field)
