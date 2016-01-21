@@ -5,9 +5,11 @@ module Game.Bullet(
   ) where
 
 import Control.Wire 
+import Data.Serialize
+import Data.Word 
+import Linear 
 import Prelude hiding (id, (.))
 import qualified Data.HashMap.Strict as H
-import Linear 
 
 import Game.Bullet.Data as ReExport
 import Game.Core 
@@ -61,6 +63,10 @@ bulletActor initalBullet = makeActor $ \i -> stateWire (initalBullet i) $ mainCo
     bulletSync :: FullSync AppMonad BulletId Bullet
     bulletSync = Bullet 
       <$> pure i 
-      <*> serverSide 0 bulletPos 
-      <*> serverSide 1 bulletVel 
-      <*> serverSide 2 bulletOwner
+      <*> fsync 0 bulletPos 
+      <*> fsync 1 bulletVel 
+      <*> fsync 2 bulletOwner
+      where
+        fsync :: (Eq a, Serialize a) 
+          => Word64 -> (Bullet -> a) -> Sync AppMonad BulletId Bullet a
+        fsync fi f = condSync (fieldChanges f &> periodic 4 . arr f) f $ serverSide fi f 
