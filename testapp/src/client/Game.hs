@@ -27,76 +27,78 @@ import Game.Camera
 import Game.Core
 import Game.Data
 import Game.Player
-import Game.RemotePlayer
 import Game.Shared
 
+-- | Entry point of the game, controls global game stages
 mainWire :: AppWire a (Maybe Game)
 mainWire = waitConnection
   where
+    -- | Game stage before connection established
     waitConnection = dSwitch $ proc _ -> do 
       e <- mapE seqLeftHead . peersConnected -< ()
       traceEvent (const "Connected to server") -< e
       returnA -< (Nothing, waitPlayerId <$> e) 
 
+    -- | Helper to get left most element from sequence or die
     seqLeftHead s = case S.viewl s of 
       S.EmptyL -> error "seqLeftHead: empty sequence"
       (h S.:< _) -> h 
 
+    -- | After connection succeded, get important data to begin game
     waitPlayerId peer = switch $ proc _ -> do 
+      -- Send request for player id
       emsg <- now -< PlayerRequestId
       peerSendIndexed peer (ChannelID 0) globalGameId ReliableMessage -< emsg
       traceEvent (const "Waiting for player id") -< emsg
       
+      -- Waiting for respond with player id
       e <- mapE seqLeftHead . filterMsgs isPlayerResponseId . peerIndexedMessages peer (ChannelID 0) globalGameId -< () 
-      traceEvent (\(PlayerResponseId i _) -> "Got player id: " <> pack (show i)) -< e
+      traceEvent (\(PlayerResponseId i _ _) -> "Got player id: " <> pack (show i)) -< e
       
-      let nextWire = (\(PlayerResponseId i bulletsColId) -> untilDisconnected peer (PlayerId i) (fromCounter bulletsColId)) <$> e
+      -- When recieved switch to next stage
+      let nextWire = (\(PlayerResponseId i bulletsColId playersColId) -> untilDisconnected peer (PlayerId i) (fromCounter bulletsColId) (fromCounter playersColId)) <$> e
       returnA -< (Nothing, nextWire)
 
-    untilDisconnected peer pid bulletsColId = switch $ proc _ -> do 
+    -- | Main game stage, actual playing
+    untilDisconnected peer pid bulletsColId playersColId = switch $ proc _ -> do 
       e <- peerDisconnected peer -< ()
       traceEvent (const "Disconnected from server") -< e
-      g <- runActor' (playGame pid peer bulletsColId) -< ()
+      g <- runActor' (playGame pid peer bulletsColId playersColId) -< ()
       returnA -< (g, const disconnected <$> e)
 
+    -- | Final stage, we are disconnected
     disconnected = pure Nothing
 
-playGame :: PlayerId -> Peer -> RemActorCollId -> AppActor GameId a (Maybe Game)
-playGame pid peer bulletsColId = do
-  peerSendIndexedM peer (ChannelID 0) globalGameId ReliableMessage PlayerRequestOthers
-  makeFixedActor globalGameId $ stateWire Nothing $ proc (_, mg_) -> do 
-    mg <- peerProcessIndexed peer (ChannelID 0) globalGameId netProcess -< mg_
-    c <- runActor' $ cameraWire initialCamera -< ()
-    p <- runActor' $ playerActor pid peer -< c
-    ex <- exitCheck -< ()
-    (rps, bs) <- case mg of 
-      Nothing -> returnA -< ([], H.empty)
-      Just g -> do 
-        rps <- processRemotePlayers -< g
-        bs <- processBullets bulletsColId -< g
-        returnA -< (rps, bs)
+-- | Controller of main game stage when actual playing is happen
+playGame :: PlayerId -> Peer -> RemActorCollId -> RemActorCollId -> AppActor GameId a (Maybe Game)
+playGame pid peer bulletsColId playersColId = makeFixedActor globalGameId $ stateWire Nothing $ proc (_, mg) -> do 
+  c <- runActor' $ cameraWire initialCamera -< ()
+  ex <- exitCheck -< ()
+  (ps, bs) <- case mg of 
+    Nothing -> returnA -< (H.empty, H.empty)
+    Just g -> do 
+      ps <- processPlayers playersColId -< g
+      bs <- processBullets bulletsColId -< g
+      returnA -< (ps, bs)
 
-    forceNF -< Just $! case mg of 
-      Nothing -> Game {
-          gameId = globalGameId
-        , gamePlayer = p
-        , gameCamera = c
-        , gameRemotePlayers = rps
-        , gameAddPlayers = []
-        , gameRemovePlayers = []
-        , gameBullets = bs
-        , gameExit = ex
-        }
-      Just g -> g {
-          gamePlayer = p
-        , gameCamera = c
-        , gameRemotePlayers = rps
-        , gameAddPlayers = []
-        , gameRemovePlayers = []
-        , gameBullets = bs
-        , gameExit = ex
-        }
+  forceNF -< Just $! case mg of 
+    Nothing -> Game {
+        gameId = globalGameId
+      , gamePlayer = H.lookup pid ps
+      , gameCamera = c
+      , gamePlayers = ps
+      , gameBullets = bs
+      , gameExit = ex
+      }
+    Just g -> g {
+        gamePlayer = H.lookup pid ps
+      , gameCamera = c
+      , gamePlayers = ps
+      , gameBullets = bs
+      , gameExit = ex
+      }
   where
+  -- | Check if user or system wants us to die
   exitCheck = proc _ -> do 
     e <- windowClosed mainWindowName -< ()
     q <- liftGameMonad sdlQuitEventM -< ()
@@ -105,20 +107,15 @@ playGame pid peer bulletsColId = do
   -- | Maker of startup camera
   initialCamera i = Camera i 0 0.1
 
-  netProcess Nothing _ = Nothing
-  netProcess (Just g) msg = Just $ case msg of 
-    PlayerSpawn i -> g { gameAddPlayers = fromCounter i : gameAddPlayers g} 
-    PlayerDespawn i -> g { gameRemovePlayers = fromCounter i : gameRemovePlayers g} 
-    _ -> g 
-
   -- | Handles spawing/despawing of other players
-  processRemotePlayers :: AppWire Game [RemotePlayer]
-  processRemotePlayers = proc g -> do
-    adde <- became (not . null) -< gameAddPlayers g
-    reme <- became (not . null) -< gameRemovePlayers g
-    traceEvent (\ids -> "New remote players: " <> pack (show ids)) -< adde
-    traceEvent (\ids -> "Removed remote players: " <> pack (show ids)) -< reme
-    dDynCollection [] -< (gameCamera g, fmap (remotePlayerActor peer) <$> adde, reme)
+  processPlayers :: RemActorCollId -> AppWire Game PlayerMap
+  processPlayers cid = proc g -> do
+    ps <- runActor' $ remoteActorCollectionClient cid peer makePlayerActor -< gameCamera g
+    returnA -< mapFromSeq $ fmap playerId ps `S.zip` ps
+    where
+      makePlayerActor i = if i == pid 
+        then playerActor peer pid
+        else remotePlayerActor peer i
 
   -- | Handles spawing/despawing of bullets
   processBullets :: RemActorCollId -> AppWire Game BulletMap

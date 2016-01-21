@@ -16,7 +16,6 @@ import Data.Word
 import GHC.Generics
 import Prelude hiding ((.), id)
 import qualified Data.ByteString as BS 
-import qualified Data.Foldable as F 
 import qualified Data.Sequence as S
 
 import Game.GoreAndAsh
@@ -108,7 +107,10 @@ serverFullSync :: (SyncMonad m, ActorMonad m, NetworkMonad m, LoggingMonad m)
   -> GameWire m s a
 serverFullSync ms peer i = case ms of 
   SyncPure a -> pure a -- Client already knows the constant value
-  SyncClient _ _ sa -> arr sa -- The value is client side
+  SyncClient Dict _ w sa -> liftGameMonad1 $ \s -> do
+    let val = sa s
+    peerSendRemoteActorMsg Dict peer (ChannelID 0) (RemActorId i) ReliableMessage . mkSyncMessage Dict w $! val
+    return val
   SyncServer Dict w sa -> liftGameMonad1 $ \s -> do
     let val = sa s
     peerSendRemoteActorMsg Dict peer (ChannelID 0) (RemActorId i) ReliableMessage . mkSyncMessage Dict w $! val
@@ -128,7 +130,7 @@ clientFullSync :: (ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m)
   -> GameWire m s a -- ^ Synchronizing of client state
 clientFullSync ms peer i = case ms of 
   SyncPure a -> pure a -- Client already knows the constant value
-  SyncClient Dict w sa -> liftGameMonad1 $ \s -> do
+  SyncClient Dict _ w sa -> liftGameMonad1 $ \s -> do
     let val = sa s
     peerSendRemoteActorMsg Dict peer (ChannelID 0) (RemActorId i) ReliableMessage . mkSyncMessage Dict w $! val
     return val
@@ -148,12 +150,17 @@ clientPartialSync :: (ActorMonad m, SyncMonad m, NetworkMonad m, LoggingMonad m)
   -> GameWire m s a -- ^ Synchronizing of client state
 clientPartialSync ms peer i = case ms of 
   SyncPure a -> pure a
-  SyncClient Dict w sa -> proc s -> do 
-    let val = sa s 
-    liftGameMonad1 (
-      peerSendRemoteActorMsg Dict peer (ChannelID 0) (RemActorId i) ReliableMessage 
-      . mkSyncMessage Dict w) -< val
-    returnA -< sa s
+  SyncClient Dict _ w sa -> proc s -> do
+    emsgs <- filterMsgs (isRemActorSyncValue w) . peerListenRemoteActor Dict peer (ChannelID 0) (RemActorId i) -< ()
+    emsg <- filterJustE . mapE (fromSyncMessageLast Dict) -< emsgs
+    case emsg of 
+      NoEvent -> do 
+        let val = event (sa s) id emsg
+        liftGameMonad1 (
+          peerSendRemoteActorMsg Dict peer (ChannelID 0) (RemActorId i) ReliableMessage 
+          . mkSyncMessage Dict w) -< val
+        returnA -< val
+      Event val -> returnA -< val
   SyncServer Dict w sa -> proc s -> do 
     emsgs <- filterMsgs (isRemActorSyncValue w) . peerListenRemoteActor Dict peer (ChannelID 0) (RemActorId i) -< ()
     emsg <- filterJustE . mapE (fromSyncMessageLast Dict) -< emsgs
@@ -187,14 +194,31 @@ serverPartialSync :: (MonadFix m, ActorMonad m, SyncMonad m, NetworkMonad m, Log
   -> GameWire m s a -- ^ Transformer of state
 serverPartialSync ms i = case ms of 
   SyncPure a -> pure a
-  SyncClient Dict w sa -> onPeers $ \peers -> proc s -> do 
-    eas <- sequenceA (listenPeer <$> peers) -< s 
-    let ea = F.foldl' mergeR NoEvent eas
-    returnA -< event (sa s) id ea
+  SyncClient Dict сpeer w sa -> onPeers $ \peers -> proc s -> do 
+    ea <- listenPeer -< s
+    let a = sa s 
+        a' = event (sa s) id ea
+    sequenceA (liftGameMonad1 . syncPeer <$> S.filter (/= сpeer) peers) -< a'
+    serverChanged -< (a, a')
+    returnA -< a'
     where
-    listenPeer peer = proc _ -> do 
-      emsgs <- filterMsgs (isRemActorSyncValue w) . peerListenRemoteActor Dict peer (ChannelID 0) (RemActorId i) -< ()
+    -- Listen field owner about updates
+    listenPeer = proc _ -> do 
+      emsgs <- filterMsgs (isRemActorSyncValue w) . peerListenRemoteActor Dict сpeer (ChannelID 0) (RemActorId i) -< ()
       filterJustE . mapE (fromSyncMessageLast Dict) -< emsgs
+    -- Sync given peer field state
+    syncPeer peer = do
+      peerSendRemoteActorMsg Dict peer (ChannelID 0) (RemActorId i) ReliableMessage 
+      . mkSyncMessage Dict w
+    -- Detect when server changes the value and resync owner
+    serverChanged = mkSFN $ \(_, a') -> ((), go a')
+      where 
+      go v = mkGen $ \_ (a, a') -> if v == a 
+        then return (Right (), go a')
+        else do 
+          syncPeer сpeer a
+          return (Right (), go a')
+
   SyncServer Dict w sa -> onPeers $ \peers -> proc s -> do 
     let val = sa s
     sequenceA (syncPeer <$> peers) -< val 

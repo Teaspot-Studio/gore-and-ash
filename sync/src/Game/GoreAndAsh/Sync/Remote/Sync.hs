@@ -24,6 +24,7 @@ import qualified Data.ByteString as BS
 import Prelude hiding (id, (.))
 
 import Game.GoreAndAsh
+import Game.GoreAndAsh.Network
 import Game.GoreAndAsh.Sync.Message 
 
 -- | Reify typeclass to dictionary
@@ -54,8 +55,7 @@ decodish Dict = decode
 --   As soon as you crafted @Sync i s s@ it means you defined full description how to sync actor state.
 data Sync m i s a where
   SyncPure :: a -> Sync m i s a -- ^ Statically known value
-  SyncClient :: Dict (Serialize a, RemoteActor i s) -> !Word64 -> (s -> a) -> Sync m i s a -- ^ The value is controlled by client and synched to server.
-                                                                                           -- There should be only one client actor to proper semantic
+  SyncClient :: Dict (Eq a, Serialize a, RemoteActor i s) -> Peer -> !Word64 -> (s -> a) -> Sync m i s a -- ^ The value is controlled by client and synched to server.
   SyncServer :: Dict (Serialize a, RemoteActor i s) -> !Word64 -> (s -> a) -> Sync m i s a -- ^ The value is controlled by server and synched to clients.
   SyncCond :: GameWire m s (Event ()) -> (s -> a) -> Sync m i s a -> Sync m i s a -- ^ Conditional synchronization
   SyncReject :: Dict (Serialize a, RemoteActor i s) -> GameWire m (s, a) (Event a) -> !Word64 -> Sync m i s a -> Sync m i s a -- ^ Validate synchronized value, rollback if failed
@@ -79,13 +79,14 @@ class NetworkMessage i => RemoteActor i a | i -> a, a -> i where
   type RemoteActorId a :: *
 
 -- | Declares that state field is client side, i.e. it is produced in client actor
--- and then sent to server. The correct operation of the behavior applied on server
--- actor assumes that there is no other clients that syncs the specified.
-clientSide :: (Serialize a, RemoteActor i s)
-  => Word64 -- ^ Field id, other side actor should define @clientSide@ with matching id
+-- and then sent to server. For peers that are not equal to specified (owner of the field)
+-- the sync behavior acts as @serverSide@.
+clientSide :: (Eq a, Serialize a, RemoteActor i s)
+  => Peer -- ^ Which peer controls the field, sync messages from other peers are not processed
+  -> Word64 -- ^ Field id, other side actor should define @clientSide@ with matching id
   -> (s -> a) -- ^ Field getter
   -> Sync m i s a
-clientSide !w getter = SyncClient Dict w getter
+clientSide peer !w getter = SyncClient Dict peer w getter
 
 -- | Declares that state field is server side, i.e. it is produced in server actor
 -- and then sent to all clients.

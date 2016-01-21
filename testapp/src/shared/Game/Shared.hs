@@ -2,11 +2,8 @@ module Game.Shared(
     GameId(..)
   , GameNetMessage(..)
   , globalGameId
-  , isPlayerSpawn
-  , isPlayerDespawn
   , isPlayerRequestId
   , isPlayerResponseId
-  , isPlayerRequestOthers
   -- | Helpers
   , mapFromSeq
   ) where
@@ -29,27 +26,13 @@ globalGameId :: GameId
 globalGameId = GameId 0 
 
 -- | Generic messages that are not binded to specific actor
-data GameNetMessage = 
-    PlayerSpawn !Int
-  | PlayerDespawn !Int 
-  | PlayerRequestId
-  | PlayerResponseId !Int !Int -- ^ Id of player and bullet collection
-  | PlayerRequestOthers
-  | PlayerRequestData !Int -- Id of player we want info about
+data GameNetMessage =
+    PlayerRequestId
+  | PlayerResponseId !Int !Int !Int -- ^ Id of player and bullets, players collections
   deriving (Generic, Show)
 
 instance NFData GameNetMessage
 instance Serialize GameNetMessage
-
-isPlayerSpawn :: GameNetMessage -> Bool
-isPlayerSpawn m = case m of 
-  PlayerSpawn _ -> True 
-  _ -> False
-
-isPlayerDespawn :: GameNetMessage -> Bool
-isPlayerDespawn m = case m of 
-  PlayerDespawn _ -> True 
-  _ -> False
 
 isPlayerRequestId :: GameNetMessage -> Bool 
 isPlayerRequestId m = case m of 
@@ -58,12 +41,7 @@ isPlayerRequestId m = case m of
 
 isPlayerResponseId :: GameNetMessage -> Bool 
 isPlayerResponseId m = case m of 
-  PlayerResponseId _ _ -> True 
-  _ -> False
-
-isPlayerRequestOthers :: GameNetMessage -> Bool 
-isPlayerRequestOthers m = case m of 
-  PlayerRequestOthers -> True 
+  PlayerResponseId _ _ _ -> True 
   _ -> False
 
 -- | Construct HashMap from sequence

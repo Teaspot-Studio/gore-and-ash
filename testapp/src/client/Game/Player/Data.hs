@@ -6,14 +6,14 @@ module Game.Player.Data(
   ) where
 
 import Control.DeepSeq
-import Data.Typeable
+import Data.Hashable
 import Data.Serialize
+import Data.Typeable
 import GHC.Generics (Generic)
 import Linear
 import Prelude hiding (id, (.))
 
 import Game.GoreAndAsh.Actor
-import Game.GoreAndAsh.Network
 import Game.GoreAndAsh.Sync
 
 import Game.Player.Shared
@@ -25,7 +25,6 @@ data Player = Player {
 , playerRot :: !Double
 , playerSpeed :: !Double
 , playerSize :: !Double
-, playerPeer :: !Peer 
 } deriving (Generic, Show)
 
 instance NFData Player 
@@ -33,6 +32,7 @@ instance NFData Player
 newtype PlayerId = PlayerId { unPlayerId :: Int } deriving (Eq, Show, Generic)
 instance NFData PlayerId 
 instance Serialize PlayerId 
+instance Hashable PlayerId 
 
 data PlayerMessage = PlayerMessageStub deriving (Typeable, Generic)
 instance NFData PlayerMessage 
@@ -44,3 +44,7 @@ instance ActorMessage PlayerId where
 
 instance NetworkMessage PlayerId where 
   type NetworkMessageType PlayerId = PlayerNetMessage
+
+instance RemoteActor PlayerId Player where
+  type RemoteActorState PlayerId = Player
+  type RemoteActorId Player = PlayerId

@@ -52,6 +52,10 @@ instance ActorMessage PlayerId where
 instance NetworkMessage PlayerId where 
   type NetworkMessageType PlayerId = PlayerNetMessage
 
+instance RemoteActor PlayerId Player where
+  type RemoteActorState PlayerId = Player
+  type RemoteActorId Player = PlayerId
+  
 -- | Check specific type of message
 isPlayerShotMessage :: PlayerMessage -> Bool
 isPlayerShotMessage m = case m of 

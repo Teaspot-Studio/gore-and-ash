@@ -28,6 +28,7 @@ type PlayerMap = H.HashMap PlayerId Player
 type PlayerPeerMap = H.HashMap Peer PlayerId 
 type BulletsMap = H.HashMap BulletId Bullet 
 
+-- | Server local messages to game actor
 data GameMessage = 
     -- | Spawn bullet at given pos with given velocity and owner
     GameSpawnBullet !(V2 Double) !(V2 Double) !PlayerId 
@@ -49,6 +50,7 @@ data Game = Game {
 , gamePlayerPeers :: !PlayerPeerMap
 , gameBullets :: !BulletsMap
 , gameBulletColId :: !RemActorCollId 
+, gamePlayerColId :: !RemActorCollId
 } deriving (Generic)
 
 instance NFData Game 

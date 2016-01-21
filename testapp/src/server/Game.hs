@@ -9,7 +9,6 @@ import Data.Maybe
 import Data.Text (pack)
 import Linear
 import Prelude hiding (id, (.))
-import qualified Data.Foldable as F 
 import qualified Data.HashMap.Strict as H 
 import qualified Data.Sequence as S 
 
@@ -47,6 +46,7 @@ mainWire = makeFixedActor globalGameId $ stateWire initGame $ proc (_, g) -> do
       , gamePlayerPeers = H.empty
       , gameBullets = H.empty
       , gameBulletColId = fromCounter (-1)
+      , gamePlayerColId = fromCounter (-1)
       }
 
     -- | Handles process of players connection and disconnections
@@ -54,20 +54,19 @@ mainWire = makeFixedActor globalGameId $ stateWire initGame $ proc (_, g) -> do
     processPlayers = proc g -> do 
       conEvent <- peersConnected -< ()
       col <- playerColors -< conEvent
-      let addEvent = F.toList . fmap (spawnPlayer col) <$> conEvent
+      let addEvent = fmap (spawnPlayer col) <$> conEvent
 
       disEvent <- peersDisconnected -< ()
-      remEvent <- mapE F.toList . filterJustLE -< fmap (despawnPlayer g) <$> disEvent
+      remEvent <- filterJustLE -< fmap (despawnPlayer g) <$> disEvent
 
       traceEvent (const "New player connected") -< addEvent -- Player id is not ready yet :(
       traceEvent (\i -> "Player " <> (pack . show) i <> " disconnected") -< remEvent
 
-      notifyAboutDespawn -< (g, remEvent)
-
-      ps <- dynCollection [] -< (g, addEvent, remEvent)
+      (ps, i) <- runActor $ remoteActorCollectionServer S.empty -< (g, addEvent, remEvent)
       returnA -< g {
-          gamePlayers = H.fromList $ fmap playerId  ps `zip` ps
-        , gamePlayerPeers = H.fromList $ fmap playerPeer ps `zip` fmap playerId ps
+          gamePlayers = mapFromSeq $ fmap playerId  ps `S.zip` ps
+        , gamePlayerPeers = mapFromSeq $ fmap playerPeer ps `S.zip` fmap playerId ps
+        , gamePlayerColId = i
         }
 
     -- | Spawns new player from peer (creates new arrow)
@@ -85,22 +84,6 @@ mainWire = makeFixedActor globalGameId $ stateWire initGame $ proc (_, g) -> do
     -- | Detects player id by peer for despawning
     despawnPlayer :: Game -> Peer -> Maybe PlayerId
     despawnPlayer Game{..} p = H.lookup p gamePlayerPeers
-
-    -- | Notify another players about disconnected
-    notifyAboutDespawn :: AppWire (Game, Event [PlayerId]) ()
-    notifyAboutDespawn = proc (Game{..}, epids) -> do 
-      let ps = H.elems gamePlayers -- Players we should notify
-          msgs = (\pids -> concat $ mkMsgs pids <$> ps) <$> epids 
-      peerSendIndexedManyDyn (ChannelID 0) ReliableMessage -< msgs
-      returnA -< () 
-      where
-        -- | Make messages about players despawn for given player
-        mkMsgs :: [PlayerId] -> Player -> [(Peer, GameId, GameNetMessage)]
-        mkMsgs pids p = if playerId p `elem` pids 
-          then []
-          else mkMsg <$> pids
-          where
-          mkMsg pid = (playerPeer p, globalGameId, PlayerDespawn $ toCounter pid)
 
     -- | Handle bullets actors
     processBullets :: AppWire Game Game 

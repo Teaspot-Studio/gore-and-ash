@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Game.Data(
     BulletMap
+  , PlayerMap
   , Game(..)
   ) where
 
@@ -12,20 +13,18 @@ import qualified Data.HashMap.Strict as H
 import Game.Bullet.Data
 import Game.Camera 
 import Game.Player.Data 
-import Game.RemotePlayer.Data
 
 import Game.GoreAndAsh.Actor 
 import Game.GoreAndAsh.Sync 
 
 type BulletMap = H.HashMap BulletId Bullet
+type PlayerMap = H.HashMap PlayerId Player 
 
 data Game = Game {
   gameId :: !GameId
-, gamePlayer :: !Player 
+, gamePlayer :: !(Maybe Player)
 , gameCamera :: !Camera
-, gameRemotePlayers :: ![RemotePlayer] 
-, gameAddPlayers :: ![PlayerId]
-, gameRemovePlayers :: ![PlayerId]
+, gamePlayers :: !PlayerMap
 , gameBullets :: !BulletMap
 , gameExit :: !Bool
 } deriving (Generic)
