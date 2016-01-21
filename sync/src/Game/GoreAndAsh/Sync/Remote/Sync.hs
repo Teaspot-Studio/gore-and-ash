@@ -6,6 +6,7 @@ module Game.GoreAndAsh.Sync.Remote.Sync(
   , clientSide
   , serverSide
   , condSync
+  , syncReject
   -- | Helpers for conditional synchronization
   , fieldChanges
   , fieldChangesWithin
@@ -54,9 +55,10 @@ decodish Dict = decode
 data Sync m i s a where
   SyncPure :: a -> Sync m i s a -- ^ Statically known value
   SyncClient :: Dict (Serialize a, RemoteActor i s) -> !Word64 -> (s -> a) -> Sync m i s a -- ^ The value is controlled by client and synched to server.
-                                                                                         -- There should be only one client actor to proper semantic
+                                                                                           -- There should be only one client actor to proper semantic
   SyncServer :: Dict (Serialize a, RemoteActor i s) -> !Word64 -> (s -> a) -> Sync m i s a -- ^ The value is controlled by server and synched to clients.
   SyncCond :: GameWire m s (Event ()) -> (s -> a) -> Sync m i s a -> Sync m i s a -- ^ Conditional synchronization
+  SyncReject :: Dict (Serialize a, RemoteActor i s) -> GameWire m (s, a) (Event a) -> !Word64 -> Sync m i s a -> Sync m i s a -- ^ Validate synchronized value, rollback if failed
   SyncApp :: Sync m i s (a -> b) -> Sync m i s a -> Sync m i s b -- ^ Applicative application of actions
 
 instance Functor (Sync m i s) where
@@ -118,3 +120,13 @@ fieldChangesWithin getter delta = mkSFN $ \s -> let a = getter s in a `seq` (Eve
     go a = mkSFN $ \s -> let a2 = getter s in if abs (a - a2) < delta
       then (NoEvent, go a)
       else a2 `seq` (Event a2, go a2)
+
+-- | There are sometimes net errors or malicios data change in remote actor,
+-- the action provides you ability to reject incorrect values and resync remote
+-- actor to fallback value.
+syncReject :: (Serialize a, RemoteActor i s)
+  => GameWire m (s, a) (Event a) -- ^ Fires event when the synced value is invalid, event carries new value that should be placed and sended to remote peer
+  -> Word64 -- ^ Id of field to resync at remote host when failed
+  -> Sync m i s a -- ^ Sub action that produces synced values for first argument
+  -> Sync m i s a
+syncReject w wid ms = SyncReject Dict w wid ms

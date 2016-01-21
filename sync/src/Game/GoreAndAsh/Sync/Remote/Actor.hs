@@ -114,6 +114,7 @@ serverFullSync ms peer i = case ms of
     peerSendRemoteActorMsg Dict peer (ChannelID 0) (RemActorId i) ReliableMessage . mkSyncMessage Dict w $! val
     return val
   SyncCond _ _ ma -> serverFullSync ma peer i
+  SyncReject _ _ _ ma -> serverFullSync ma peer i
   SyncApp mf ma -> proc s -> do 
     f <- serverFullSync mf peer i -< s
     a <- serverFullSync ma peer i -< s
@@ -133,6 +134,7 @@ clientFullSync ms peer i = case ms of
     return val
   SyncServer _ _ sa -> arr sa -- The value is server side
   SyncCond _ _ ma -> clientFullSync ma peer i
+  SyncReject _ _ _ ma -> clientFullSync ma peer i
   SyncApp mf ma -> proc s -> do 
     f <- clientFullSync mf peer i -< s
     a <- clientFullSync ma peer i -< s
@@ -161,6 +163,18 @@ clientPartialSync ms peer i = case ms of
     case e of 
       NoEvent -> returnA -< sa s
       Event _ -> clientPartialSync ma peer i -< s 
+  SyncReject Dict w wid ma -> proc s -> do 
+    a <- clientPartialSync ma peer i -< s 
+    e <- w -< (s, a)
+    case e of 
+      NoEvent -> returnA -< a 
+      Event a' -> do
+        syncPeer -< a'
+        returnA -< a'
+    where
+    syncPeer = liftGameMonad1 $ do
+      peerSendRemoteActorMsg Dict peer (ChannelID 0) (RemActorId i) ReliableMessage 
+      . mkSyncMessage Dict wid
   SyncApp mf ma -> proc s -> do 
     f <- clientPartialSync mf peer i -< s
     a <- clientPartialSync ma peer i -< s
@@ -194,6 +208,18 @@ serverPartialSync ms i = case ms of
     case e of 
       NoEvent -> returnA -< sa s
       Event _ -> serverPartialSync ma i -< s 
+  SyncReject Dict w wid ma -> proc s -> do 
+    a <- serverPartialSync ma i -< s 
+    e <- w -< (s, a)
+    case e of 
+      NoEvent -> returnA -< a 
+      Event a' -> do
+        onPeers (sequenceA . fmap syncPeer) -< a'
+        returnA -< a'
+    where
+    syncPeer peer = liftGameMonad1 $ do
+      peerSendRemoteActorMsg Dict peer (ChannelID 0) (RemActorId i) ReliableMessage 
+      . mkSyncMessage Dict wid
   SyncApp mf ma -> proc s -> do 
     f <- serverPartialSync mf i -< s
     a <- serverPartialSync ma i -< s
