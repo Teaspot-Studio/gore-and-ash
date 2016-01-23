@@ -27,6 +27,7 @@ module Game.GoreAndAsh.Math(
 
 import Linear
 
+-- | Scale matrix for 3D transformation
 scale :: Num a => V3 a -> M44 a 
 scale (V3 x y z) = V4
   (V4 x 0 0 0)
@@ -34,6 +35,7 @@ scale (V3 x y z) = V4
   (V4 0 0 z 0)
   (V4 0 0 0 1)
 
+-- | Rotation around Z axis for 3D transformation
 rotationZ :: Floating a => a -> M44 a 
 rotationZ a = V4 
   (V4 (cos a) (- sin a) 0 0)
@@ -41,6 +43,7 @@ rotationZ a = V4
   (V4 0 0 1 0)
   (V4 0 0 0 1)
 
+-- | Translation matrix for 3D transformation
 translate :: Num a => V3 a -> M44 a 
 translate (V3 x y z) = V4 
   (V4 1 0 0 x)
@@ -48,18 +51,21 @@ translate (V3 x y z) = V4
   (V4 0 0 1 z)
   (V4 0 0 0 1)
 
+-- | Scale matrix for 2D transformation
 scale2D :: Num a => V2 a -> M33 a 
 scale2D (V2 x y) = V3
   (V3 x 0 0)
   (V3 0 y 0)
   (V3 0 0 1)
 
+-- | Rotation matrix for 2D transformation
 rotation2D :: Floating a => a -> M33 a 
 rotation2D a = V3 
   (V3 (cos a) (- sin a) 0)
   (V3 (sin a) (  cos a) 0)
   (V3 0 0 1)
 
+-- | Translation matrix for 2D transformation
 translate2D :: Num a => V2 a -> M33 a 
 translate2D (V2 x y) = V3 
   (V3 1 0 x)
