@@ -6,13 +6,9 @@ resolver: lts-4.2
 # Local packages, usually specified by relative directory name
 packages:
 - '.'
-- location:
-    git: https://github.com/Teaspot-Studio/netwire.git
-    commit: c9f8034c4f24c4491db88782142e0fcdf8bba540
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
-extra-deps: 
-- netwire-5.0.1
+extra-deps: []
 
 # Override default flag values for local packages and extra-deps
 flags: {}

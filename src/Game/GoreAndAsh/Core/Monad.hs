@@ -144,11 +144,11 @@ evalGameMonad (GameMonadT m) ctx = runStateT m ctx
 --     myAwesomeFunction :: AnotherModule m => a -> b -> m (a, b) 
 --   
 --   -- | Implementation of API
---   instance {-# OVERLAPPING #-} OtherModuleMonad m => MyModuleMonad (MyModuleT s m) where
+--   instance {-\# OVERLAPPING #-} OtherModuleMonad m => MyModuleMonad (MyModuleT s m) where
 --      myAwesomeFunction = ...
 --  
 --   -- | Passing calls through other modules
---   instance {-# OVERLAPPABLE #-} (MyModuleMonad m, MonadTrans mt) => MyModuleMonad (mt m) where 
+--   instance {-\# OVERLAPPABLE #-} (MyModuleMonad m, MonadTrans mt) => MyModuleMonad (mt m) where 
 --     myAwesomeFunction a b = lift $ myAwesomeFunction a b
 -- @
 --
@@ -195,7 +195,7 @@ class Monad m => GameModule m s | m -> s, s -> m where
 -- The type family helps to simplify chaining of core modules at user application:
 --
 -- @
--- | Application monad is monad stack build from given list of modules over base monad (IO)
+-- -- | Application monad is monad stack build from given list of modules over base monad (IO)
 -- type AppStack = ModuleStack [LoggingT, ActorT, NetworkT] IO
 -- newtype AppState = AppState (ModuleState AppStack)
 --   deriving (Generic)
