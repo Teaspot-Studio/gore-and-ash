@@ -1,9 +1,21 @@
+{-|
+Module      : Game.GoreAndAsh.Math
+Description : Common mathematic utilities in games
+Copyright   : (c) Anton Gushcha, 2015-2016
+                  Oganyan Levon, 2016
+License     : BSD3
+Maintainer  : ncrashed@gmail.com
+Stability   : experimental
+Portability : POSIX
+
+Defines common math transformations for world, camera, vieport spaces.
+-}
 module Game.GoreAndAsh.Math(
-  -- | 3D matrix transformations
+  -- * 3D matrix transformations
     scale
   , rotationZ
   , translate
-  -- | 2D matrix transformations
+  -- * 2D matrix transformations
   , scale2D
   , rotation2D
   , translate2D

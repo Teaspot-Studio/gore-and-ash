@@ -1,5 +1,5 @@
 name:                gore-and-ash
-version:             1.0.0.0
+version:             1.0.0.1
 synopsis:            Core of FRP game engine called Gore&Ash
 description:         Please see README.md
 homepage:            https://github.com/Teaspot-Studio/gore-and-ash
@@ -33,9 +33,10 @@ library
                      , linear >= 1.20.3
                      , mtl >= 2.2
                      , netwire >= 5.0.1
+                     , time >= 1.5.0.1
                      , transformers >= 0.4
                      , unordered-containers >= 0.2.5.1
-                     
+
   default-extensions:  Arrows
                        DataKinds
                        DeriveGeneric

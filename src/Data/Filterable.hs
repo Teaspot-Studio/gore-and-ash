@@ -1,3 +1,15 @@
+{-|
+Module      : Data.Filterable
+Description : Generalization of filter function.
+Copyright   : (c) Anton Gushcha, 2015-2016
+                  Oganyan Levon, 2016
+License     : BSD3
+Maintainer  : ncrashed@gmail.com
+Stability   : experimental
+Portability : POSIX
+
+Defines generic filter utilities for collections.
+-}
 module Data.Filterable(
     Filterable(..)
   , KeyHashMap(..)
