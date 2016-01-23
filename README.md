@@ -15,4 +15,4 @@ Core package of game engine called Gore&Ash. The engine has following features:
 
 - input module via SDL2 library, see [gore-and-ash-sdl](https://github.com/Teaspot-Studio/gore-and-ash-sdl) module.
 
-For complete proof-of-concept, see [gore-and-ash-demo](https://github.com/Teaspot-Studio/gore-and-ash-sync) repo that contains implementation of simple game.
+For complete proof-of-concept, see [gore-and-ash-demo](https://github.com/Teaspot-Studio/gore-and-ash-demo) repo that contains implementation of simple game.
