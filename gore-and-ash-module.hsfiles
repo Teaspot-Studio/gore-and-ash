@@ -1,0 +1,313 @@
+{-# START_FILE {{name}}.cabal #-}
+name:                {{name}}
+version:             0.1.0.0
+synopsis:            Core module for Gore&Ash engine that do something.
+description:         Please see README.md
+homepage:            https://github.com/{{github-username}}{{^github-username}}githubuser{{/github-username}}/{{name}}#readme
+license:             BSD3
+license-file:        LICENSE
+author:              {{author-name}}{{^author-name}}Author name here{{/author-name}}
+maintainer:          {{author-email}}{{^author-email}}example@example.com{{/author-email}}
+copyright:           {{copyright}}{{^copyright}}2010 Author Here{{/copyright}}
+category:            Game
+build-type:          Simple
+cabal-version:       >=1.10
+
+library
+  hs-source-dirs:     src
+  exposed-modules:     
+                      Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}
+                      Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.API
+                      Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.Module
+                      Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.State
+  
+  default-language:   Haskell2010
+  build-depends:      base >= 4.7 && < 5
+                    , deepseq >= 1.4.1.1
+                    , exceptions >= 0.8.2.1
+                    , gore-and-ash >= 1.1.0.1
+                    , mtl >= 2.2.1
+                    
+  default-extensions: 
+                      DeriveGeneric
+                      FlexibleInstances
+                      GeneralizedNewtypeDeriving
+                      MultiParamTypeClasses
+                      TypeFamilies
+                      UndecidableInstances
+
+{-# START_FILE Setup.hs #-}
+import Distribution.Simple
+main = defaultMain
+
+{-# START_FILE mkdocs #-}
+#!/usr/bin/env bash
+# usage: mkdocs {{name}} <version> <haddock-login>
+cabal configure && cabal build && cabal haddock --hyperlink-source \
+                                    --html-location='/package/$pkg-$version/docs' \
+                                    --contents-location='/package/$pkg' \
+                                    --haddock-options="--use-contents=https://hackage.haskell.org/package/${1}-${2}"
+S=$?
+if [ "${S}" -eq "0" ]; then
+    cd "dist/doc/html"
+    DDIR="${1}-${2}-docs"
+    cp -r "${1}" "${DDIR}" && tar -c -v -z --format=ustar -f "${DDIR}.tar.gz" "${DDIR}"
+    CS=$?
+    if [ "${CS}" -eq "0" ]; then
+        echo "Uploading to Hackage…"
+        curl -X PUT -H 'Content-Type: application/x-tar' -H 'Content-Encoding: gzip' --data-binary "@${DDIR}.tar.gz" "https://hackage.haskell.org/package/${1}-${2}/docs" --user ${3} --digest
+        exit $?
+    else
+        echo "Error when packaging the documentation"
+        exit $CS
+    fi
+else
+    echo "Error when trying to build the package."
+    exit $S
+fi
+
+{-# START_FILE .gitignore #-}
+.stack-work
+*.sublime-project
+*.sublime-workspace
+
+{-# START_FILE LICENSE #-}
+Copyright {{author-name}} (c) 2016
+
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+
+    * Redistributions in binary form must reproduce the above
+      copyright notice, this list of conditions and the following
+      disclaimer in the documentation and/or other materials provided
+      with the distribution.
+
+    * Neither the name of {{author-name}} nor the names of other
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+{-# START_FILE README.md #-}
+{{name}}
+==================
+
+The module provides API for something for [Gore&Ash](https://github.com/Teaspot-Studio/gore-and-ash) engine.
+
+Installing
+==========
+
+Add following to your `stack.yml` to `packages` section:
+```yaml
+- location:
+    git: https://github.com/{{github-username}}{{^github-username}}githubuser{{/github-username}}/{{name}}.git
+    commit: <PLACE HERE FULL HASH OF LAST COMMIT> 
+```
+
+When defining you application stack, add `{{module-name}}{{^module-name}}MyModule{{/module-name}}T`:
+``` haskell
+type AppStack = ModuleStack [{{module-name}}{{^module-name}}MyModule{{/module-name}}T, ... other modules ... ] IO
+```
+
+And derive `Monad{{module-name}}{{^module-name}}MyModule{{/module-name}}` for your resulting `AppMonad`:
+``` haskell
+newtype AppMonad a = AppMonad (AppStack a)
+  deriving (Functor, Applicative, Monad, MonadFix, MonadIO, MonadThrow, MonadCatch, Monad{{module-name}}{{^module-name}}MyModule{{/module-name}})
+```
+
+{-# START_FILE src/Game/GoreAndAsh/{{module-name}}{{^module-name}}MyModule{{/module-name}}.hs #-}
+{-# OPTIONS_GHC -fno-warn-unused-imports #-}
+{-|
+Module      : Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}
+Description : Core module for embedding concurrent IO actions into main loop.
+Copyright   : (c) Anton Gushcha, 2016
+License     : BSD3
+Maintainer  : ncrashed@gmail.com
+Stability   : experimental
+Portability : POSIX
+
+The core module contains API for something into main game loop for Gore&Ash.
+
+The module does not depend on any other core modules, so '{{module-name}}{{^module-name}}MyModule{{/module-name}}T' could be placed at any place in monad stack.
+
+The module is pure within first phase (see 'ModuleStack' docs), therefore 'Identity' can be used as end monad.
+
+Example of embedding:
+
+@
+-- | Application monad is monad stack build from given list of modules over base monad (IO or Identity)
+type AppStack = ModuleStack [{{module-name}}{{^module-name}}MyModule{{/module-name}}T ... other modules ... ] IO
+newtype AppState = AppState (ModuleState AppStack)
+  deriving (Generic)
+
+instance NFData AppState 
+
+-- | Wrapper around type family
+newtype AppMonad a = AppMonad (AppStack a)
+  deriving (Functor, Applicative, Monad, MonadFix, MonadIO, MonadThrow, MonadCatch, Monad{{module-name}}{{^module-name}}MyModule{{/module-name}} ... other modules monads ... )
+
+instance GameModule AppMonad AppState where 
+  type ModuleState AppMonad = AppState
+  runModule (AppMonad m) (AppState s) = do 
+    (a, s') <- runModule m s 
+    return (a, AppState s')
+  newModuleState = AppState <$> newModuleState
+  withModule _ = withModule (Proxy :: Proxy AppStack)
+  cleanupModule (AppState s) = cleanupModule s 
+
+-- | Arrow that is build over the monad stack
+type AppWire a b = GameWire AppMonad a b
+@
+
+-}
+module Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}(
+  -- * Low-level
+    {{module-name}}{{^module-name}}MyModule{{/module-name}}State
+  , {{module-name}}{{^module-name}}MyModule{{/module-name}}T 
+  , Monad{{module-name}}{{^module-name}}MyModule{{/module-name}}(..)
+  ) where
+
+-- for docs
+import Game.GoreAndAsh
+
+import Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.API as X 
+import Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.Module as X 
+import Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.State as X 
+
+{-# START_FILE src/Game/GoreAndAsh/{{module-name}}{{^module-name}}MyModule{{/module-name}}/State.hs #-}
+{-|
+Module      : Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.State
+Description : Internal state of core module
+Copyright   : (c) Anton Gushcha, 2016
+License     : BSD3
+Maintainer  : ncrashed@gmail.com
+Stability   : experimental
+Portability : POSIX
+-}
+module Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.State(
+    {{module-name}}{{^module-name}}MyModule{{/module-name}}State(..)
+  , empty{{module-name}}{{^module-name}}MyModule{{/module-name}}State
+  ) where
+
+import Control.DeepSeq
+import GHC.Generics (Generic)
+
+-- | Internal state of core module
+--
+-- [@s@] - state of next module, they are chained until bottom, that is usually
+--         an empty data type.
+data {{module-name}}{{^module-name}}MyModule{{/module-name}}State s = {{module-name}}{{^module-name}}MyModule{{/module-name}}State {
+  -- | Next module state in chain of modules
+  {{module-name-lower}}{{^module-name-lower}}mymodule{{/module-name-lower}}NextState :: !s
+} deriving (Generic)
+
+instance NFData s => NFData ({{module-name}}{{^module-name}}MyModule{{/module-name}}State s)
+
+-- | Create inital state of the core module
+--
+-- [@s@] -  state of next module
+empty{{module-name}}{{^module-name}}MyModule{{/module-name}}State :: s -> {{module-name}}{{^module-name}}MyModule{{/module-name}}State s 
+empty{{module-name}}{{^module-name}}MyModule{{/module-name}}State s = {{module-name}}{{^module-name}}MyModule{{/module-name}}State {
+    {{module-name-lower}}{{^module-name-lower}}mymodule{{/module-name-lower}}NextState = s
+  }
+
+{-# START_FILE src/Game/GoreAndAsh/{{module-name}}{{^module-name}}MyModule{{/module-name}}/Module.hs #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-|
+Module      : Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.Module
+Description : Monad transformer and instance for core module
+Copyright   : (c) Anton Gushcha, 2016
+License     : BSD3
+Maintainer  : ncrashed@gmail.com
+Stability   : experimental
+Portability : POSIX
+-}
+module Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.Module(
+    {{module-name}}{{^module-name}}MyModule{{/module-name}}T(..)
+  ) where
+
+import Control.Monad.Catch
+import Control.Monad.Fix 
+import Control.Monad.State.Strict
+
+import Game.GoreAndAsh
+import Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.State
+
+-- | Monad transformer of the core module.
+--
+-- [@s@] - State of next core module in modules chain;
+--
+-- [@m@] - Next monad in modules monad stack;
+--
+-- [@a@] - Type of result value;
+--
+-- How to embed module:
+-- 
+-- @
+-- type AppStack = ModuleStack [{{module-name}}{{^module-name}}MyModule{{/module-name}}T, ... other modules ... ] IO
+--
+-- newtype AppMonad a = AppMonad (AppStack a)
+--   deriving (Functor, Applicative, Monad, MonadFix, MonadIO, MonadThrow, MonadCatch, Monad{{module-name}}{{^module-name}}MyModule{{/module-name}})
+-- @
+--
+-- The module is pure within first phase (see 'ModuleStack' docs), therefore 'Identity' can be used as end monad.
+newtype {{module-name}}{{^module-name}}MyModule{{/module-name}}T s m a = {{module-name}}{{^module-name}}MyModule{{/module-name}}T { run{{module-name}}{{^module-name}}MyModule{{/module-name}}T :: StateT ({{module-name}}{{^module-name}}MyModule{{/module-name}}State s) m a }
+  deriving (Functor, Applicative, Monad, MonadState ({{module-name}}{{^module-name}}MyModule{{/module-name}}State s), MonadFix, MonadTrans, MonadIO, MonadThrow, MonadCatch, MonadMask)
+
+instance GameModule m s => GameModule ({{module-name}}{{^module-name}}MyModule{{/module-name}}T s m) ({{module-name}}{{^module-name}}MyModule{{/module-name}}State s) where 
+  type ModuleState ({{module-name}}{{^module-name}}MyModule{{/module-name}}T s m) = {{module-name}}{{^module-name}}MyModule{{/module-name}}State s
+  runModule ({{module-name}}{{^module-name}}MyModule{{/module-name}}T m) s = do
+    ((a, s'), nextState) <- runModule (runStateT m s) ({{module-name-lower}}{{^module-name-lower}}mymodule{{/module-name-lower}}NextState s)
+    return (a, s' {
+        {{module-name-lower}}{{^module-name-lower}}mymodule{{/module-name-lower}}NextState = nextState 
+      })  
+  
+  newModuleState = empty{{module-name}}{{^module-name}}MyModule{{/module-name}}State <$> newModuleState
+  withModule _ = id
+  cleanupModule _ = return ()
+
+{-# START_FILE src/Game/GoreAndAsh/{{module-name}}{{^module-name}}MyModule{{/module-name}}/API.hs #-}
+{-|
+Module      : Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.API
+Description : Monadic and arrow API for module
+Copyright   : (c) Anton Gushcha, 2016
+License     : BSD3
+Maintainer  : ncrashed@gmail.com
+Stability   : experimental
+Portability : POSIX
+-}
+module Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.API(
+    Monad{{module-name}}{{^module-name}}MyModule{{/module-name}}(..)
+  ) where
+
+import Control.Monad.Trans 
+
+import Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.Module 
+
+-- | Low level monadic API for module.
+--
+-- Note: does not require 'm' to be 'IO' monad.
+class Monad m => Monad{{module-name}}{{^module-name}}MyModule{{/module-name}} m where 
+  -- | stab method, temporary
+  {{module-name-lower}}{{^module-name-lower}}mymodule{{/module-name-lower}}Stab :: m ()
+
+instance {-# OVERLAPPING #-} Monad m => Monad{{module-name}}{{^module-name}}MyModule{{/module-name}} ({{module-name}}{{^module-name}}MyModule{{/module-name}}T s m) where
+  {{module-name-lower}}{{^module-name-lower}}mymodule{{/module-name-lower}}Stab = return ()
+
+instance {-# OVERLAPPABLE #-} (Monad (mt m), Monad{{module-name}}{{^module-name}}MyModule{{/module-name}} m, MonadTrans mt) => Monad{{module-name}}{{^module-name}}MyModule{{/module-name}} (mt m) where 
+  {{module-name-lower}}{{^module-name-lower}}mymodule{{/module-name-lower}}Stab = lift {{module-name-lower}}{{^module-name-lower}}mymodule{{/module-name-lower}}Stab
