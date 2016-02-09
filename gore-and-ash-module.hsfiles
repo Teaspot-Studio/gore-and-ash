@@ -43,6 +43,7 @@ main = defaultMain
 {-# START_FILE mkdocs #-}
 #!/usr/bin/env bash
 # usage: mkdocs {{name}} <version> <haddock-login>
+cabal update && cabal install --dependencies-only
 cabal configure && cabal build && cabal haddock --hyperlink-source \
                                     --html-location='/package/$pkg-$version/docs' \
                                     --contents-location='/package/$pkg' \
@@ -311,3 +312,23 @@ instance {-# OVERLAPPING #-} Monad m => Monad{{module-name}}{{^module-name}}MyMo
 
 instance {-# OVERLAPPABLE #-} (Monad (mt m), Monad{{module-name}}{{^module-name}}MyModule{{/module-name}} m, MonadTrans mt) => Monad{{module-name}}{{^module-name}}MyModule{{/module-name}} (mt m) where 
   {{module-name-lower}}{{^module-name-lower}}mymodule{{/module-name-lower}}Stab = lift {{module-name-lower}}{{^module-name-lower}}mymodule{{/module-name-lower}}Stab
+
+{-# START_FILE Dockerfile #-}
+FROM phadej/ghc:7.10.2 
+
+ADD mkdocs /opt/project/
+ADD LICENSE /opt/project/
+ADD Setup.hs /opt/project/
+ADD README.md /opt/project/
+ADD {{name}}.cabal /opt/project/
+ADD stack.yaml /opt/project/
+ADD src /opt/project/src
+
+WORKDIR /opt/project
+
+ENTRYPOINT ["./mkdocs", "{{name}}", "0.1.0.0", "{{author-name}}{{^author-name}}Author name here{{/author-name}}"]
+
+{-# START_FILE publish #-}
+stack upload .
+sudo docker build -t {{name}} .
+sudo docker run --rm -it {{name}}
