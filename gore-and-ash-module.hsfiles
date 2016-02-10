@@ -35,7 +35,8 @@ library
                       MultiParamTypeClasses
                       TypeFamilies
                       UndecidableInstances
-
+                      ScopedTypeVariables
+                      
 {-# START_FILE Setup.hs #-}
 import Distribution.Simple
 main = defaultMain
@@ -245,6 +246,7 @@ module Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.M
 import Control.Monad.Catch
 import Control.Monad.Fix 
 import Control.Monad.State.Strict
+import Data.Proxy
 
 import Game.GoreAndAsh
 import Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.State
@@ -279,7 +281,7 @@ instance GameModule m s => GameModule ({{module-name}}{{^module-name}}MyModule{{
       })  
   
   newModuleState = empty{{module-name}}{{^module-name}}MyModule{{/module-name}}State <$> newModuleState
-  withModule _ = id
+  withModule _ = withModule (Proxy :: Proxy m)
   cleanupModule _ = return ()
 
 {-# START_FILE src/Game/GoreAndAsh/{{module-name}}{{^module-name}}MyModule{{/module-name}}/API.hs #-}
