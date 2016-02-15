@@ -27,7 +27,10 @@ library
                     , exceptions >= 0.8.2.1
                     , gore-and-ash >= 1.1.0.1
                     , mtl >= 2.2.1
-                    
+                    , resourcet >= 1.1.7.1
+                    , transformers >= 0.4.2
+                    , transformers-base >= 0.4.4
+
   default-extensions: 
                       DeriveGeneric
                       FlexibleInstances
@@ -161,7 +164,7 @@ instance NFData AppState
 
 -- | Wrapper around type family
 newtype AppMonad a = AppMonad (AppStack a)
-  deriving (Functor, Applicative, Monad, MonadFix, MonadIO, MonadThrow, MonadCatch, Monad{{module-name}}{{^module-name}}MyModule{{/module-name}} ... other modules monads ... )
+  deriving (Functor, Applicative, Monad, MonadFix, MonadIO, MonadThrow, MonadCatch,  Monad{{module-name}}{{^module-name}}MyModule{{/module-name}} ... other modules monads ... )
 
 instance GameModule AppMonad AppState where 
   type ModuleState AppMonad = AppState
@@ -243,9 +246,12 @@ module Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.M
     {{module-name}}{{^module-name}}MyModule{{/module-name}}T(..)
   ) where
 
+import Control.Monad.Base
 import Control.Monad.Catch
+import Control.Monad.Error.Class
 import Control.Monad.Fix 
 import Control.Monad.State.Strict
+import Control.Monad.Trans.Resource
 import Data.Proxy
 
 import Game.GoreAndAsh
@@ -270,7 +276,13 @@ import Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.S
 --
 -- The module is pure within first phase (see 'ModuleStack' docs), therefore 'Identity' can be used as end monad.
 newtype {{module-name}}{{^module-name}}MyModule{{/module-name}}T s m a = {{module-name}}{{^module-name}}MyModule{{/module-name}}T { run{{module-name}}{{^module-name}}MyModule{{/module-name}}T :: StateT ({{module-name}}{{^module-name}}MyModule{{/module-name}}State s) m a }
-  deriving (Functor, Applicative, Monad, MonadState ({{module-name}}{{^module-name}}MyModule{{/module-name}}State s), MonadFix, MonadTrans, MonadIO, MonadThrow, MonadCatch, MonadMask)
+  deriving (Functor, Applicative, Monad, MonadState ({{module-name}}{{^module-name}}MyModule{{/module-name}}State s), MonadFix, MonadTrans, MonadIO, MonadThrow, MonadCatch, MonadMask, MonadError e)
+
+instance MonadBase IO m => MonadBase IO ({{module-name}}{{^module-name}}MyModule{{/module-name}}T s m) where
+  liftBase = {{module-name}}{{^module-name}}MyModule{{/module-name}}T . liftBase
+
+instance MonadResource m => MonadResource ({{module-name}}{{^module-name}}MyModule{{/module-name}}T s m) where 
+  liftResourceT = {{module-name}}{{^module-name}}MyModule{{/module-name}}T . liftResourceT 
 
 instance GameModule m s => GameModule ({{module-name}}{{^module-name}}MyModule{{/module-name}}T s m) ({{module-name}}{{^module-name}}MyModule{{/module-name}}State s) where 
   type ModuleState ({{module-name}}{{^module-name}}MyModule{{/module-name}}T s m) = {{module-name}}{{^module-name}}MyModule{{/module-name}}State s
