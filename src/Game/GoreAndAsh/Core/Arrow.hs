@@ -1,3 +1,4 @@
+{-# LANGUAGE Arrows #-}
 {-|
 Module      : Game.GoreAndAsh.Core.Arrow
 Description : Core operations with arrows.
@@ -40,6 +41,8 @@ module Game.GoreAndAsh.Core.Arrow(
   , chainWires
   , dispense
   , dDispense
+  , withInit
+  , nothingInhibit
   -- * Time
   , deltaTime
   ) where
@@ -68,15 +71,15 @@ type GameWire m a b = Wire GameTime () (GameMonadT m) a b
 --
 -- Note: Result of wire is calclulated each frame.
 liftGameMonad :: Monad m => GameMonadT m b -> GameWire m a b
-liftGameMonad action = mkGen_ $ \ _ -> do 
-  val <- action 
+liftGameMonad action = mkGen_ $ \ _ -> do
+  val <- action
   return $ Right val
 
 -- | Takes game monad and wraps it into game wire.
 --
 -- Note: Result of wire is calclulated each frame.
 liftGameMonad1 :: Monad m => (a -> GameMonadT m b) -> GameWire m a b
-liftGameMonad1 action = mkGen_ $ \ a -> do 
+liftGameMonad1 action = mkGen_ $ \ a -> do
   val <- action a
   return $ Right val
 
@@ -84,7 +87,7 @@ liftGameMonad1 action = mkGen_ $ \ a -> do
 --
 -- Note: Result of wire is calclulated each frame.
 liftGameMonad2 :: Monad m => (a -> b -> GameMonadT m c) -> GameWire m (a, b) c
-liftGameMonad2 action = mkGen_ $ \ (a, b) -> do 
+liftGameMonad2 action = mkGen_ $ \ (a, b) -> do
   val <- action a b
   return $ Right val
 
@@ -92,7 +95,7 @@ liftGameMonad2 action = mkGen_ $ \ (a, b) -> do
 --
 -- Note: Result of wire is calclulated each frame.
 liftGameMonad3 :: Monad m => (a -> b -> c -> GameMonadT m d) -> GameWire m (a, b, c) d
-liftGameMonad3 action = mkGen_ $ \ (a, b, c) -> do 
+liftGameMonad3 action = mkGen_ $ \ (a, b, c) -> do
   val <- action a b c
   return $ Right val
 
@@ -100,47 +103,47 @@ liftGameMonad3 action = mkGen_ $ \ (a, b, c) -> do
 --
 -- Note: Result of wire is calclulated each frame.
 liftGameMonad4 :: Monad m => (a -> b -> c -> d -> GameMonadT m e) -> GameWire m (a, b, c, d) e
-liftGameMonad4 action = mkGen_ $ \ (a, b, c, d) -> do 
+liftGameMonad4 action = mkGen_ $ \ (a, b, c, d) -> do
   val <- action a b c d
   return $ Right val
 
 -- | Takes game monad and wraps it into game wire.
 --
 -- Note: Result of wire is calculated ONCE and next execution returns cached value
-liftGameMonadOnce :: Monad m => GameMonadT m b -> GameWire m a b 
-liftGameMonadOnce action = mkGen $ \_ _ -> do 
-  val <- action 
+liftGameMonadOnce :: Monad m => GameMonadT m b -> GameWire m a b
+liftGameMonadOnce action = mkGen $ \_ _ -> do
+  val <- action
   return (Right val, pure val)
 
 -- | Takes game monad and wraps it into game wire.
 --
 -- Note: Result of wire is calculated ONCE and next execution returns cached value
-liftGameMonad1Once :: Monad m => (a -> GameMonadT m b) -> GameWire m a b 
-liftGameMonad1Once action = mkGen $ \_ a -> do 
+liftGameMonad1Once :: Monad m => (a -> GameMonadT m b) -> GameWire m a b
+liftGameMonad1Once action = mkGen $ \_ a -> do
   val <- action a
   return (Right val, pure val)
 
 -- | Takes game monad and wraps it into game wire.
 --
 -- Note: Result of wire is calculated ONCE and next execution returns cached value
-liftGameMonad2Once :: Monad m => (a -> b -> GameMonadT m c) -> GameWire m (a, b) c 
-liftGameMonad2Once action = mkGen $ \_ (a, b) -> do 
+liftGameMonad2Once :: Monad m => (a -> b -> GameMonadT m c) -> GameWire m (a, b) c
+liftGameMonad2Once action = mkGen $ \_ (a, b) -> do
   val <- action a b
   return (Right val, pure val)
 
 -- | Takes game monad and wraps it into game wire.
 --
 -- Note: Result of wire is calculated ONCE and next execution returns cached value
-liftGameMonad3Once :: Monad m => (a -> b -> c -> GameMonadT m d) -> GameWire m (a, b, c) d 
-liftGameMonad3Once action = mkGen $ \_ (a, b, c) -> do 
+liftGameMonad3Once :: Monad m => (a -> b -> c -> GameMonadT m d) -> GameWire m (a, b, c) d
+liftGameMonad3Once action = mkGen $ \_ (a, b, c) -> do
   val <- action a b c
   return (Right val, pure val)
 
 -- | Takes game monad and wraps it into game wire.
 --
 -- Note: Result of wire is calculated ONCE and next execution returns cached value
-liftGameMonad4Once :: Monad m => (a -> b -> c -> d -> GameMonadT m e) -> GameWire m (a, b, c, d) e 
-liftGameMonad4Once action = mkGen $ \_ (a, b, c, d) -> do 
+liftGameMonad4Once :: Monad m => (a -> b -> c -> d -> GameMonadT m e) -> GameWire m (a, b, c, d) e
+liftGameMonad4Once action = mkGen $ \_ (a, b, c, d) -> do
   val <- action a b c d
   return (Right val, pure val)
 
@@ -149,8 +152,8 @@ liftGameMonad4Once action = mkGen $ \_ (a, b, c, d) -> do
 -- Note: netwire once combinator still holds it event producer when event
 -- is produced.
 once' :: Monad m => GameWire m a (Event b) -> GameWire m a (Event b)
-once' w = proc a -> do 
-  e <- w -< a 
+once' w = proc a -> do
+  e <- w -< a
   drSwitch id -< (e, fmap (const never) e)
 
 -- | Mapping events as a wire.
@@ -159,19 +162,19 @@ once' w = proc a -> do
 --
 -- >>> arr (fmap f)
 mapE :: Monad m => (a -> b) -> GameWire m (Event a) (Event b)
-mapE f = arr $ \e -> case e of 
+mapE f = arr $ \e -> case e of
   NoEvent -> NoEvent
-  Event a -> Event $ f a 
+  Event a -> Event $ f a
 
 -- | Same as 'filterE' but for generic 'Foldable' and 'Filterable'.
 filterEG :: (Foldable f, Filterable f, FilterConstraint f a, Monad m)
   => (a -> Bool) -- ^ Predicate to test elements that are left in collection
   -> GameWire m (Event (f a)) (Event (f a)) -- ^ Wire that leaves only non empty collections
-filterEG p = arr $ \e -> case e of 
+filterEG p = arr $ \e -> case e of
   NoEvent -> NoEvent
   Event as -> let
     as' = fFilter p as
-    in if fNull as' 
+    in if fNull as'
       then NoEvent
       else length as' `seq` Event as'
 
@@ -179,12 +182,12 @@ filterEG p = arr $ \e -> case e of
 filterEGM :: (Foldable f, Filterable f, FilterConstraint f a, Monad m)
   => (a -> GameMonadT m Bool) -- ^ Predicate to test elements that are left in collection
   -> GameWire m (Event (f a)) (Event (f a)) -- ^ Wire that leaves only non empty collections
-filterEGM p = mkGen_ $ \e -> case e of 
-  NoEvent -> return $! Right NoEvent
+filterEGM p = mkGen_ $ \e -> case e of
+  NoEvent -> return (Right NoEvent)
   Event as -> do
     as' <- fFilterM p as
-    if fNull as' 
-      then return $! Right NoEvent
+    if fNull as'
+      then return (Right NoEvent)
       else return . Right $! length as' `seq` Event as'
 
 -- | Filters only Just events
@@ -209,21 +212,20 @@ liftGameMonadEvent1 = onEventM
 --
 -- Common combinator for build game actors.
 stateWire :: MonadFix m => b -> GameWire m (a, b) b -> GameWire m a b
-stateWire ib w = loop $ proc (a, b_) -> do 
+stateWire ib w = loop $ proc (a, b_) -> do
   b <- delay ib -< b_ -- either it will hang
   b2 <- w -< (a, b)
   returnA -< (b2, b2)
 
 -- | Sequence compose list of wires (right to left order)
-chainWires :: Monad m => [GameWire m a a] -> GameWire m a a 
-chainWires [] = id 
-chainWires (w:ws) = w . chainWires ws
+chainWires :: Monad m => [GameWire m a a] -> GameWire m a a
+chainWires = foldr (.) id
 
 -- | Fires when input value changes
 changes :: (Monad m, Eq a) => GameWire m a (Event a)
 changes = mkPureN $ \a -> (Right $! Event a, go a)
   where
-    go cura = mkPureN $ \a -> if a == cura 
+    go cura = mkPureN $ \a -> if a == cura
       then (Right NoEvent, go cura)
       else a `seq` (Right $! Event a, go a)
 
@@ -236,7 +238,7 @@ dispense :: (Monad m) => [a] -> GameWire m (Event b) a
 dispense = go . cycle
   where
     go [] = error "dispense: empty list"
-    go (a:as) = mkPureN $ \e -> case e of 
+    go (a:as) = mkPureN $ \e -> case e of
       NoEvent -> (Right a, go $ a:as)
       Event _ -> (Right $ head as, go as)
 
@@ -248,11 +250,24 @@ dispense = go . cycle
 dDispense :: (Monad m) => [a] -> GameWire m (Event b) a
 dDispense = go . cycle
   where
-    go [] = error "dDispense: empty list" 
-    go (a:as) = mkPureN $ \e -> case e of 
+    go [] = error "dDispense: empty list"
+    go (a:as) = mkPureN $ \e -> case e of
       NoEvent -> (Right a, go $ a:as)
       Event _ -> (Right a, go as)
 
+-- | Helper to run initalization step for wire
+withInit :: Monad m => (c -> GameMonadT m a) -> (a -> GameWire m c b) -> GameWire m c b
+withInit initStep nextStep = mkGen $ \s c -> do
+  a <- initStep c
+  (mb, nextStep') <- stepWire (nextStep a) s (Right c)
+  return (mb, nextStep')
+
+-- | Inhibits if gets Nothing
+nothingInhibit :: Monad m => GameWire m (Maybe a) a
+nothingInhibit = mkPure_ $ \ma -> case ma of
+  Nothing -> Left ()
+  Just a -> Right a
+
 -- | Returns delta time scince last frame.
-deltaTime :: (Fractional b, Monad m) => GameWire m a b 
+deltaTime :: (Fractional b, Monad m) => GameWire m a b
 deltaTime = mkSF $ \ds _ -> let t = realToFrac (dtime ds) in t `seq` (t, deltaTime)
