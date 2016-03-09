@@ -55,6 +55,8 @@ module Game.GoreAndAsh.Core(
   , chainWires
   , dispense
   , dDispense
+  , withInit
+  , nothingInhibit
   -- ** Time utilities
   , deltaTime
   ) where
