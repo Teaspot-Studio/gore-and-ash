@@ -1,4 +1,7 @@
-FROM phadej/ghc:7.10.2
+FROM haskell:8.0.1
+
+RUN apt-get update
+RUN apt-get -y install curl
 
 ADD mkdocs /opt/project/
 ADD LICENSE /opt/project/
@@ -10,4 +13,4 @@ ADD src /opt/project/src
 
 WORKDIR /opt/project
 
-ENTRYPOINT ["./mkdocs", "gore-and-ash", "1.2.1.0", "NCrashed"]
+ENTRYPOINT ["./mkdocs", "gore-and-ash", "1.2.2.0", "NCrashed"]
