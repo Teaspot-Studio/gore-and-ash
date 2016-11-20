@@ -22,8 +22,10 @@ extra-source-files:
 library
   hs-source-dirs:      src
   exposed-modules:
+    Data.Filterable
     Game.GoreAndAsh
     Game.GoreAndAsh.Core
+    Game.GoreAndAsh.Core.Monad
     Game.GoreAndAsh.Math
 
   default-language:    Haskell2010

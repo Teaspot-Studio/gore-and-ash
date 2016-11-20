@@ -12,6 +12,6 @@ module Game.GoreAndAsh(
     module X
   ) where
 
---import Game.GoreAndAsh.Core as X
+import Game.GoreAndAsh.Core as X
 import Game.GoreAndAsh.Math as X
 import Data.Filterable as X
