@@ -6,9 +6,14 @@ resolver: lts-7.9
 # Local packages, usually specified by relative directory name
 packages:
 - '.'
+- location:
+    git: git@github.com:reflex-frp/reflex.git
+    commit: 91299fce0bb2caddfba35af6608df57dd31e3690
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
-extra-deps: []
+extra-deps:
+- prim-uniq-0.1.0.1
+- ref-tf-0.4.0.1
 
 # Override default flag values for local packages and extra-deps
 flags: {}
