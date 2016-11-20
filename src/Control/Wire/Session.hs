@@ -86,7 +86,7 @@ clockSession =
 
 -- | Non-extending version of 'clockSession'.
 
-clockSession_ :: (Applicative m, MonadIO m) => Session m (Timed NominalDiffTime ())
+clockSession_ :: MonadIO m => Session m (Timed NominalDiffTime ())
 clockSession_ = clockSession <*> pure ()
 
 

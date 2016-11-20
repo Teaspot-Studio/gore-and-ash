@@ -242,7 +242,7 @@ instance (Monad m) => Profunctor (Wire s e m) where
 instance (Monad m, Sg.Semigroup b) => Sg.Semigroup (Wire s e m a b) where
     (<>) = liftA2 (Sg.<>)
 
-instance (Monad m, Monoid e) => Strong (Wire s e m) where
+instance (Monad m) => Strong (Wire s e m) where
   first' = first
   second' = second
 

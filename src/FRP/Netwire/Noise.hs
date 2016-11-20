@@ -60,7 +60,7 @@ stdNoise int = noise int . mkStdGen
 -- | Convenience interface to 'noiseR' for 'StdGen'.
 
 stdNoiseR ::
-    (HasTime t s, Monad m, Random b)
+    (HasTime t s, Random b)
     => t       -- ^ Step duration.
     -> (b, b)  -- ^ Noise range.
     -> Int     -- ^ 'StdGen' seed.

@@ -1,0 +1,21 @@
+{
+	"folders":
+	[
+		{
+			"path": "."
+		}
+	],
+  "build_systems":
+  [
+    {
+      "name": "Stack",
+      "shell_cmd": "stack install",
+      "working_dir": "${project_path}"
+    },
+    {
+      "name": "Stack pedantic",
+      "shell_cmd": "stack install --pedantic",
+      "working_dir": "${project_path}"
+    },
+  ],
+}

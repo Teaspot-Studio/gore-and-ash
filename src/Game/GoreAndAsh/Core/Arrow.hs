@@ -222,7 +222,7 @@ chainWires :: Monad m => [GameWire m a a] -> GameWire m a a
 chainWires = foldr (.) id
 
 -- | Fires when input value changes
-changes :: (Monad m, Eq a) => GameWire m a (Event a)
+changes :: Eq a => GameWire m a (Event a)
 changes = mkPureN $ \a -> (Right $! Event a, go a)
   where
     go cura = mkPureN $ \a -> if a == cura
@@ -263,7 +263,7 @@ withInit initStep nextStep = mkGen $ \s c -> do
   return (mb, nextStep')
 
 -- | Inhibits if gets Nothing
-nothingInhibit :: Monad m => GameWire m (Maybe a) a
+nothingInhibit :: GameWire m (Maybe a) a
 nothingInhibit = mkPure_ $ \ma -> case ma of
   Nothing -> Left ()
   Just a -> Right a
