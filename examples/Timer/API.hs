@@ -33,6 +33,11 @@ instance {-# OVERLAPPING #-} (Monad m, Reflex t, MonadAppHost t m) => TimerMonad
         else return ()
   {-# INLINE tickEvery #-}
 
+-- | Automatic lifting across monad stack
+instance {-# OVERLAPPABLE #-} (Monad (mt m), TimerMonad t m, MonadTrans mt) => TimerMonad t (mt m) where
+  tickEvery = lift . tickEvery
+  {-# INLINE tickEvery #-}
+
 -- | The instance registers external events and process reaction to output events
 instance (GameModule t m) => GameModule t (TimerT t m) where
   runModule m = runModule $ runTimerT m
@@ -70,8 +75,3 @@ instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (TimerT t m)
 
 instance MonadSubscribeEvent t m => MonadSubscribeEvent t (TimerT r m) where
   subscribeEvent = lift . subscribeEvent
-
--- | Automatic lifting across monad stack
-instance {-# OVERLAPPABLE #-} (Monad (mt m), TimerMonad t m, MonadTrans mt) => TimerMonad t (mt m) where
-  tickEvery = lift . tickEvery
-  {-# INLINE tickEvery #-}

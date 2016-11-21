@@ -46,6 +46,13 @@ instance {-# OVERLAPPING #-} (Monad m, Reflex t) => LoggerMonad t (LoggerT t m) 
   {-# INLINE inputMessage #-}
   {-# INLINE outputMessage #-}
 
+-- | Automatic lifting across monad stack
+instance {-# OVERLAPPABLE #-} (Monad (mt m), LoggerMonad t m, MonadTrans mt) => LoggerMonad t (mt m) where
+  inputMessage = lift inputMessage
+  outputMessage = lift . outputMessage
+  {-# INLINE inputMessage #-}
+  {-# INLINE outputMessage #-}
+
 -- | The instance registers external events and process reaction to output events
 instance (MonadIO (HostFrame t), GameModule t m) => GameModule t (LoggerT t m) where
   runModule m = do
@@ -90,10 +97,3 @@ instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (LoggerT t m
 
 instance MonadSubscribeEvent t m => MonadSubscribeEvent t (LoggerT r m) where
   subscribeEvent = lift . subscribeEvent
-
--- | Automatic lifting across monad stack
-instance {-# OVERLAPPABLE #-} (Monad (mt m), LoggerMonad t m, MonadTrans mt) => LoggerMonad t (mt m) where
-  inputMessage = lift inputMessage
-  outputMessage = lift . outputMessage
-  {-# INLINE inputMessage #-}
-  {-# INLINE outputMessage #-}
