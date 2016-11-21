@@ -88,6 +88,9 @@ instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (LoggerT t m
   newEventWithTrigger = lift . newEventWithTrigger
   newFanEventWithTrigger a = lift $ newFanEventWithTrigger a
 
+instance MonadSubscribeEvent t m => MonadSubscribeEvent t (LoggerT r m) where
+  subscribeEvent = lift . subscribeEvent
+
 -- | Automatic lifting across monad stack
 instance {-# OVERLAPPABLE #-} (Monad (mt m), LoggerMonad t m, MonadTrans mt) => LoggerMonad t (mt m) where
   inputMessage = lift inputMessage

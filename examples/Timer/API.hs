@@ -68,6 +68,9 @@ instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (TimerT t m)
   newEventWithTrigger = lift . newEventWithTrigger
   newFanEventWithTrigger a = lift $ newFanEventWithTrigger a
 
+instance MonadSubscribeEvent t m => MonadSubscribeEvent t (TimerT r m) where
+  subscribeEvent = lift . subscribeEvent
+
 -- | Automatic lifting across monad stack
 instance {-# OVERLAPPABLE #-} (Monad (mt m), TimerMonad t m, MonadTrans mt) => TimerMonad t (mt m) where
   tickEvery = lift . tickEvery
