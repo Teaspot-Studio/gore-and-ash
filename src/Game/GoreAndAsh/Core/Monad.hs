@@ -13,9 +13,11 @@ Also there is 'GameModule' class that must be implemented by all core modules. F
 type family is for user usage to compose all modules in single monad stack.
 -}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE BangPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Game.GoreAndAsh.Core.Monad(
     ReflexMonad
+  , GameContext
   , GameMonad
   , GameModule(..)
   -- * Reexports
@@ -44,8 +46,12 @@ type ReflexMonad t m = (Reflex t, MonadSample t m, MonadFix m, MonadIO m)
 class GameModule t gm where
   -- | Execution of reactive subsystem of module
   runModule :: MonadAppHost t m => gm a -> m a
+
   -- | Place when some external resouce initialisation can be placed
   withModule :: Proxy t -> Proxy gm -> IO a -> IO a
+
+  -- -- | Gracefull cleanup of module resources
+  -- cleanupModule :: MonadIO m => Proxy t -> Proxy gm -> m ()
 
 -- | State of core.
 --
@@ -72,7 +78,7 @@ newGameContext = GameContext
 -- Should be used in application monad stack as end monad:
 --
 -- @
--- type AppMonad t a = LoggingT t (ActorT t (GameMonad t)) a
+-- type AppMonad t a = LoggingT (ActorT (GameMonad t)) a
 -- @
 newtype GameMonad t a = GameMonad {
   runGameMonad :: forall m . MonadAppHost t m => StateT (GameContext t) m a
@@ -103,15 +109,18 @@ instance MonadIO (GameMonad t) where
 -- Should be used in 'ModuleStack' as end monad:
 --
 -- @
--- type AppMonad t a = LoggingT t (ActorT t (GameMonad t)) a
+-- type AppMonad t a = LoggingT (ActorT (GameMonad t)) a
 -- @
 instance GameModule t (GameMonad t) where
   runModule m = do
-    (a, _) <- runStateT (runGameMonad m) newGameContext
+    (!a, _) <- runStateT (runGameMonad m) newGameContext
     return a
   withModule _ _ = id
+  --cleanupModule _ _ _ = return ()
+
   {-# INLINE runModule #-}
   {-# INLINE withModule #-}
+  --{-# INLINE cleanupModule #-}
 
 instance MonadAppHost t m => MonadAppHost t (StateT s m) where
   getFireAsync = lift getFireAsync
@@ -122,4 +131,3 @@ instance MonadAppHost t m => MonadAppHost t (StateT s m) where
 
   performPostBuild_ = lift . performPostBuild_
   liftHostFrame = lift . liftHostFrame
-

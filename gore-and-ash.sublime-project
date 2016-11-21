@@ -1,21 +1,27 @@
 {
+	"build_systems":
+	[
+		{
+			"name": "Stack",
+			"shell_cmd": "stack install --flag gore-and-ash:examples",
+			"working_dir": "${project_path}"
+		},
+		{
+			"name": "Stack pedantic",
+			"shell_cmd": "stack install --pedantic --flag  gore-and-ash:examples",
+			"working_dir": "${project_path}"
+		}
+	],
 	"folders":
 	[
 		{
 			"path": "."
+		},
+		{
+			"path": "/home/ncrashed/dev/gore-and-ash/gore-and-ash-logging"
+		},
+		{
+			"path": "/home/ncrashed/dev/gore-and-ash/gore-and-ash-network"
 		}
-	],
-  "build_systems":
-  [
-    {
-      "name": "Stack",
-      "shell_cmd": "stack install",
-      "working_dir": "${project_path}"
-    },
-    {
-      "name": "Stack pedantic",
-      "shell_cmd": "stack install --pedantic",
-      "working_dir": "${project_path}"
-    },
-  ],
+	]
 }
