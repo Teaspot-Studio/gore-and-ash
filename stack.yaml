@@ -14,11 +14,13 @@ packages:
     commit: ef269102ef5c61f15072ed79370e791820e25d8d
 # testing
 - '../gore-and-ash-logging'
+- '../gore-and-ash-network'
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
 - prim-uniq-0.1.0.1
 - ref-tf-0.4.0.1
+- typesafe-endian-0.1.0.1
 
 # Override default flag values for local packages and extra-deps
 flags: {}

@@ -27,6 +27,7 @@ module Game.GoreAndAsh.Core.Monad(
 import Control.DeepSeq
 import Control.Monad.IO.Class
 import Control.Monad.State.Strict
+import Data.Proxy
 import GHC.Generics (Generic)
 import Reflex hiding (performEvent, performEvent_, getPostBuild, performEventAsync)
 import Reflex.Host.App
@@ -41,7 +42,10 @@ type ReflexMonad t m = (Reflex t, MonadSample t m, MonadFix m, MonadIO m)
 -- The class describes how the module is executed each game frame, which external
 -- events are created and which respond to output of FRP network is done.
 class GameModule t gm where
+  -- | Execution of reactive subsystem of module
   runModule :: MonadAppHost t m => gm a -> m a
+  -- | Place when some external resouce initialisation can be placed
+  withModule :: Proxy t -> Proxy gm -> IO a -> IO a
 
 -- | State of core.
 --
@@ -105,8 +109,9 @@ instance GameModule t (GameMonad t) where
   runModule m = do
     (a, _) <- runStateT (runGameMonad m) newGameContext
     return a
+  withModule _ _ = id
   {-# INLINE runModule #-}
-
+  {-# INLINE withModule #-}
 
 instance MonadAppHost t m => MonadAppHost t (StateT s m) where
   getFireAsync = lift getFireAsync
