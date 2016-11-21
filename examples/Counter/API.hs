@@ -3,9 +3,8 @@ module Counter.API(
   , CounterT
   ) where
 
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Reader
-import Data.IORef
 import Data.Proxy
 import Game.GoreAndAsh
 
@@ -16,32 +15,18 @@ class (Reflex t, Monad m) => CounterMonad t m | m -> t where
   -- | Get value of counter
   getCounter :: m (Dynamic t Int)
 
--- | Internal state of module
-data CounterState t = CounterState {
-  stateVal :: !(IORef Int)
-, stateNotify :: !(Int -> IO ())
-, stateValEvent :: !(Event t Int)
-}
-
--- | Helper to increment counter in internal state
-incCounterState :: MonadIO m => CounterState t -> m ()
-incCounterState CounterState{..} = do
-  v <- liftIO $ atomicModifyIORef' stateVal (\v -> (v + 1, v + 1))
-  liftIO $ stateNotify v
-
 -- | Implementation basis of Counter API.
-newtype CounterT t m a = CounterT { runCounterT :: ReaderT (CounterState t) m a}
-  deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadReader (CounterState t))
+newtype CounterT t m a = CounterT { runCounterT :: ReaderT (ExternalRef t Int) m a}
+  deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadReader (ExternalRef t Int))
 
 -- | Implement our Counter API
 instance {-# OVERLAPPING #-} (Monad m, Reflex t, MonadAppHost t m) => CounterMonad t (CounterT t m) where
   incCounter e = do
-    st <- ask
-    performEvent_ $ ffor e $ const $ incCounterState st
+    ref <- ask
+    performEvent_ $ ffor e $ const $ modifyExternalRef ref (\a -> (a+1, ()))
   getCounter = do
-    CounterState{..} <- ask
-    v <- liftIO $ readIORef stateVal
-    holdDyn v stateValEvent
+    ref <- ask
+    externalRefDynamic ref
   {-# INLINE incCounter #-}
   {-# INLINE getCounter #-}
 
@@ -55,10 +40,8 @@ instance {-# OVERLAPPABLE #-} (Monad (mt m), CounterMonad t m, MonadTrans mt) =>
 -- | The instance registers external events and process reaction to output events
 instance (GameModule t m, MonadIO (HostFrame t)) => GameModule t (CounterT t m) where
   runModule m = do
-    (countEvent, countFire) <- newExternalEvent
-    countRef <- liftIO $ newIORef 0
-    let countFire' = void . countFire
-    runModule $ runReaderT (runCounterT m) (CounterState countRef countFire' countEvent)
+    ref <- newExternalRef 0
+    runModule $ runReaderT (runCounterT m) ref
   withModule t _ = withModule t (Proxy :: Proxy m)
   {-# INLINE runModule #-}
   {-# INLINE withModule #-}

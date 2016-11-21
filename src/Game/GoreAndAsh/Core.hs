@@ -13,7 +13,9 @@ definition of core module system and utilities to control main loop of
 application.
 -}
 module Game.GoreAndAsh.Core(
-    module Game.GoreAndAsh.Core.Monad
+    module Game.GoreAndAsh.Core.ExternalRef
+  , module Game.GoreAndAsh.Core.Monad
   ) where
 
+import Game.GoreAndAsh.Core.ExternalRef
 import Game.GoreAndAsh.Core.Monad
