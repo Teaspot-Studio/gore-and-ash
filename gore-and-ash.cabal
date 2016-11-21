@@ -45,6 +45,7 @@ library
     , mtl                   >= 2.2      && < 2.3
     , reflex                >= 0.5      && < 0.6
     , reflex-host           >= 0.3      && < 0.4
+    , stateWriter           >= 0.2      && < 0.3
     , transformers          >= 0.4      && < 0.6
     , unordered-containers  >= 0.2.5.1  && < 0.3
 
@@ -73,10 +74,14 @@ executable gore-and-ash-example-logger
 
   hs-source-dirs:     examples
   main-is:            Logger.hs
+  other-modules:
+    Logger.API
   default-language:   Haskell2010
   build-depends:
       base                  >= 4.7      && < 5
     , gore-and-ash
+    , mtl                   >= 2.2      && < 2.3
+    , stateWriter           >= 0.2      && < 0.3
 
   default-extensions:
     BangPatterns
@@ -90,6 +95,42 @@ executable gore-and-ash-example-logger
     OverloadedStrings
     RecordWildCards
     ScopedTypeVariables
+    UndecidableInstances
+
+  ghc-options: -threaded
+
+executable gore-and-ash-example-timer
+  if flag(examples)
+    buildable: True
+  else
+    buildable: False
+
+  hs-source-dirs:     examples
+  main-is:            Timer.hs
+  other-modules:
+    Timer.API
+    Logger.API
+  default-language:   Haskell2010
+  build-depends:
+      base                  >= 4.7      && < 5
+    , gore-and-ash
+    , mtl                   >= 2.2      && < 2.3
+    , stateWriter           >= 0.2      && < 0.3
+    , time                  >= 1.6      && < 1.7
+
+  default-extensions:
+    BangPatterns
+    DeriveFunctor
+    DeriveGeneric
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GeneralizedNewtypeDeriving
+    MultiParamTypeClasses
+    OverloadedStrings
+    RecordWildCards
+    ScopedTypeVariables
+    UndecidableInstances
 
   ghc-options: -threaded
 
