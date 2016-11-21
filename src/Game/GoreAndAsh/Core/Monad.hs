@@ -12,275 +12,109 @@ The module defines 'GameMonadT' monad transformer as base monad for engine.
 Also there is 'GameModule' class that must be implemented by all core modules. Finally 'ModuleStack'
 type family is for user usage to compose all modules in single monad stack.
 -}
+{-# LANGUAGE ConstraintKinds #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Game.GoreAndAsh.Core.Monad(
-    GameMonadT
-  , GameContext(..)
-  , newGameContext
-  , evalGameMonad
+    ReflexMonad
+  , GameMonad
   , GameModule(..)
-  , IOState
-  , IdentityState
-  , ModuleStack
+  -- * Reexports
+  , module Reflex
+  , module Reflex.Host.App
+  , module Reflex.Host.Class
   ) where
 
 import Control.DeepSeq
-import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Control.Monad.State.Strict
-import Data.Functor.Identity
-import Data.Proxy (Proxy(..))
 import GHC.Generics (Generic)
+import Reflex hiding (performEvent, performEvent_, getPostBuild, performEventAsync)
+import Reflex.Host.App
+import Reflex.Host.Class
 
--- | Basic game monad transformer which wraps core modules.
+-- | Capture usual requirements for FRP monad
+type ReflexMonad t m = (Reflex t, MonadSample t m, MonadFix m, MonadIO m)
+
+-- | Describes how to run core modules. Each core module must define
+-- an instance of the class.
 --
--- Here goes all core API that accessable from each
--- game object. All specific (mods etc) API should
--- be included in inner `m` monad.
---
--- [@m@] Core modules monads stacked up here.
---
--- [@a@] Value caried by the monad.
---
--- The monad is used to create new arrows, there a 90% chances
--- that you will create your own arrows. You could use "Control.Wire.Core"
--- module and especially 'mkGen', 'mkGen_' and 'mkSFN' functions to create
--- new arrows.
-newtype GameMonadT m a = GameMonadT {
-  runGameMonadT :: StateT GameContext m a
-} deriving (MonadThrow, MonadCatch, MonadMask)
+-- The class describes how the module is executed each game frame, which external
+-- events are created and which respond to output of FRP network is done.
+class GameModule t gm where
+  runModule :: MonadAppHost t m => gm a -> m a
 
 -- | State of core.
 --
 -- At the moment it is empty, but left for future
 -- extensions. For example, some introspection API
 -- of enabled modules would be added.
-data GameContext = GameContext {
+data GameContext t = GameContext {
 
 } deriving Generic
 
-instance NFData GameContext
+instance NFData (GameContext t)
 
 -- | Create empty context
-newGameContext :: GameContext
+newGameContext :: GameContext t
 newGameContext = GameContext
 
-instance Functor m => Functor (GameMonadT m) where
-  fmap f (GameMonadT m) = GameMonadT $ fmap f m
+-- | Endpoint for application monad stack that captures engine features for reactivity.
+--
+-- [@t@] FRP engine implementation (needed by reflex). Almost always you should
+-- just type 't' in all user code in the place and ignore it.
+--
+-- [@a@] Value carried by the monad.
+--
+-- Should be used in application monad stack as end monad:
+--
+-- @
+-- type AppMonad t a = LoggingT t (ActorT t (GameMonad t)) a
+-- @
+newtype GameMonad t a = GameMonad {
+  runGameMonad :: forall m . MonadAppHost t m => StateT (GameContext t) m a
+}
+
+instance Functor (GameMonad t) where
+  fmap f (GameMonad m) = GameMonad $ fmap f m
 
 -- | Monad is needed as StateT Applicative instance requires it
-instance Monad m => Applicative (GameMonadT m) where
-  pure a = GameMonadT $ pure a
-  (GameMonadT f) <*> (GameMonadT m) = GameMonadT $ f <*> m
+instance Applicative (GameMonad t) where
+  pure a = GameMonad $ pure a
+  (GameMonad f) <*> (GameMonad m) = GameMonad $ f <*> m
 
-instance Monad m => Monad (GameMonadT m) where
+instance Monad (GameMonad t) where
   return = pure
-  (GameMonadT ma) >>= f = GameMonadT $ do
+  (GameMonad ma) >>= f = GameMonad $ do
     a <- ma
-    runGameMonadT $ f a
+    runGameMonad $ f a
 
-instance MonadFix m => MonadFix (GameMonadT m) where
-  mfix f = GameMonadT $ mfix (runGameMonadT . f)
+instance MonadFix (GameMonad t) where
+  mfix f = GameMonad $ mfix (runGameMonad . f)
 
-instance MonadTrans GameMonadT where
-  lift = GameMonadT . lift
+instance MonadIO (GameMonad t) where
+  liftIO m = GameMonad $ liftIO m
 
-instance MonadIO m => MonadIO (GameMonadT m) where
-  liftIO = GameMonadT . liftIO
-
--- | Runs game monad with given context
-evalGameMonad :: GameMonadT m a -> GameContext -> m (a, GameContext)
-evalGameMonad (GameMonadT m) ctx = runStateT m ctx
-
--- | Describes how to run core modules. Each core module must define
--- an instance of the class.
+-- | Endpoint for 'ModuleStack' that captures engine features for reactivity.
 --
--- The class describes how the module is executed each game frame
--- and how to pass its own state to the next state.
---
--- The state 's' must be unique for each game module.
---
--- 'GameMonadT' has 'm' parameter that should implement the class.
---
--- Typical backbone of new core module:
+-- Should be used in 'ModuleStack' as end monad:
 --
 -- @
---   -- | State of your module
---   data MyModuleState s = MyModuleState {
---     -- | Next state in state chain of modules
---   , myModuleNextState :: !s
---   } deriving (Generic)
---
---   -- | Needed to step game state
---   instance NFData s => NFData (MyModuleState s)
---
---   -- | Creation of initial state
---   emptyMyModuleState :: s -> MyModuleState s
---   emptyMyModuleState s = MyModuleState {
---       myModuleNextState = s
---     }
---
---   -- Your monad transformer that implements module API
---   newtype MyModuleT s m a = MyModuleT { runMyModuleT :: StateT (MyModuleState s) m a }
---     deriving (Functor, Applicative, Monad, MonadState (MyModuleState s), MonadFix, MonadTrans, MonadIO, MonadThrow, MonadCatch, MonadMask)
---
---   instance GameModule m s => GameModule (MyModuleT s m) (MyModuleState s) where
---     type ModuleState (MyModuleT s m) = MyModuleState s
---     runModule (MyModuleT m) s = do
---       -- First phase: execute all dependent modules actions and transform own state
---       ((a, s'), nextState) <- runModule (runStateT m s) (myModuleNextState s)
---       -- Second phase: here you could execute your IO actions
---       return (a, s' {
---          myModuleNextState = nextState
---         })
---
---     newModuleState = emptyMyModuleState <$> newModuleState
---
---     withModule _ = id
---     cleanupModule _ = return ()
---
---   -- | Define your module API
---   class OtherModuleMonad m => MyModuleMonad m where
---     -- | The function would be seen in any arrow
---     myAwesomeFunction :: AnotherModule m => a -> b -> m (a, b)
---
---   -- | Implementation of API
---   instance {-\# OVERLAPPING #-} OtherModuleMonad m => MyModuleMonad (MyModuleT s m) where
---      myAwesomeFunction = ...
---
---   -- | Passing calls through other modules
---   instance {-\# OVERLAPPABLE #-} (MyModuleMonad m, MonadTrans mt) => MyModuleMonad (mt m) where
---     myAwesomeFunction a b = lift $ myAwesomeFunction a b
+-- type AppMonad t a = LoggingT t (ActorT t (GameMonad t)) a
 -- @
---
--- After the backbone definition you could include your monad to application stack with 'ModuleStack'
--- and use it within any arrow in your application.
-class Monad m => GameModule m s | m -> s, s -> m where
-  -- | Defines what state has given module.
-  --
-  -- The correct implentation of the association:
-  -- >>> type ModuleState (MyModuleT s m) = MyModuleState s
-  type ModuleState m :: *
+instance GameModule t (GameMonad t) where
+  runModule m = do
+    (a, _) <- runStateT (runGameMonad m) newGameContext
+    return a
+  {-# INLINE runModule #-}
 
-  -- | Executes module action with given state. Produces new state that should be passed to next step
-  --
-  -- Each core module has responsibility of executing underlying modules with nested call to 'runModule'.
-  --
-  -- Typically there are two phases of execution:
-  --
-  --   * Calculation of own state and running underlying modules
-  --
-  --   * Execution of IO actions that are queued in module state
-  --
-  -- Some of modules requires 'IO' monad at the end of monad stack to call 'IO' actions in place within
-  -- first phase of module execution (example: network module). You should avoid the pattern and prefer
-  -- to execute 'IO' actions at the second phase as bad designed use of first phase could lead to strange
-  -- behavior at arrow level.
-  runModule :: MonadIO m' => m a -> s -> m' (a, s)
-  -- | Creates new state of module.
-  --
-  -- Typically there are nested calls to 'newModuleState' for nested modules.
-  -- @
-  -- newModuleState = emptyMyModuleState <$> newModuleState
-  -- @
-  newModuleState :: MonadIO m' => m' s
-  -- | Wrap action with module initialization and cleanup.
-  --
-  -- Could be `withSocketsDo` or another external library initalization.
-  withModule :: Proxy m -> IO a -> IO a
-  -- | Cleanup resources of the module, should be called on exit (actually 'cleanupGameState' do this for your)
-  cleanupModule :: s -> IO ()
 
--- | Type level function that constucts complex module stack from given list of modules.
---
--- The type family helps to simplify chaining of core modules at user application:
---
--- @
--- -- | Application monad is monad stack build from given list of modules over base monad (IO)
--- type AppStack = ModuleStack [LoggingT, ActorT, NetworkT] IO
--- newtype AppState = AppState (ModuleState AppStack)
---   deriving (Generic)
---
--- instance NFData AppState
---
--- -- | Wrapper around type family to enable automatic deriving
--- --
--- -- Note: There could be need of manual declaration of module API stub instances, as GHC can fail to derive instance automatically.
--- newtype AppMonad a = AppMonad (AppStack a)
---   deriving (Functor, Applicative, Monad, MonadFix, MonadIO, LoggingMonad, NetworkMonad, ActorMonad, MonadThrow, MonadCatch)
---
--- -- | Top level wrapper for module stack
--- instance GameModule AppMonad AppState where
---   type ModuleState AppMonad = AppState
---   runModule (AppMonad m) (AppState s) = do
---     (a, s') <- runModule m s
---     return (a, AppState s')
---   newModuleState = AppState <$> newModuleState
---   withModule _ = withModule (Proxy :: Proxy AppStack)
---   cleanupModule (AppState s) = cleanupModule s
---
--- -- | Arrow that is build over the monad stack
--- type AppWire a b = GameWire AppMonad a b
--- -- | Action that makes indexed app wire
--- type AppActor i a b = GameActor AppMonad i a b
--- @
---
--- There are two endpoint monads that are currently built in the core:
---
---   * 'Identity' - for modules stack that does only pure actions at it first phase;
---
---   * 'IO' - most common case, modules can execute 'IO' actions in place at firts phase.
-type family ModuleStack (ms :: [* -> (* -> *) -> * -> *]) (endm :: * -> *) :: * -> * where
-  ModuleStack '[] curm = curm
-  ModuleStack (m ': ms) curm = ModuleStack ms (m (ModuleState curm) curm)
+instance MonadAppHost t m => MonadAppHost t (StateT s m) where
+  getFireAsync = lift getFireAsync
+  getRunAppHost = do
+    runner <- lift getRunAppHost
+    s <- get
+    return $ \m -> runner $ evalStateT m s
 
--- | Endpoint of state chain for Identity monad
---
--- Could be used in 'ModuleStack' as end monad:
---
--- @
--- type AppStack = ModuleStack [LoggingT, ActorT] Identity
--- @
-data IdentityState = IdentityState deriving Generic
+  performPostBuild_ = lift . performPostBuild_
+  liftHostFrame = lift . liftHostFrame
 
-instance NFData IdentityState
-
--- | Module stack that does only pure actions in its first phase.
---
--- Could be used in 'ModuleStack' as end monad:
---
--- @
--- type AppStack = ModuleStack [LoggingT, ActorT] Identity
--- @
-instance GameModule Identity IdentityState where
-  type ModuleState Identity = IdentityState
-  runModule i _ = return $ (runIdentity i, IdentityState)
-  newModuleState = return IdentityState
-  withModule _ = id
-  cleanupModule _ = return ()
-
--- | Endpoint of state chain for IO monad.
---
--- Could be used in 'ModuleStack' as end monad:
---
--- @
--- type AppStack = ModuleStack [LoggingT, ActorT, NetworkT] IO
--- @
-data IOState = IOState deriving Generic
-
-instance NFData IOState
-
--- | Module stack that does IO action.
---
--- Could be used in 'ModuleStack' as end monad:
---
--- @
--- type AppStack = ModuleStack [LoggingT, ActorT, NetworkT] IO
--- @
-instance GameModule IO IOState where
-  type ModuleState IO = IOState
-  runModule io _ = do
-    a <- liftIO io
-    return (a, IOState)
-  newModuleState = return IOState
-  withModule _ = id
-  cleanupModule _ = return ()

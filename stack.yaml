@@ -9,6 +9,11 @@ packages:
 - location:
     git: git@github.com:reflex-frp/reflex.git
     commit: 91299fce0bb2caddfba35af6608df57dd31e3690
+- location:
+    git: git@github.com:bennofs/reflex-host.git
+    commit: ef269102ef5c61f15072ed79370e791820e25d8d
+# testing
+- '../gore-and-ash-logging'
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
