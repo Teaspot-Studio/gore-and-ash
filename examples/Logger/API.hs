@@ -62,6 +62,7 @@ instance (MonadIO (HostFrame t), GameModule t m) => GameModule t (LoggerT t m) w
 
 -------------------------------------------------------------------------------
 -- Boilerplate
+-------------------------------------------------------------------------------
 
 instance MonadTrans (LoggerT t) where
   lift = LoggerT . lift
