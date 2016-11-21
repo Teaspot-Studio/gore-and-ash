@@ -46,8 +46,12 @@ type ReflexMonad t m = (Reflex t, MonadSample t m, MonadFix m, MonadIO m)
 -- The class describes how the module is executed each game frame, which external
 -- events are created and which respond to output of FRP network is done.
 class (ReflexHost t, Monad gm) => GameModule t gm where
+  -- | Specific options of module
+  type ModuleOptions t gm :: *
+  type ModuleOptions t gm = ()
+
   -- | Execution of reactive subsystem of module
-  runModule :: gm a -> AppHost t a
+  runModule :: ModuleOptions t gm -> gm a -> AppHost t a
 
   -- | Place when some external resouce initialisation can be placed
   withModule :: Proxy t -> Proxy gm -> IO a -> IO a
@@ -114,7 +118,7 @@ instance (MonadIO (HostFrame t), ReflexHost t) => MonadIO (GameMonad t) where
 -- type AppMonad t a = LoggingT (ActorT (GameMonad t)) a
 -- @
 instance ReflexHost t => GameModule t (GameMonad t) where
-  runModule m = do
+  runModule _ m = do
     (!a, _) <- runStateT (runGameMonad m) newGameContext
     return a
   withModule _ _ = id

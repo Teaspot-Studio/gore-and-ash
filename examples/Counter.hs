@@ -23,4 +23,4 @@ app = do
   incCounter updE
 
 main :: IO ()
-main = runSpiderHost $ hostApp $ runModule (app :: AppMonad ())
+main = runSpiderHost $ hostApp $ runModule () (app :: AppMonad ())

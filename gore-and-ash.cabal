@@ -96,6 +96,7 @@ executable gore-and-ash-example-logger
     OverloadedStrings
     RecordWildCards
     ScopedTypeVariables
+    TypeFamilies
     UndecidableInstances
 
   ghc-options: -threaded
@@ -131,6 +132,7 @@ executable gore-and-ash-example-timer
     OverloadedStrings
     RecordWildCards
     ScopedTypeVariables
+    TypeFamilies
     UndecidableInstances
 
   ghc-options: -threaded
@@ -167,6 +169,7 @@ executable gore-and-ash-example-counter
     OverloadedStrings
     RecordWildCards
     ScopedTypeVariables
+    TypeFamilies
     UndecidableInstances
 
   ghc-options: -threaded

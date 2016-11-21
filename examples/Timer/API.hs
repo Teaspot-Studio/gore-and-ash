@@ -40,7 +40,8 @@ instance {-# OVERLAPPABLE #-} (Monad (mt m), TimerMonad t m, MonadTrans mt) => T
 
 -- | The instance registers external events and process reaction to output events
 instance (GameModule t m) => GameModule t (TimerT t m) where
-  runModule m = runModule $ runTimerT m
+  type ModuleOptions t (TimerT t m) = ModuleOptions t m
+  runModule opts m = runModule opts $ runTimerT m
   withModule t _ = withModule t (Proxy :: Proxy m)
 
   {-# INLINE runModule #-}

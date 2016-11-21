@@ -14,4 +14,4 @@ app = do
   outputMessage $ ffor timeE $ const "Tick!"
 
 main :: IO ()
-main = runSpiderHost $ hostApp $ runModule (app :: AppMonad ())
+main = runSpiderHost $ hostApp $ runModule () (app :: AppMonad ())

@@ -13,4 +13,4 @@ app = do
   outputMessage $ fmap (\msg -> "You said: " ++ msg) msgE
 
 main :: IO ()
-main = runSpiderHost $ hostApp $ runModule (app :: AppMonad ())
+main = runSpiderHost $ hostApp $ runModule () (app :: AppMonad ())

@@ -39,9 +39,10 @@ instance {-# OVERLAPPABLE #-} (Monad (mt m), CounterMonad t m, MonadTrans mt) =>
 
 -- | The instance registers external events and process reaction to output events
 instance (GameModule t m, MonadIO (HostFrame t)) => GameModule t (CounterT t m) where
-  runModule m = do
+  type ModuleOptions t (CounterT t m) = ModuleOptions t m
+  runModule opts m = do
     ref <- newExternalRef 0
-    runModule $ runReaderT (runCounterT m) ref
+    runModule opts $ runReaderT (runCounterT m) ref
   withModule t _ = withModule t (Proxy :: Proxy m)
   {-# INLINE runModule #-}
   {-# INLINE withModule #-}

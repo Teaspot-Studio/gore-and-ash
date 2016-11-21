@@ -55,10 +55,12 @@ instance {-# OVERLAPPABLE #-} (Monad (mt m), LoggerMonad t m, MonadTrans mt) => 
 
 -- | The instance registers external events and process reaction to output events
 instance (MonadIO (HostFrame t), GameModule t m) => GameModule t (LoggerT t m) where
-  runModule m = do
+  type ModuleOptions t (LoggerT t m) = ModuleOptions t m
+
+  runModule opts m = do
     (inputEvent, inputFire) <- newExternalEvent
     _ <- liftIO . forkIO . forever $ getLine >>= inputFire
-    (a, LoggerOutput outputEvent) <- runModule $ evalLoggerT m inputEvent
+    (a, LoggerOutput outputEvent) <- runModule opts $ evalLoggerT m inputEvent
     performEvent_ $ fmap (liftIO . putStrLn) outputEvent
     return a
 
