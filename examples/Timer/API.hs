@@ -19,6 +19,32 @@ class (Reflex t, Monad m) => TimerMonad t m | m -> t where
 newtype TimerT t m a = TimerT { runTimerT :: m a}
   deriving (Functor, Applicative, Monad, MonadIO, MonadFix)
 
+-- | Implement our Timer API
+instance {-# OVERLAPPING #-} (Monad m, Reflex t, MonadAppHost t m) => TimerMonad t (TimerT t m) where
+  tickEvery t = do
+    (tickEvent, fireTick) <- newExternalEvent
+    _ <- liftIO . forkIO $ ticker fireTick
+    return tickEvent
+    where
+    ticker fire = do
+      threadDelay (ceiling $ (realToFrac t :: Double) * 1000000)
+      res <- fire ()
+      if res then ticker fire
+        else return ()
+  {-# INLINE tickEvery #-}
+
+-- | The instance registers external events and process reaction to output events
+instance (GameModule t m) => GameModule t (TimerT t m) where
+  runModule m = runModule $ runTimerT m
+  withModule t _ = withModule t (Proxy :: Proxy m)
+
+  {-# INLINE runModule #-}
+  {-# INLINE withModule #-}
+
+--------------------------------------------------------------------------------
+-- Boilerplate
+--------------------------------------------------------------------------------
+
 instance MonadTrans (TimerT t) where
   lift = TimerT
 
@@ -42,29 +68,7 @@ instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (TimerT t m)
   newEventWithTrigger = lift . newEventWithTrigger
   newFanEventWithTrigger a = lift $ newFanEventWithTrigger a
 
--- | Implement our Timer API
-instance {-# OVERLAPPING #-} (Monad m, Reflex t, MonadAppHost t m) => TimerMonad t (TimerT t m) where
-  tickEvery t = do
-    (tickEvent, fireTick) <- newExternalEvent
-    _ <- liftIO . forkIO $ ticker fireTick
-    return tickEvent
-    where
-    ticker fire = do
-      threadDelay (ceiling $ (realToFrac t :: Double) * 1000000)
-      res <- fire ()
-      if res then ticker fire
-        else return ()
-  {-# INLINE tickEvery #-}
-
 -- | Automatic lifting across monad stack
 instance {-# OVERLAPPABLE #-} (Monad (mt m), TimerMonad t m, MonadTrans mt) => TimerMonad t (mt m) where
   tickEvery = lift . tickEvery
   {-# INLINE tickEvery #-}
-
--- | The instance registers external events and process reaction to output events
-instance (GameModule t m) => GameModule t (TimerT t m) where
-  runModule m = runModule $ runTimerT m
-  withModule t _ = withModule t (Proxy :: Proxy m)
-
-  {-# INLINE runModule #-}
-  {-# INLINE withModule #-}

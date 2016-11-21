@@ -39,6 +39,30 @@ newtype LoggerT t m a = LoggerT { runLoggerT :: RSST (LoggerInput t) (LoggerOutp
 evalLoggerT :: (Monad m, Reflex t) => LoggerT t m a -> LoggerInput t -> m (a, LoggerOutput t)
 evalLoggerT m i = fmap (\(a, _, o) -> (a, o)) $ runRSST (runLoggerT m) i ()
 
+-- | Implement our logger API
+instance {-# OVERLAPPING #-} (Monad m, Reflex t) => LoggerMonad t (LoggerT t m) where
+  inputMessage = ask
+  outputMessage e = tell $ LoggerOutput e
+  {-# INLINE inputMessage #-}
+  {-# INLINE outputMessage #-}
+
+-- | The instance registers external events and process reaction to output events
+instance (MonadIO (HostFrame t), GameModule t m) => GameModule t (LoggerT t m) where
+  runModule m = do
+    (inputEvent, inputFire) <- newExternalEvent
+    _ <- liftIO . forkIO . forever $ getLine >>= inputFire
+    (a, LoggerOutput outputEvent) <- runModule $ evalLoggerT m inputEvent
+    performEvent_ $ fmap (liftIO . putStrLn) outputEvent
+    return a
+
+  withModule t _ = withModule t (Proxy :: Proxy m)
+
+  {-# INLINE runModule #-}
+  {-# INLINE withModule #-}
+
+-------------------------------------------------------------------------------
+-- Boilerplate
+
 instance MonadTrans (LoggerT t) where
   lift = LoggerT . lift
 
@@ -63,30 +87,9 @@ instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (LoggerT t m
   newEventWithTrigger = lift . newEventWithTrigger
   newFanEventWithTrigger a = lift $ newFanEventWithTrigger a
 
--- | Implement our logger API
-instance {-# OVERLAPPING #-} (Monad m, Reflex t) => LoggerMonad t (LoggerT t m) where
-  inputMessage = ask
-  outputMessage e = tell $ LoggerOutput e
-  {-# INLINE inputMessage #-}
-  {-# INLINE outputMessage #-}
-
 -- | Automatic lifting across monad stack
 instance {-# OVERLAPPABLE #-} (Monad (mt m), LoggerMonad t m, MonadTrans mt) => LoggerMonad t (mt m) where
   inputMessage = lift inputMessage
   outputMessage = lift . outputMessage
   {-# INLINE inputMessage #-}
   {-# INLINE outputMessage #-}
-
--- | The instance registers external events and process reaction to output events
-instance (MonadIO (HostFrame t), GameModule t m) => GameModule t (LoggerT t m) where
-  runModule m = do
-    (inputEvent, inputFire) <- newExternalEvent
-    _ <- liftIO . forkIO . forever $ getLine >>= inputFire
-    (a, LoggerOutput outputEvent) <- runModule $ evalLoggerT m inputEvent
-    performEvent_ $ fmap (liftIO . putStrLn) outputEvent
-    return a
-
-  withModule t _ = withModule t (Proxy :: Proxy m)
-
-  {-# INLINE runModule #-}
-  {-# INLINE withModule #-}
