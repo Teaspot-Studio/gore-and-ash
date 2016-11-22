@@ -13,6 +13,7 @@ module Game.GoreAndAsh.Core.ExternalRef(
   , readExternalRef
   , writeExternalRef
   , modifyExternalRef
+  , modifyExternalRefM
   , externalRefBehavior
   , externalRefDynamic
   ) where
@@ -71,6 +72,18 @@ modifyExternalRef ExternalRef{..} f = do
   (a, b) <- liftIO $ atomicModifyIORef' externalRef $
     \a -> let (a', b) = f a in (a', (a', b))
   _ <- liftIO $ externalFire a
+  return b
+
+-- | Modify (not atomically) an external ref and notify FRP network.
+-- The function evaluates the value to WNF.
+modifyExternalRefM :: MonadIO m => ExternalRef t a -> (a -> m (a, b)) -> m b
+modifyExternalRefM ExternalRef{..} f = do
+  a <- liftIO $ readIORef externalRef
+  (a', b) <- f a
+  liftIO $ do
+    writeIORef externalRef a'
+    _ <- externalFire a
+    return ()
   return b
 
 -- | Construct a behavior from external reference
