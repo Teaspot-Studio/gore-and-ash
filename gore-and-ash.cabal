@@ -29,6 +29,7 @@ library
     Data.Filterable
     Game.GoreAndAsh
     Game.GoreAndAsh.Core
+    Game.GoreAndAsh.Core.Delay
     Game.GoreAndAsh.Core.ExternalRef
     Game.GoreAndAsh.Core.Monad
     Game.GoreAndAsh.Math
