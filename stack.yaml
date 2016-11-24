@@ -15,6 +15,7 @@ packages:
 # testing
 - '../gore-and-ash-logging'
 - '../gore-and-ash-network'
+- '../gore-and-ash-sdl'
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:

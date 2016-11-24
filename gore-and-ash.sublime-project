@@ -8,7 +8,7 @@
 		},
 		{
 			"name": "Stack pedantic",
-			"shell_cmd": "stack install --pedantic --flag  gore-and-ash:examples",
+			"shell_cmd": "stack install --pedantic --flag gore-and-ash:examples --flag gore-and-ash-sdl:examples",
 			"working_dir": "${project_path}"
 		}
 	],
@@ -22,6 +22,21 @@
 		},
 		{
 			"path": "/home/ncrashed/dev/gore-and-ash/gore-and-ash-network"
+		},
+		{
+			"path": "/home/ncrashed/dev/gore-and-ash/gore-and-ash-async"
+		},
+		{
+			"path": "/home/ncrashed/dev/gore-and-ash/gore-and-ash-actor"
+		},
+		{
+			"path": "/home/ncrashed/dev/gore-and-ash/gore-and-ash-sync"
+		},
+		{
+			"path": "/home/ncrashed/dev/gore-and-ash/gore-and-ash-sdl"
+		},
+		{
+			"path": "/home/ncrashed/dev/gore-and-ash/gore-and-ash-demo"
 		}
 	]
 }

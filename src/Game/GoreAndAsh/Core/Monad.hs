@@ -27,15 +27,21 @@ module Game.GoreAndAsh.Core.Monad(
   ) where
 
 import Control.DeepSeq
+import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Control.Monad.State.Strict
 import Control.Monad.Trans.RSS.Strict
+import Control.Monad.Writer
 import Data.Proxy
+import Data.Semigroup.Applicative
 import GHC.Generics (Generic)
 import Reflex hiding (performEvent, performEvent_, getPostBuild, performEventAsync)
 import Reflex.Host.App
+import Reflex.Host.App.Internal
 import Reflex.Host.Class
+
+import qualified Reflex.Spider.Internal as R
 
 -- | Capture usual requirements for FRP monad
 type ReflexMonad t m = (Reflex t, MonadSample t m, MonadFix m, MonadIO m)
@@ -74,6 +80,9 @@ instance NFData (GameContext t)
 newGameContext :: GameContext t
 newGameContext = GameContext
 
+-- | Internal representation of 'GameMonad'
+type GameMonadStack t = StateT (GameContext t) (AppHost t)
+
 -- | Endpoint for application monad stack that captures engine features for reactivity.
 --
 -- [@t@] FRP engine implementation (needed by reflex). Almost always you should
@@ -87,7 +96,7 @@ newGameContext = GameContext
 -- type AppMonad t a = LoggingT (ActorT (GameMonad t)) a
 -- @
 newtype GameMonad t a = GameMonad {
-  runGameMonad :: StateT (GameContext t) (AppHost t) a
+  runGameMonad :: GameMonadStack t  a
 }
 
 instance ReflexHost t => Functor (GameMonad t) where
@@ -150,6 +159,119 @@ instance (MonadIO (HostFrame t), ReflexHost t) => MonadAppHost t (GameMonad t) w
     return $ \m -> runner $ runGameMonad m
   performPostBuild_ = GameMonad . performPostBuild_
   liftHostFrame = GameMonad . liftHostFrame
+
+instance MonadThrow (R.EventM a) where
+  throwM = R.EventM . throwM
+
+instance MonadThrow (R.SpiderHostFrame a) where
+  throwM = R.SpiderHostFrame . throwM
+
+instance MonadThrow m => MonadThrow (RSST r w s m) where
+  throwM = lift . throwM
+
+instance (MonadThrow (HostFrame t), ReflexHost t) => MonadThrow (AppHost t) where
+  throwM = AppHost . throwM
+
+instance (MonadThrow (HostFrame t), ReflexHost t) => MonadThrow (GameMonad t) where
+  throwM = GameMonad . throwM
+
+instance MonadCatch (R.EventM a) where
+  catch (R.EventM m) f = R.EventM $ m `catch` (R.unEventM . f)
+
+instance MonadCatch (R.SpiderHostFrame a) where
+  catch (R.SpiderHostFrame m) f = R.SpiderHostFrame $ m `catch` (R.runSpiderHostFrame . f)
+
+instance (Monoid w, MonadCatch m) => MonadCatch (RSST r w s m) where
+  catch m f = do
+    r <- ask
+    s <- get
+    (a, s', w) <- lift $ runRSST m r s `catch` (\e -> runRSST (f e) r s)
+    put s'
+    tell w
+    return a
+
+instance (MonadCatch (HostFrame t), ReflexHost t) => MonadCatch (AppHost t) where
+  catch (AppHost m) f = AppHost $ m `catch` (unAppHost . f)
+
+instance (MonadCatch (HostFrame t), ReflexHost t) => MonadCatch (GameMonad t) where
+  catch (GameMonad m) f = GameMonad $ m `catch` (runGameMonad . f)
+
+instance (Monoid w, MonadMask m) => MonadMask (RSST r w s m) where
+  mask m = do
+    r <- ask
+    s <- get
+    (a, s', w) <- lift $ mask $ \u -> runRSST (m $ q u) r s
+    put s'
+    tell w
+    return a
+    where
+      q :: (forall b . m b -> m b) -> RSST r w s m a -> RSST r w s m a
+      q u m' = do
+        r <- ask
+        s <- get
+        (a, s', w) <- lift $ u (runRSST m' r s)
+        put s'
+        tell w
+        return a
+
+  uninterruptibleMask m = do
+    r <- ask
+    s <- get
+    (a, s', w) <- lift $ uninterruptibleMask $ \u -> runRSST (m $ q u) r s
+    put s'
+    tell w
+    return a
+    where
+      q :: (forall b . m b -> m b) -> RSST r w s m a -> RSST r w s m a
+      q u m' = do
+        r <- ask
+        s <- get
+        (a, s', w) <- lift $ u (runRSST m' r s)
+        put s'
+        tell w
+        return a
+
+instance MonadMask (R.EventM s) where
+  mask m = R.EventM $ mask $ \u -> R.unEventM (m $ q u)
+    where
+    q :: (forall b . IO b -> IO b) -> R.EventM s a -> R.EventM s a
+    q u m' = R.EventM $ u (R.unEventM m')
+  uninterruptibleMask m = R.EventM $ uninterruptibleMask $ \u -> R.unEventM (m $ q u)
+    where
+    q :: (forall b . IO b -> IO b) -> R.EventM s a -> R.EventM s a
+    q u m' = R.EventM $ u (R.unEventM m')
+
+instance MonadMask (R.SpiderHostFrame s) where
+  mask m = R.SpiderHostFrame $ mask $ \u -> R.runSpiderHostFrame (m $ q u)
+    where
+    q :: (forall b . R.EventM s b -> R.EventM s b) -> R.SpiderHostFrame s a -> R.SpiderHostFrame s a
+    q u m' = R.SpiderHostFrame $ u (R.runSpiderHostFrame m')
+  uninterruptibleMask m = R.SpiderHostFrame $ uninterruptibleMask $ \u -> R.runSpiderHostFrame (m $ q u)
+    where
+    q :: (forall b . R.EventM s b -> R.EventM s b) -> R.SpiderHostFrame s a -> R.SpiderHostFrame s a
+    q u m' = R.SpiderHostFrame $ u (R.runSpiderHostFrame m')
+
+type AppHostStack t = RSST (AppEnv t) (Ap (HostFrame t) (AppInfo t)) () (HostFrame t)
+
+instance (MonadMask (HostFrame t), ReflexHost t) => MonadMask (AppHost t) where
+  mask m = AppHost $ mask $ \u -> unAppHost (m $ q u)
+    where
+    q :: (forall b . AppHostStack t b -> AppHostStack t b) -> AppHost t a -> AppHost t a
+    q u m' = AppHost $ u (unAppHost m')
+  uninterruptibleMask m = AppHost $ uninterruptibleMask $ \u -> unAppHost (m $ q u)
+    where
+    q :: (forall b . AppHostStack t b -> AppHostStack t b) -> AppHost t a -> AppHost t a
+    q u m' = AppHost $ u (unAppHost m')
+
+instance (MonadMask (HostFrame t), ReflexHost t) => MonadMask (GameMonad t) where
+  mask m = GameMonad $ mask $ \u -> runGameMonad (m $ q u)
+    where
+    q :: (forall b . GameMonadStack t b -> GameMonadStack t b) -> GameMonad t a -> GameMonad t a
+    q u m' = GameMonad $ u (runGameMonad m')
+  uninterruptibleMask m = GameMonad $ uninterruptibleMask $ \u -> runGameMonad (m $ q u)
+    where
+    q :: (forall b . GameMonadStack t b -> GameMonadStack t b) -> GameMonad t a -> GameMonad t a
+    q u m' = GameMonad $ u (runGameMonad m')
 
 -- TODO: move this to reflex-host
 instance MonadAppHost t m => MonadAppHost t (StateT s m) where
