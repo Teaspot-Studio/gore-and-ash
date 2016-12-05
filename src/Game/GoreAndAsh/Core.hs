@@ -13,11 +13,13 @@ definition of core module system and utilities to control main loop of
 application.
 -}
 module Game.GoreAndAsh.Core(
-    module Game.GoreAndAsh.Core.Delay
+    module Game.GoreAndAsh.Core.Chain
+  , module Game.GoreAndAsh.Core.Delay
   , module Game.GoreAndAsh.Core.ExternalRef
   , module Game.GoreAndAsh.Core.Monad
   ) where
 
+import Game.GoreAndAsh.Core.Chain
 import Game.GoreAndAsh.Core.Delay
 import Game.GoreAndAsh.Core.ExternalRef
 import Game.GoreAndAsh.Core.Monad
