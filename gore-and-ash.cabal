@@ -33,6 +33,7 @@ library
     Game.GoreAndAsh.Core.Delay
     Game.GoreAndAsh.Core.ExternalRef
     Game.GoreAndAsh.Core.Monad
+    Game.GoreAndAsh.Core.Wire
     Game.GoreAndAsh.Math
 
   default-language:    Haskell2010
