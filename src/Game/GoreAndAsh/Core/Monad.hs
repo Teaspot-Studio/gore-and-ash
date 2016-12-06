@@ -12,8 +12,9 @@ The module defines 'GameMonadT' monad transformer as base monad for engine.
 Also there is 'GameModule' class that must be implemented by all core modules. Finally 'ModuleStack'
 type family is for user usage to compose all modules in single monad stack.
 -}
-{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Game.GoreAndAsh.Core.Monad(
     ReflexMonad
@@ -24,15 +25,27 @@ module Game.GoreAndAsh.Core.Monad(
   , module Reflex
   , module Reflex.Host.App
   , module Reflex.Host.Class
+  -- * Helpers for host monad
+  , performAppHostAsync
+  , wrapError
+  , dontCare
+  , fcutMaybe
+  , fcutEither
+  , fkeepNothing
+  , fkeepLeft
   ) where
 
 import Control.DeepSeq
 import Control.Monad.Catch
+import Control.Monad.Error.Class
 import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Control.Monad.State.Strict
+import Control.Monad.Trans.Control
 import Control.Monad.Trans.RSS.Strict
 import Control.Monad.Writer
+import Data.Either
+import Data.Maybe
 import Data.Proxy
 import Data.Semigroup.Applicative
 import GHC.Generics (Generic)
@@ -316,3 +329,40 @@ instance (Monoid w, MonadAppHost t m) => MonadAppHost t (RSST r w s m) where
     return $ \m -> runner . fmap (\(a, _, _) -> a) $ runRSST m r s
   performPostBuild_ = lift . performPostBuild_
   liftHostFrame = lift . liftHostFrame
+
+-- | Perform asynchronously a host operation and then switch into it
+performAppHostAsync :: (MonadAppHost t m, MonadBaseControl IO m)
+  => Event t (m a) -> m (Event t a)
+performAppHostAsync e = do
+  eLifted <- liftBaseWith $ \run -> return $ fmap run e
+  eAsync <- performEventAsync eLifted
+  performAppHost $ fmap restoreM eAsync
+
+-- | Helper to catch occurrences of error 'e' into 'Either'. Usually this is
+-- needed for event generator that can throw, but you want to provide an 'Either'
+-- in an event for end user.
+wrapError :: (MonadError e m) => m a -> m (Either e a)
+wrapError ma = (Right <$> ma) `catchError` (return . Left)
+
+-- | Rethrow errors in host monad, reverse of 'wrapError' when an end user doesn't
+-- care about errors.
+dontCare :: (MonadAppHost t m, MonadError e m) => Event t (Either e a) -> m (Event t a)
+dontCare e = performAppHost $ ffor e $ \case
+  Left err -> throwError err
+  Right a -> return a
+
+-- | Helper to pass through only a 'Just' values
+fcutMaybe :: Reflex t => Event t (Maybe a) -> Event t a
+fcutMaybe = fmap fromJust . ffilter isJust
+
+-- | Helper to pass through only a 'Nothing' values
+fkeepNothing :: Reflex t => Event t (Maybe a) -> Event t ()
+fkeepNothing = fmap (const ()) . ffilter isNothing
+
+-- | Helper to pass through only a 'Right' values
+fcutEither :: Reflex t => Event t (Either e a) -> Event t a
+fcutEither = fmap (\(Right a) -> a) . ffilter isRight
+
+-- | Helper to pass through only a 'Left' values
+fkeepLeft :: Reflex t => Event t (Either e a) -> Event t e
+fkeepLeft = fmap (\(Left e) -> e) . ffilter isLeft
