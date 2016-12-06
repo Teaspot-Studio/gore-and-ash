@@ -1,7 +1,7 @@
 module Main where
 
 import Game.GoreAndAsh
-import Timer.API
+import Game.GoreAndAsh.Time
 import Logger.API
 
 -- | Application monad that is used for implementation of game API

@@ -35,6 +35,7 @@ library
     Game.GoreAndAsh.Core.Monad
     Game.GoreAndAsh.Core.Wire
     Game.GoreAndAsh.Math
+    Game.GoreAndAsh.Time
 
   default-language:    Haskell2010
   build-depends:
@@ -52,6 +53,7 @@ library
     , reflex                >= 0.5      && < 0.6
     , reflex-host           >= 0.3      && < 0.4
     , stateWriter           >= 0.2      && < 0.3
+    , time                  >= 1.6      && < 1.7
     , transformers          >= 0.4      && < 0.6
     , transformers-base     >= 0.4      && < 0.5
     , unordered-containers  >= 0.2.5.1  && < 0.3
@@ -116,7 +118,6 @@ executable gore-and-ash-example-timer
   hs-source-dirs:     examples
   main-is:            Timer.hs
   other-modules:
-    Timer.API
     Logger.API
   default-language:   Haskell2010
   build-depends:
@@ -152,7 +153,6 @@ executable gore-and-ash-example-counter
   hs-source-dirs:     examples
   main-is:            Counter.hs
   other-modules:
-    Timer.API
     Logger.API
     Counter.API
   default-language:   Haskell2010

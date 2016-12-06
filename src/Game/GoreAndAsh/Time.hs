@@ -1,11 +1,23 @@
-module Timer.API(
+{-|
+Module      : Game.GoreAndAsh.Time
+Description : Simple API for timer events
+Copyright   : (c) Anton Gushcha, 2016
+License     : BSD3
+Maintainer  : ncrashed@gmail.com
+Stability   : experimental
+Portability : POSIX
+-}
+module Game.GoreAndAsh.Time(
     TimerMonad(..)
   , TimerT
   ) where
 
 import Control.Concurrent (forkIO, threadDelay)
+import Control.Monad.Base
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader
+import Control.Monad.Trans.Control
+import Control.Monad.Trans.Identity
 import Data.Proxy
 import Game.GoreAndAsh
 import Data.Time
@@ -16,7 +28,7 @@ class (Reflex t, Monad m) => TimerMonad t m | m -> t where
   tickEvery :: NominalDiffTime -> m (Event t ())
 
 -- | Implementation basis of Timer API.
-newtype TimerT t m a = TimerT { runTimerT :: m a}
+newtype TimerT t m a = TimerT { runTimerT :: IdentityT m a}
   deriving (Functor, Applicative, Monad, MonadIO, MonadFix)
 
 -- | Implement our Timer API
@@ -41,7 +53,7 @@ instance {-# OVERLAPPABLE #-} (Monad (mt m), TimerMonad t m, MonadTrans mt) => T
 -- | The instance registers external events and process reaction to output events
 instance (GameModule t m) => GameModule t (TimerT t m) where
   type ModuleOptions t (TimerT t m) = ModuleOptions t m
-  runModule opts m = runModule opts $ runTimerT m
+  runModule opts m = runModule opts $ runIdentityT $ runTimerT m
   withModule t _ = withModule t (Proxy :: Proxy m)
 
   {-# INLINE runModule #-}
@@ -52,7 +64,7 @@ instance (GameModule t m) => GameModule t (TimerT t m) where
 --------------------------------------------------------------------------------
 
 instance MonadTrans (TimerT t) where
-  lift = TimerT
+  lift = TimerT . IdentityT
 
 instance MonadSample t m => MonadSample t (TimerT t m) where
   sample = lift . sample
@@ -66,7 +78,7 @@ instance MonadAppHost t m => MonadAppHost t (TimerT t m) where
   getFireAsync = lift getFireAsync
   getRunAppHost = do
     runner <- lift getRunAppHost
-    return $ \m -> runner $ runTimerT m
+    return $ \m -> runner $ runIdentityT . runTimerT $ m
   performPostBuild_ = lift . performPostBuild_
   liftHostFrame = lift . liftHostFrame
 
@@ -76,3 +88,16 @@ instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (TimerT t m)
 
 instance MonadSubscribeEvent t m => MonadSubscribeEvent t (TimerT r m) where
   subscribeEvent = lift . subscribeEvent
+
+instance MonadTransControl (TimerT t) where
+  type StT (TimerT t) a = StT IdentityT a
+  liftWith = defaultLiftWith TimerT runTimerT
+  restoreT = defaultRestoreT TimerT
+
+instance MonadBase b m => MonadBase b (TimerT t m) where
+  liftBase = TimerT . liftBase
+
+instance (MonadBaseControl b m) => MonadBaseControl b (TimerT t m) where
+  type StM (TimerT t m) a = ComposeSt (TimerT t) m a
+  liftBaseWith     = defaultLiftBaseWith
+  restoreM         = defaultRestoreM
