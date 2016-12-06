@@ -36,6 +36,7 @@ module Game.GoreAndAsh.Core.Monad(
   ) where
 
 import Control.DeepSeq
+import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Error.Class
 import Control.Monad.IO.Class
@@ -109,7 +110,7 @@ type GameMonadStack t = StateT (GameContext t) (AppHost t)
 -- type AppMonad t a = LoggingT (ActorT (GameMonad t)) a
 -- @
 newtype GameMonad t a = GameMonad {
-  runGameMonad :: GameMonadStack t  a
+  runGameMonad :: GameMonadStack t a
 }
 
 instance ReflexHost t => Functor (GameMonad t) where
@@ -131,6 +132,52 @@ instance ReflexHost t => MonadFix (GameMonad t) where
 
 instance (MonadIO (HostFrame t), ReflexHost t) => MonadIO (GameMonad t) where
   liftIO m = GameMonad $ liftIO m
+
+instance (ReflexHost t, MonadIO (HostFrame t)) => MonadBase IO (AppHost t) where
+  liftBase = liftHostFrame . liftIO
+
+instance MonadBase IO (SpiderHost s) where
+  liftBase = R.SpiderHost . liftIO
+
+instance MonadBaseControl IO (SpiderHost s) where
+  type StM (SpiderHost s) a = a
+  liftBaseWith ma = do
+    s <- R.SpiderHost ask
+    liftBase $ ma (flip runReaderT s . R.unSpiderHost)
+  restoreM = return
+
+instance MonadBase IO (R.SpiderHostFrame s) where
+  liftBase = R.SpiderHostFrame . liftIO
+
+instance MonadBaseControl IO (R.SpiderHostFrame s) where
+  type StM (R.SpiderHostFrame s) a = a
+  liftBaseWith ma = do
+    liftBase $ ma (R.unEventM . R.runSpiderHostFrame)
+  restoreM = return
+
+-- | TODO: move this to reflex-host (need to deep look in AppHost monad to prevent skolem problems)
+instance (MonadBaseControl IO (HostFrame t), MonadIO (HostFrame t), ReflexHost t) => MonadBaseControl IO (AppHost t) where
+  type StM (AppHost t) a = StM (HostFrame t) (HostFrame t (AppInfo t), a)
+  liftBaseWith (ma :: RunInBase (AppHost t) IO -> IO a) = do
+    env <- AppHost ask
+    let rearrange (a, Ap m) = (m, a)
+    liftHostFrame $ liftBaseWith $ \(runnerIO :: RunInBase (HostFrame t) IO) -> do
+      let runner :: RunInBase (AppHost t) IO
+          runner (AppHost m) = runnerIO (rearrange <$> evalRSST m env ())
+      liftIO $ ma runner
+  restoreM stma = do
+    (hst, a) <- liftHostFrame $ restoreM stma
+    performPostBuild_ hst
+    return a
+
+instance (MonadIO (HostFrame t), ReflexHost t) => MonadBase IO (GameMonad t) where
+  liftBase = GameMonad . liftIO
+
+instance (MonadBaseControl IO (HostFrame t), MonadIO (HostFrame t), ReflexHost t) => MonadBaseControl IO (GameMonad t) where
+  type StM (GameMonad t) a = StM (GameMonadStack t) a
+  liftBaseWith ma = do
+    GameMonad $ liftBaseWith $ \runner -> ma (runner . runGameMonad)
+  restoreM stma = GameMonad $ restoreM stma
 
 -- | Endpoint for 'ModuleStack' that captures engine features for reactivity.
 --
