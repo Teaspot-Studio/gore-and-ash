@@ -14,6 +14,8 @@ module Game.GoreAndAsh.Time(
 
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Monad.Base
+import Control.Monad.Catch
+import Control.Monad.Error.Class
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
@@ -30,6 +32,10 @@ class (Reflex t, Monad m) => TimerMonad t m | m -> t where
 -- | Implementation basis of Timer API.
 newtype TimerT t m a = TimerT { runTimerT :: IdentityT m a}
   deriving (Functor, Applicative, Monad, MonadIO, MonadFix)
+
+-- | Unwrap newtype aka execute the monad layer
+evalTimerT :: TimerT t m a -> m a
+evalTimerT = runIdentityT . runTimerT
 
 -- | Implement our Timer API
 instance {-# OVERLAPPING #-} (Monad m, Reflex t, MonadAppHost t m) => TimerMonad t (TimerT t m) where
@@ -53,7 +59,7 @@ instance {-# OVERLAPPABLE #-} (Monad (mt m), TimerMonad t m, MonadTrans mt) => T
 -- | The instance registers external events and process reaction to output events
 instance (GameModule t m) => GameModule t (TimerT t m) where
   type ModuleOptions t (TimerT t m) = ModuleOptions t m
-  runModule opts m = runModule opts $ runIdentityT $ runTimerT m
+  runModule opts m = runModule opts $ evalTimerT m
   withModule t _ = withModule t (Proxy :: Proxy m)
 
   {-# INLINE runModule #-}
@@ -78,7 +84,7 @@ instance MonadAppHost t m => MonadAppHost t (TimerT t m) where
   getFireAsync = lift getFireAsync
   getRunAppHost = do
     runner <- lift getRunAppHost
-    return $ \m -> runner $ runIdentityT . runTimerT $ m
+    return $ \m -> runner $ evalTimerT $ m
   performPostBuild_ = lift . performPostBuild_
   liftHostFrame = lift . liftHostFrame
 
@@ -86,8 +92,18 @@ instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (TimerT t m)
   newEventWithTrigger = lift . newEventWithTrigger
   newFanEventWithTrigger a = lift $ newFanEventWithTrigger a
 
-instance MonadSubscribeEvent t m => MonadSubscribeEvent t (TimerT r m) where
+instance MonadSubscribeEvent t m => MonadSubscribeEvent t (TimerT t m) where
   subscribeEvent = lift . subscribeEvent
+
+instance MonadThrow m => MonadThrow (TimerT t m) where
+  throwM = lift . throwM
+
+instance MonadCatch m => MonadCatch (TimerT t m) where
+  catch ma h = lift $ catch (evalTimerT ma) (evalTimerT . h)
+
+instance MonadError e m => MonadError e (TimerT t m) where
+  throwError = lift . throwError
+  catchError ma h = lift $ catchError (evalTimerT ma) (evalTimerT . h)
 
 instance MonadTransControl (TimerT t) where
   type StT (TimerT t) a = StT IdentityT a

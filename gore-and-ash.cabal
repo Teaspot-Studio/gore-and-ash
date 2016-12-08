@@ -30,6 +30,8 @@ library
     Game.GoreAndAsh
     Game.GoreAndAsh.Core
     Game.GoreAndAsh.Core.Chain
+    Game.GoreAndAsh.Core.Collection
+    Game.GoreAndAsh.Core.Component
     Game.GoreAndAsh.Core.Delay
     Game.GoreAndAsh.Core.ExternalRef
     Game.GoreAndAsh.Core.Monad
