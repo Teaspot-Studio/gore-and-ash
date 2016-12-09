@@ -182,6 +182,43 @@ executable gore-and-ash-example-counter
 
   ghc-options: -threaded
 
+executable gore-and-ash-example-collection
+  if flag(examples)
+    buildable: True
+  else
+    buildable: False
+
+  hs-source-dirs:     examples
+  main-is:            Collection.hs
+  other-modules:
+    Logger.API
+  default-language:   Haskell2010
+  build-depends:
+      base                  >= 4.7      && < 5
+    , containers            >= 0.5      && < 0.6
+    , gore-and-ash
+    , mtl                   >= 2.2      && < 2.3
+    , random                >= 1.1      && < 1.2
+    , stateWriter           >= 0.2      && < 0.3
+    , time                  >= 1.6      && < 1.7
+
+  default-extensions:
+    BangPatterns
+    DeriveFunctor
+    DeriveGeneric
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GeneralizedNewtypeDeriving
+    MultiParamTypeClasses
+    OverloadedStrings
+    RecordWildCards
+    RecursiveDo
+    ScopedTypeVariables
+    TypeFamilies
+    UndecidableInstances
+
+  ghc-options: -threaded
 source-repository head
   type:     git
   location: https://github.com/Teaspot-Studio/gore-and-ash.git

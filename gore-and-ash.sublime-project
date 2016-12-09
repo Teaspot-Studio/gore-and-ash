@@ -10,6 +10,11 @@
 			"name": "Stack pedantic",
 			"shell_cmd": "stack install --pedantic --flag gore-and-ash:examples --flag gore-and-ash-network:examples --flag gore-and-ash-sdl:examples --flag gore-and-ash-logging:examples",
 			"working_dir": "${project_path}"
+		},
+		{
+			"name": "Stack pedantic core",
+			"shell_cmd": "stack install gore-and-ash --pedantic --flag gore-and-ash:examples",
+			"working_dir": "${project_path}"
 		}
 	],
 	"folders":

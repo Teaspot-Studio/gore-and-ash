@@ -17,7 +17,6 @@ import Game.GoreAndAsh.Core.Component
 import Reflex hiding (performEvent, performEvent_, getPostBuild, performEventAsync)
 import Reflex.Host.App
 
-import qualified Data.Traversable as T
 import qualified Data.Map.Strict as M
 
 -- | Construct dynamic collection of components with incremental update.
@@ -44,8 +43,8 @@ holdKeyCollection initMap updE makeItem = do
     delayMake k v = NewComponent $ run $ makeItem k v
 
     -- | Run initial collection creation
-    initCollection :: m (Map k (Component t a))
-    initCollection = runCollection $ M.mapWithKey delayMake initMap
+    initCollection :: Map k (DelayedComponent t a)
+    initCollection = M.mapWithKey delayMake initMap
 
     -- | Update collection of components (delete or insert/create) and delay construction
     -- of new ones.
@@ -54,23 +53,15 @@ holdKeyCollection initMap updE makeItem = do
       Nothing -> M.delete k cmps
       Just v  -> M.insert k (delayMake k v) cmps
 
-    -- | Execute collection of components
-    runCollection :: Map k (DelayedComponent t a) -> m (Map k (Component t a))
-    runCollection cmps = liftHostFrame $ T.traverse runComponent cmps
-
   -- Now lets create an update loop!
   rec
-    dynComponents :: Dynamic t (Map k (Component t a)) <- holdAppHost initCollection newComponentsE
+    dynComponents :: Dynamic t (Map k (Component t a)) <- holdComponents initCollection newComponentsE
     let
-      newDelayedComponentsE :: Event t (Map k (DelayedComponent t a))
-      newDelayedComponentsE = flip pushAlways updE $ \updM -> do
+      newComponentsE :: Event t (Map k (DelayedComponent t a))
+      newComponentsE = flip pushAlways updE $ \updM -> do
         curComponents <- sample (current dynComponents)
         let delayedComponents = fmap delayComponent curComponents
             newCollection = M.foldlWithKey updateCollection delayedComponents updM
         return newCollection
 
-      newComponentsE :: Event t (m (Map k (Component t a)))
-      newComponentsE = runCollection <$> newDelayedComponentsE
-
-  -- User shouldn't bother about info in components
   return $ fmap componentValue <$> dynComponents

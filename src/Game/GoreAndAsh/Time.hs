@@ -28,6 +28,8 @@ import Data.Time
 class (Reflex t, Monad m) => TimerMonad t m | m -> t where
   -- | Get event that fires every n seconds
   tickEvery :: NominalDiffTime -> m (Event t ())
+  -- | Get event that fires only after given event with specified delay
+  delayBy :: NominalDiffTime -> Event t a -> m (Event t a)
 
 -- | Implementation basis of Timer API.
 newtype TimerT t m a = TimerT { runTimerT :: IdentityT m a}
@@ -51,10 +53,17 @@ instance {-# OVERLAPPING #-} (Monad m, Reflex t, MonadAppHost t m) => TimerMonad
         else return ()
   {-# INLINE tickEvery #-}
 
+  delayBy t e = performEventAsync $ ffor e $ \a -> do
+    threadDelay (ceiling $ (realToFrac t :: Double) * 1000000)
+    return a
+  {-# INLINE delayBy #-}
+
 -- | Automatic lifting across monad stack
 instance {-# OVERLAPPABLE #-} (Monad (mt m), TimerMonad t m, MonadTrans mt) => TimerMonad t (mt m) where
   tickEvery = lift . tickEvery
+  delayBy a b = lift $ delayBy a b
   {-# INLINE tickEvery #-}
+  {-# INLINE delayBy #-}
 
 -- | The instance registers external events and process reaction to output events
 instance (GameModule t m) => GameModule t (TimerT t m) where

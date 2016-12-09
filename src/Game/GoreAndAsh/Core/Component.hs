@@ -15,10 +15,17 @@ module Game.GoreAndAsh.Core.Component(
   , DelayedComponent(..)
   , delayComponent
   , runComponent
+  , runComponents
+  , holdComponents
+  , switchComponents
   ) where
 
+import Reflex hiding (performEvent)
 import Reflex.Host.App
 import Reflex.Host.Class
+
+import qualified Data.Traversable as T
+import qualified Data.Foldable as F
 
 -- | Built reflex component (FRP network and output of the component)
 type Component t a = (AppInfo t, a)
@@ -50,3 +57,37 @@ runComponent c = case c of
     (post, a) <- m
     i <- post
     return (i, a)
+
+-- | Execute collection of components in host monad, but do not register the 'AppInfo' for this
+-- action nor its postBuild actions.
+-- Instead, the 'AppInfo' for this action is collected and returned.
+--
+-- For example, all 'performEvent_' calls inside the passed action will not actually be
+-- performed, as long as the returned 'AppInfo' is not registered manually.
+runComponents :: (MonadAppHost t m, T.Traversable f)
+  => f (DelayedComponent t a)
+  -> m (f (Component t a))
+runComponents cmps = liftHostFrame $ T.traverse runComponent cmps
+
+-- | Hold collection of components in host monad and produce dynamic of resulted 'AppInfo'
+-- and values of the component. The function registers the produces app infos.
+holdComponents :: (MonadAppHost t m, T.Traversable f)
+  => f (DelayedComponent t a)
+  -> Event t (f (DelayedComponent t a))
+  -> m (Dynamic t (f (Component t a)))
+holdComponents initCmps changedCmps = do
+  initBuild <- runComponents initCmps
+  let postActions = F.foldMap componentInfo initBuild
+  aChanged <- switchComponents (pure postActions) changedCmps
+  holdDyn initBuild aChanged
+
+-- | Pefrorm and register components that are passed in event.
+switchComponents :: (MonadAppHost t m, T.Traversable f)
+  => HostFrame t (AppInfo t)
+  -> Event t (f (DelayedComponent t a))
+  -> m (Event t (f (Component t a)))
+switchComponents initial event = do
+  buildEvent :: Event t (f (Component t a)) <- performEvent $ T.traverse runComponent <$> event
+  let infoEvent = ffor buildEvent $ F.foldMap componentInfo
+  performPostBuild_ $ flip switchAppInfo infoEvent =<< initial
+  return buildEvent

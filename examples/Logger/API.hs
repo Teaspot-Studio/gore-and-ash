@@ -6,9 +6,7 @@ module Logger.API(
 import Control.Concurrent (forkIO)
 import Control.Monad (forever)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Trans.RSS.Strict
 import Control.Monad.Reader
-import Control.Monad.Writer
 import Data.Proxy
 import Game.GoreAndAsh
 
@@ -20,34 +18,27 @@ class (Reflex t, Monad m) => LoggerMonad t m | m -> t where
   outputMessage :: Event t String -> m ()
 
 -- | Input events of logger module
-type LoggerInput t = Event t String
--- | Output events of logger module
-newtype LoggerOutput t = LoggerOutput (Event t String)
+data LoggerEnv t = LoggerEnv {
+  loggerInput :: Event t String
+}
 
--- | When two output events are coincinence, simpli merge them in one message
-instance Reflex t => Monoid (LoggerOutput t) where
-  mempty = LoggerOutput never
-  (LoggerOutput a) `mappend` (LoggerOutput b) = LoggerOutput $ mergeWith (++) [a, b]
-
--- | Implementation basis of logger API. Note: use of writer on state to avoid
--- broken writer in mtl.
-newtype LoggerT t m a = LoggerT { runLoggerT :: RSST (LoggerInput t) (LoggerOutput t) () m a}
-  deriving (Functor, Applicative, Monad, MonadReader (LoggerInput t), MonadWriter (LoggerOutput t)
-    , MonadIO, MonadFix)
+-- | Implementation basis of logger API.
+newtype LoggerT t m a = LoggerT { runLoggerT :: ReaderT (LoggerEnv t) m a}
+  deriving (Functor, Applicative, Monad, MonadReader (LoggerEnv t), MonadIO, MonadFix)
 
 -- | Execute actions in 'LoggerT'
-evalLoggerT :: (Monad m, Reflex t) => LoggerT t m a -> LoggerInput t -> m (a, LoggerOutput t)
-evalLoggerT m i = fmap (\(a, _, o) -> (a, o)) $ runRSST (runLoggerT m) i ()
+evalLoggerT :: LoggerT t m a -> LoggerEnv t -> m  a
+evalLoggerT m i = runReaderT (runLoggerT m) i
 
 -- | Implement our logger API
-instance {-# OVERLAPPING #-} (Monad m, Reflex t) => LoggerMonad t (LoggerT t m) where
-  inputMessage = ask
-  outputMessage e = tell $ LoggerOutput e
+instance {-# OVERLAPPING #-} (MonadIO m, MonadAppHost t m) => LoggerMonad t (LoggerT t m) where
+  inputMessage = asks loggerInput
+  outputMessage e = void . performEvent $ ffor e $ liftIO . putStrLn
   {-# INLINE inputMessage #-}
   {-# INLINE outputMessage #-}
 
 -- | Automatic lifting across monad stack
-instance {-# OVERLAPPABLE #-} (Monad (mt m), LoggerMonad t m, MonadTrans mt) => LoggerMonad t (mt m) where
+instance {-# OVERLAPPABLE #-} (MonadIO (mt m), LoggerMonad t m, MonadTrans mt) => LoggerMonad t (mt m) where
   inputMessage = lift inputMessage
   outputMessage = lift . outputMessage
   {-# INLINE inputMessage #-}
@@ -60,9 +51,8 @@ instance (MonadIO (HostFrame t), GameModule t m) => GameModule t (LoggerT t m) w
   runModule opts m = do
     (inputEvent, inputFire) <- newExternalEvent
     _ <- liftIO . forkIO . forever $ getLine >>= inputFire
-    (a, LoggerOutput outputEvent) <- runModule opts $ evalLoggerT m inputEvent
-    performEvent_ $ fmap (liftIO . putStrLn) outputEvent
-    return a
+    let env = LoggerEnv inputEvent
+    runModule opts $ evalLoggerT m env
 
   withModule t _ = withModule t (Proxy :: Proxy m)
 
@@ -89,7 +79,7 @@ instance MonadAppHost t m => MonadAppHost t (LoggerT t m) where
   getRunAppHost = do
     runner <- lift getRunAppHost
     r <- ask
-    return $ \m -> runner $ fmap fst $ evalLoggerT m r
+    return $ \m -> runner $ evalLoggerT m r
   performPostBuild_ = lift . performPostBuild_
   liftHostFrame = lift . liftHostFrame
 
