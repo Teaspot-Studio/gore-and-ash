@@ -58,6 +58,7 @@ library
     , time                  >= 1.6      && < 1.7
     , transformers          >= 0.4      && < 0.6
     , transformers-base     >= 0.4      && < 0.5
+    , unbounded-delays      >= 0.1      && < 0.2
     , unordered-containers  >= 0.2.5.1  && < 0.3
 
   default-extensions:

@@ -7,12 +7,15 @@ Maintainer  : ncrashed@gmail.com
 Stability   : experimental
 Portability : POSIX
 -}
+{-# LANGUAGE RecursiveDo #-}
 module Game.GoreAndAsh.Time(
     TimerMonad(..)
+  , tickOnce
   , TimerT
   ) where
 
-import Control.Concurrent (forkIO, threadDelay)
+import Control.Concurrent (forkIO, killThread)
+import Control.Concurrent.Thread.Delay as TD
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Error.Class
@@ -21,15 +24,26 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Control.Monad.Trans.Identity
 import Data.Proxy
-import Game.GoreAndAsh
 import Data.Time
+import Game.GoreAndAsh
 
 -- | API of logging module that is used by game logic code
-class (Reflex t, Monad m) => TimerMonad t m | m -> t where
-  -- | Get event that fires every n seconds
+class (Reflex t, MonadFix m) => TimerMonad t m | m -> t where
+  -- | Get event that fires every n seconds.
+  --
+  -- Note: the event will tick even there are no subscriders to it. Use
+  -- 'tickEveryUntil' if you want to free underlying thread.
   tickEvery :: NominalDiffTime -> m (Event t ())
+  -- | Get event that fires every n seconds. Second event cease ticking.
+  tickEveryUntil :: NominalDiffTime -> Event t a -> m (Event t ())
   -- | Get event that fires only after given event with specified delay
   delayBy :: NominalDiffTime -> Event t a -> m (Event t a)
+
+-- | Generate an event after given time once
+tickOnce :: TimerMonad t m => NominalDiffTime -> m (Event t ())
+tickOnce dt = do
+  rec e <- tickEveryUntil dt e
+  return e
 
 -- | Implementation basis of Timer API.
 newtype TimerT t m a = TimerT { runTimerT :: IdentityT m a}
@@ -40,29 +54,44 @@ evalTimerT :: TimerT t m a -> m a
 evalTimerT = runIdentityT . runTimerT
 
 -- | Implement our Timer API
-instance {-# OVERLAPPING #-} (Monad m, Reflex t, MonadAppHost t m) => TimerMonad t (TimerT t m) where
+instance {-# OVERLAPPING #-} (MonadFix m, Reflex t, MonadAppHost t m) => TimerMonad t (TimerT t m) where
   tickEvery t = do
     (tickEvent, fireTick) <- newExternalEvent
     _ <- liftIO . forkIO $ ticker fireTick
     return tickEvent
     where
     ticker fire = do
-      threadDelay (ceiling $ (realToFrac t :: Double) * 1000000)
+      TD.delay (ceiling $ (realToFrac t :: Rational) * 1000000)
       res <- fire ()
       if res then ticker fire
         else return ()
   {-# INLINE tickEvery #-}
 
+  tickEveryUntil t ceaseE = do
+    (tickEvent, fireTick) <- newExternalEvent
+    tid <- liftIO . forkIO $ ticker fireTick
+    _ <- performEvent $ ffor ceaseE $ const $ liftIO $ killThread tid
+    return tickEvent
+    where
+    ticker fire = do
+      TD.delay (ceiling $ (realToFrac t :: Rational) * 1000000)
+      res <- fire ()
+      if res then ticker fire
+        else return ()
+  {-# INLINE tickEveryUntil #-}
+
   delayBy t e = performEventAsync $ ffor e $ \a -> do
-    threadDelay (ceiling $ (realToFrac t :: Double) * 1000000)
+    TD.delay (ceiling $ (realToFrac t :: Rational) * 1000000)
     return a
   {-# INLINE delayBy #-}
 
 -- | Automatic lifting across monad stack
-instance {-# OVERLAPPABLE #-} (Monad (mt m), TimerMonad t m, MonadTrans mt) => TimerMonad t (mt m) where
+instance {-# OVERLAPPABLE #-} (MonadFix (mt m), TimerMonad t m, MonadTrans mt) => TimerMonad t (mt m) where
   tickEvery = lift . tickEvery
+  tickEveryUntil a b = lift $ tickEveryUntil a b
   delayBy a b = lift $ delayBy a b
   {-# INLINE tickEvery #-}
+  {-# INLINE tickEveryUntil #-}
   {-# INLINE delayBy #-}
 
 -- | The instance registers external events and process reaction to output events
