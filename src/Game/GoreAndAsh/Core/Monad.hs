@@ -38,7 +38,6 @@ module Game.GoreAndAsh.Core.Monad(
 import Control.DeepSeq
 import Control.Monad.Base
 import Control.Monad.Catch
-import Control.Monad.Error.Class
 import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Control.Monad.State.Strict
@@ -388,14 +387,15 @@ performAppHostAsync e = do
 -- | Helper to catch occurrences of error 'e' into 'Either'. Usually this is
 -- needed for event generator that can throw, but you want to provide an 'Either'
 -- in an event for end user.
-wrapError :: (MonadError e m) => m a -> m (Either e a)
-wrapError ma = (Right <$> ma) `catchError` (return . Left)
+wrapError :: (MonadCatch m, Exception e) => m a -> m (Either e a)
+wrapError ma = (Right <$> ma) `catch` (return . Left)
 
 -- | Rethrow errors in host monad, reverse of 'wrapError' when an end user doesn't
 -- care about errors.
-dontCare :: (MonadAppHost t m, MonadError e m) => Event t (Either e a) -> m (Event t a)
+dontCare :: (MonadAppHost t m, MonadThrow m, Exception e)
+  => Event t (Either e a) -> m (Event t a)
 dontCare e = performAppHost $ ffor e $ \case
-  Left err -> throwError err
+  Left err -> throwM err
   Right a -> return a
 
 -- | Helper to pass through only a 'Just' values
