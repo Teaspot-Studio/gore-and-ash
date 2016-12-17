@@ -139,6 +139,16 @@ instance MonadThrow m => MonadThrow (TimerT t m) where
 instance MonadCatch m => MonadCatch (TimerT t m) where
   catch ma h = lift $ catch (evalTimerT ma) (evalTimerT . h)
 
+instance MonadMask m => MonadMask (TimerT t m) where
+  mask m = TimerT $ mask $ \u -> runTimerT (m $ q u)
+    where
+    q :: (forall b . IdentityT m b -> IdentityT m b) -> TimerT t m a -> TimerT t m a
+    q u m' = TimerT $ u (runTimerT m')
+  uninterruptibleMask m = TimerT $ uninterruptibleMask $ \u -> runTimerT (m $ q u)
+    where
+    q :: (forall b . IdentityT m b -> IdentityT m b) -> TimerT t m a -> TimerT t m a
+    q u m' = TimerT $ u (runTimerT m')
+
 instance MonadError e m => MonadError e (TimerT t m) where
   throwError = lift . throwError
   catchError ma h = lift $ catchError (evalTimerT ma) (evalTimerT . h)
