@@ -3,17 +3,17 @@
 	[
 		{
 			"name": "Stack",
-			"shell_cmd": "stack install --flag gore-and-ash:examples",
+			"shell_cmd": "stack install",
 			"working_dir": "${project_path}"
 		},
 		{
 			"name": "Stack pedantic",
-			"shell_cmd": "stack install --pedantic --flag gore-and-ash:examples --flag gore-and-ash-network:examples --flag gore-and-ash-sdl:examples --flag gore-and-ash-logging:examples --flag gore-and-ash-sdl:examples --flag gore-and-ash-sync:examples",
+			"shell_cmd": "stack install --pedantic",
 			"working_dir": "${project_path}"
 		},
 		{
-			"name": "Stack pedantic core",
-			"shell_cmd": "stack install gore-and-ash --pedantic --flag gore-and-ash:examples",
+			"name": "Stack pedantic examples",
+			"shell_cmd": "stack install --pedantic --flag gore-and-ash:examples --flag gore-and-ash-network:examples --flag gore-and-ash-sdl:examples --flag gore-and-ash-logging:examples --flag gore-and-ash-sdl:examples --flag gore-and-ash-sync:examples",
 			"working_dir": "${project_path}"
 		}
 	],

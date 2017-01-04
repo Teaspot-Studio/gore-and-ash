@@ -11,6 +11,7 @@ Portability : POSIX
 module Game.GoreAndAsh.Time(
     TimerMonad(..)
   , tickOnce
+  , alignWithFps
   , TimerT
   ) where
 
@@ -23,6 +24,7 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Control.Monad.Trans.Identity
+import Data.IORef
 import Data.Proxy
 import Data.Time
 import Game.GoreAndAsh
@@ -44,6 +46,20 @@ tickOnce :: TimerMonad t m => NominalDiffTime -> m (Event t ())
 tickOnce dt = do
   rec e <- tickEveryUntil dt e
   return e
+
+-- | Fire event not frequently as given frame per second ratio.
+alignWithFps :: (TimerMonad t m, MonadAppHost t m)
+  => Int -- ^ FPS (frames per second)
+  -> Event t a -- ^ Event that frequently changes
+  -> m (Event t a) -- ^ Event that changes are aligned with FPS
+alignWithFps fps ea = do
+  fpsE <- tickEvery . realToFrac $ 1 / (fromIntegral fps :: Double)
+  ref <- liftIO $ newIORef Nothing
+  performEvent_ $ ffor ea $ liftIO . atomicWriteIORef ref . Just
+  alignedE <- performEvent $ ffor fpsE $ const $
+    liftIO $ atomicModifyIORef' ref $ \v -> (Nothing, v)
+  return $ fmapMaybe id alignedE
+
 
 -- | Implementation basis of Timer API.
 newtype TimerT t m a = TimerT { runTimerT :: IdentityT m a}
