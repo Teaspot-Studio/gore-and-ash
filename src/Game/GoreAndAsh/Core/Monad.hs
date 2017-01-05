@@ -42,6 +42,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Control.Monad.State.Strict
 import Control.Monad.Trans.Control
+import Control.Monad.Trans.Identity
 import Control.Monad.Trans.RSS.Strict
 import Control.Monad.Writer
 import Data.Either
@@ -373,6 +374,29 @@ instance (Monoid w, MonadAppHost t m) => MonadAppHost t (RSST r w s m) where
     r <- ask
     s <- get
     return $ \m -> runner . fmap (\(a, _, _) -> a) $ runRSST m r s
+  performPostBuild_ = lift . performPostBuild_
+  liftHostFrame = lift . liftHostFrame
+
+instance MonadSample t m => MonadSample t (IdentityT m) where
+  sample = lift . sample
+
+instance MonadHold t m => MonadHold t (IdentityT m) where
+  hold            a b = lift $ hold a b
+  holdDyn         a b = lift $ holdDyn a b
+  holdIncremental a b = lift $ holdIncremental a b
+
+instance MonadSubscribeEvent t m => MonadSubscribeEvent t (IdentityT m) where
+  subscribeEvent = lift . subscribeEvent
+
+instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (IdentityT m) where
+  newEventWithTrigger = lift . newEventWithTrigger
+  newFanEventWithTrigger trigger = lift $ newFanEventWithTrigger trigger
+
+instance (MonadAppHost t m) => MonadAppHost t (IdentityT m) where
+  getFireAsync = lift getFireAsync
+  getRunAppHost = do
+    runner <- lift getRunAppHost
+    return $ \m -> runner $ runIdentityT m
   performPostBuild_ = lift . performPostBuild_
   liftHostFrame = lift . liftHostFrame
 

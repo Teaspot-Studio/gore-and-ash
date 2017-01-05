@@ -27,7 +27,7 @@ import Control.Monad.Trans.Identity
 import Data.IORef
 import Data.Proxy
 import Data.Time
-import Game.GoreAndAsh
+import Game.GoreAndAsh.Core.Monad
 
 -- | API of logging module that is used by game logic code
 class (Reflex t, MonadFix m) => TimerMonad t m | m -> t where
