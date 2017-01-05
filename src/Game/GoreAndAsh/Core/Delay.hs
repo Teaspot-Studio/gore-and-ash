@@ -48,12 +48,14 @@ instance Delay Dynamic where
 lookPast :: (TimerMonad t m, MonadAppHost t m)
   => NominalDiffTime -- ^ Save each n seconds
   -> a -- ^ Initial value (before first delayed value)
+  -> Event t a -- ^ When fires, the stored past value is replaced by payload.
   -> Dynamic t a -- ^ Original dynamic
   -> m (Dynamic t a) -- ^ The delayed values
-lookPast dt v0 da = do
+lookPast dt v0 ea da = do
   tickE <- tickEvery dt
   ref <- liftIO $ newIORef v0
   (e', fire) <- newExternalEvent
+  performEvent_ $ ffor ea $ liftIO . atomicWriteIORef ref
   performEvent_ $ ffor tickE $ const $ do
     v <- sample . current $ da
     liftIO $ do
