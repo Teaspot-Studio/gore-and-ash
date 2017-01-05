@@ -11,6 +11,7 @@ Portability : POSIX
 module Game.GoreAndAsh.Time(
     TimerMonad(..)
   , tickOnce
+  , tickEveryN
   , alignWithFps
   , TimerT
   ) where
@@ -27,6 +28,7 @@ import Control.Monad.Trans.Identity
 import Data.IORef
 import Data.Proxy
 import Data.Time
+import Game.GoreAndAsh.Core.ExternalRef
 import Game.GoreAndAsh.Core.Monad
 
 -- | API of logging module that is used by game logic code
@@ -60,6 +62,17 @@ alignWithFps fps ea = do
     liftIO $ atomicModifyIORef' ref $ \v -> (Nothing, v)
   return $ fmapMaybe id alignedE
 
+-- | Same as 'tickEvery' but stops after n ticks.
+tickEveryN :: (TimerMonad t m, MonadAppHost t m)
+  => NominalDiffTime -- ^ Tick interval
+  -> Int -- ^ How many ticks to do
+  -> m (Event t ())
+tickEveryN dt n = do
+  ref <- newExternalRef 0
+  let stopE = fforMaybe (externalEvent ref) $ \i -> if i >= n then Just () else Nothing
+  e <- tickEveryUntil dt stopE
+  performEvent_ $ ffor e $ const $ modifyExternalRef ref $ \i -> (i+1, ())
+  return e
 
 -- | Implementation basis of Timer API.
 newtype TimerT t m a = TimerT { runTimerT :: IdentityT m a}
