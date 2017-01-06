@@ -71,7 +71,7 @@ tickEveryN :: (TimerMonad t m, MonadAppHost t m)
 tickEveryN dt n userStopE = do
   ref <- newExternalRef 0
   let stopE = fforMaybe (externalEvent ref) $ \i -> if i >= n then Just () else Nothing
-  e <- tickEveryUntil dt $ leftmost [stopE, userStopE]
+  e <- tickEveryUntil dt $ leftmost [stopE, const () <$> userStopE]
   performEvent $ ffor e $ const $ modifyExternalRef ref $ \i -> (i+1, i+1)
 
 -- | Implementation basis of Timer API.
