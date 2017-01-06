@@ -66,13 +66,13 @@ alignWithFps fps ea = do
 tickEveryN :: (TimerMonad t m, MonadAppHost t m)
   => NominalDiffTime -- ^ Tick interval
   -> Int -- ^ How many ticks to do
-  -> m (Event t ())
-tickEveryN dt n = do
+  -> Event t a -- ^ Additional stop event
+  -> m (Event t Int) -- ^ Event that fires at tick and cary tick number
+tickEveryN dt n userStopE = do
   ref <- newExternalRef 0
   let stopE = fforMaybe (externalEvent ref) $ \i -> if i >= n then Just () else Nothing
-  e <- tickEveryUntil dt stopE
-  performEvent_ $ ffor e $ const $ modifyExternalRef ref $ \i -> (i+1, ())
-  return e
+  e <- tickEveryUntil dt $ leftmost [stopE, userStopE]
+  performEvent $ ffor e $ const $ modifyExternalRef ref $ \i -> (i+1, i+1)
 
 -- | Implementation basis of Timer API.
 newtype TimerT t m a = TimerT { runTimerT :: IdentityT m a}
