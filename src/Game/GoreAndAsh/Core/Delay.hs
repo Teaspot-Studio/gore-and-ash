@@ -10,8 +10,10 @@ Portability : POSIX
 module Game.GoreAndAsh.Core.Delay(
     Delay(..)
   , lookPast
+  , linearInterpolate
   ) where
 
+import Control.Monad
 import Control.Monad.IO.Class
 import Data.IORef
 import Data.Time
@@ -63,3 +65,26 @@ lookPast dt v0 ea da = do
       _ <- fire oldV
       return ()
   holdDyn v0 e'
+
+-- | Make linear interpolation of dynamic value. Each time the value updates, start
+-- transition between old value and new value.
+linearInterpolate :: forall t m a . (MonadAppHost t m, TimerMonad t m, Fractional a)
+  => Int -- ^ Number of intermediate values
+  -> NominalDiffTime -- ^ Time interval in which all interpolation have to
+  -> Dynamic t a -- ^ Value that updates should be interpolated
+  -> m (Dynamic t a) -- ^ Interpolated result, that is delayed by interval of interpolation
+linearInterpolate n dt da = do
+  v0 <- sample . current $ da
+  oldDa <- delay v0 da
+  let
+    stepper :: Event t (m (Dynamic t a))
+    stepper = step oldDa (const () <$> updated da) <$> updated da
+  join <$> holdAppHost (return da) stepper
+  where
+    step :: Dynamic t a -> Event t () -> a -> m (Dynamic t a)
+    step oldDa stopE v1 = do
+      v0 <- sample . current $ oldDa
+      let dt' = realToFrac $ (realToFrac dt :: Double) / fromIntegral n
+          dv  = (v1 - v0) / fromIntegral n
+      tickE <- tickEveryN dt' n stopE
+      foldDyn (const $ \v -> v + dv) v0 tickE
