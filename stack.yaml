@@ -25,6 +25,8 @@ extra-deps:
 - prim-uniq-0.1.0.1
 - ref-tf-0.4.0.1
 - typesafe-endian-0.1.0.1
+# testing
+- sdl2-ttf-1.0.0
 
 # Extra package databases containing global packages
 extra-package-dbs: []

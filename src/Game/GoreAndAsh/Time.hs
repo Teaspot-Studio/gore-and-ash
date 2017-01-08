@@ -30,6 +30,7 @@ import Data.Proxy
 import Data.Time
 import Game.GoreAndAsh.Core.ExternalRef
 import Game.GoreAndAsh.Core.Monad
+import GHC.Event hiding (Event)
 
 -- | API of logging module that is used by game logic code
 class (Reflex t, MonadFix m) => TimerMonad t m | m -> t where
@@ -86,27 +87,35 @@ evalTimerT = runIdentityT . runTimerT
 instance {-# OVERLAPPING #-} (MonadFix m, Reflex t, MonadAppHost t m) => TimerMonad t (TimerT t m) where
   tickEvery t = do
     (tickEvent, fireTick) <- newExternalEvent
-    _ <- liftIO . forkIO $ ticker fireTick
+    ticker fireTick
     return tickEvent
     where
-    ticker fire = do
-      TD.delay (ceiling $ (realToFrac t :: Rational) * 1000000)
-      res <- fire ()
-      if res then ticker fire
-        else return ()
+    ticker fire = liftIO $ do
+      tm <- getSystemTimerManager
+      let dt = ceiling $ (realToFrac t :: Double) * 1000000
+          go = do
+            res <- fire ()
+            when res $ do
+              void $ registerTimeout tm dt go
+      registerTimeout tm dt go
   {-# INLINE tickEvery #-}
 
   tickEveryUntil t ceaseE = do
     (tickEvent, fireTick) <- newExternalEvent
-    tid <- liftIO . forkIO $ ticker fireTick
-    _ <- performEvent $ ffor ceaseE $ const $ liftIO $ killThread tid
+    stopRef <- liftIO $ newIORef False
+    performEvent_ $ ffor ceaseE $ const $ liftIO $ writeIORef stopRef True
+    ticker fireTick stopRef
     return tickEvent
     where
-    ticker fire = do
-      TD.delay (ceiling $ (realToFrac t :: Rational) * 1000000)
-      res <- fire ()
-      if res then ticker fire
-        else return ()
+    ticker fire stopRef = liftIO $ do
+      tm <- getSystemTimerManager
+      let dt = ceiling $ (realToFrac t :: Double) * 1000000
+          go = do
+            res <- fire ()
+            when res $ do
+              stop <- liftIO $ readIORef stopRef
+              unless stop $ void $ registerTimeout tm dt go
+      registerTimeout tm dt go
   {-# INLINE tickEveryUntil #-}
 
   delayBy t e = performEventAsync $ ffor e $ \a -> do
