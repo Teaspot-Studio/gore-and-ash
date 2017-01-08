@@ -16,7 +16,6 @@ module Game.GoreAndAsh.Time(
   , TimerT
   ) where
 
-import Control.Concurrent (forkIO, killThread)
 import Control.Concurrent.Thread.Delay as TD
 import Control.Monad.Base
 import Control.Monad.Catch
@@ -87,7 +86,7 @@ evalTimerT = runIdentityT . runTimerT
 instance {-# OVERLAPPING #-} (MonadFix m, Reflex t, MonadAppHost t m) => TimerMonad t (TimerT t m) where
   tickEvery t = do
     (tickEvent, fireTick) <- newExternalEvent
-    ticker fireTick
+    _ <- ticker fireTick
     return tickEvent
     where
     ticker fire = liftIO $ do
@@ -104,7 +103,7 @@ instance {-# OVERLAPPING #-} (MonadFix m, Reflex t, MonadAppHost t m) => TimerMo
     (tickEvent, fireTick) <- newExternalEvent
     stopRef <- liftIO $ newIORef False
     performEvent_ $ ffor ceaseE $ const $ liftIO $ writeIORef stopRef True
-    ticker fireTick stopRef
+    _ <- ticker fireTick stopRef
     return tickEvent
     where
     ticker fire stopRef = liftIO $ do
