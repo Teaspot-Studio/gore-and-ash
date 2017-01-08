@@ -16,6 +16,7 @@ module Game.GoreAndAsh.Core(
     module Game.GoreAndAsh.Core.Chain
   , module Game.GoreAndAsh.Core.Collection
   , module Game.GoreAndAsh.Core.Delay
+  , module Game.GoreAndAsh.Core.Dispense
   , module Game.GoreAndAsh.Core.ExternalRef
   , module Game.GoreAndAsh.Core.Monad
   ) where
@@ -23,5 +24,6 @@ module Game.GoreAndAsh.Core(
 import Game.GoreAndAsh.Core.Chain
 import Game.GoreAndAsh.Core.Collection
 import Game.GoreAndAsh.Core.Delay
+import Game.GoreAndAsh.Core.Dispense
 import Game.GoreAndAsh.Core.ExternalRef
 import Game.GoreAndAsh.Core.Monad

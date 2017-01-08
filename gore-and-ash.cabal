@@ -32,6 +32,7 @@ library
     Game.GoreAndAsh.Core.Chain
     Game.GoreAndAsh.Core.Collection
     Game.GoreAndAsh.Core.Delay
+    Game.GoreAndAsh.Core.Dispense
     Game.GoreAndAsh.Core.ExternalRef
     Game.GoreAndAsh.Core.Host
     Game.GoreAndAsh.Core.Monad
