@@ -68,11 +68,13 @@ tickEveryN :: (TimerMonad t m, MonadAppHost t m)
   -> Int -- ^ How many ticks to do
   -> Event t a -- ^ Additional stop event
   -> m (Event t Int) -- ^ Event that fires at tick and cary tick number
-tickEveryN dt n userStopE = do
-  ref <- newExternalRef 0
-  let stopE = fforMaybe (externalEvent ref) $ \i -> if i >= n then Just () else Nothing
-  e <- tickEveryUntil dt $ leftmost [stopE, const () <$> userStopE]
-  performEvent $ ffor e $ const $ modifyExternalRef ref $ \i -> (i+1, i+1)
+tickEveryN dt n userStopE
+  | n <= 0    = return never
+  | otherwise = do
+    ref <- newExternalRef 0
+    let stopE = fforMaybe (externalEvent ref) $ \i -> if i >= n then Just () else Nothing
+    e <- tickEveryUntil dt $ leftmost [stopE, const () <$> userStopE]
+    performEvent $ ffor e $ const $ modifyExternalRef ref $ \i -> (i+1, i+1)
 
 -- | Implementation basis of Timer API.
 newtype TimerT t m a = TimerT { runTimerT :: IdentityT m a}
@@ -93,9 +95,8 @@ instance {-# OVERLAPPING #-} (MonadFix m, Reflex t, MonadAppHost t m) => TimerMo
       tm <- getSystemTimerManager
       let dt = ceiling $ (realToFrac t :: Double) * 1000000
           go = do
-            res <- fire ()
-            when res $ do
-              void $ registerTimeout tm dt go
+            _ <- fire ()
+            void $ registerTimeout tm dt go
       registerTimeout tm dt go
   {-# INLINE tickEvery #-}
 
@@ -110,10 +111,9 @@ instance {-# OVERLAPPING #-} (MonadFix m, Reflex t, MonadAppHost t m) => TimerMo
       tm <- getSystemTimerManager
       let dt = ceiling $ (realToFrac t :: Double) * 1000000
           go = do
-            res <- fire ()
-            when res $ do
-              stop <- liftIO $ readIORef stopRef
-              unless stop $ void $ registerTimeout tm dt go
+            _<- fire ()
+            stop <- liftIO $ readIORef stopRef
+            unless stop $ void $ registerTimeout tm dt go
       registerTimeout tm dt go
   {-# INLINE tickEveryUntil #-}
 

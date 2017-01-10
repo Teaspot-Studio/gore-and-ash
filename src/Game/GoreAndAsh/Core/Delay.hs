@@ -11,6 +11,7 @@ module Game.GoreAndAsh.Core.Delay(
     Delay(..)
   , lookPast
   , linearInterpolate
+  , simpleInterpolate
   ) where
 
 import Control.Monad
@@ -70,7 +71,7 @@ lookPast dt v0 ea da = do
 -- transition between old value and new value.
 linearInterpolate :: forall t m a . (MonadAppHost t m, TimerMonad t m, Fractional a)
   => Int -- ^ Number of intermediate values
-  -> NominalDiffTime -- ^ Time interval in which all interpolation have to
+  -> NominalDiffTime -- ^ Time interval in which all interpolation have to be
   -> Dynamic t a -- ^ Value that updates should be interpolated
   -> m (Dynamic t a) -- ^ Interpolated result, that is delayed by interval of interpolation
 linearInterpolate n dt da = do
@@ -84,7 +85,18 @@ linearInterpolate n dt da = do
     step :: Dynamic t a -> Event t () -> a -> m (Dynamic t a)
     step oldDa stopE v1 = do
       v0 <- sample . current $ oldDa
-      let dt' = realToFrac $ (realToFrac dt :: Double) / fromIntegral n
-          dv  = (v1 - v0) / fromIntegral n
-      tickE <- tickEveryN dt' n stopE
-      foldDyn (const $ \v -> v + dv) v0 tickE
+      simpleInterpolate n dt v0 v1 stopE
+
+-- | Perform simple linear interpolation betwen start and end positions.
+simpleInterpolate :: forall t m a . (MonadAppHost t m, TimerMonad t m, Fractional a)
+  => Int -- ^ Number of intermediate values
+  -> NominalDiffTime -- ^ Time interval in which all interpolation have to be
+  -> a -- ^ Start value
+  -> a -- ^ End value
+  -> Event t () -- ^ Optional stop event
+  -> m (Dynamic t a) -- ^ Interpolated result
+simpleInterpolate n dt v0 v1 stopE = do
+  let dt' = realToFrac $ (realToFrac dt :: Double) / fromIntegral n
+      dv  = (v1 - v0) / fromIntegral n
+  tickE <- tickEveryN dt' n stopE
+  foldDyn (const $ \v -> v + dv) v0 tickE
