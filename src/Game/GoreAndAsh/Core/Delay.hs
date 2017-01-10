@@ -99,4 +99,5 @@ simpleInterpolate n dt v0 v1 stopE = do
   let dt' = realToFrac $ (realToFrac dt :: Double) / fromIntegral n
       dv  = (v1 - v0) / fromIntegral n
   tickE <- tickEveryN dt' n stopE
-  foldDyn (const $ \v -> v + dv) v0 tickE
+  let calc i v = if i >= n-1 then v1 else v + dv
+  foldDyn calc v0 tickE

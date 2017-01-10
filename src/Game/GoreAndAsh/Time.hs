@@ -10,9 +10,9 @@ Portability : POSIX
 {-# LANGUAGE RecursiveDo #-}
 module Game.GoreAndAsh.Time(
     TimerMonad(..)
+  , AlignWithFps(..)
   , tickOnce
   , tickEveryN
-  , alignWithFps
   , TimerT
   ) where
 
@@ -49,18 +49,27 @@ tickOnce dt = do
   rec e <- tickEveryUntil dt e
   return e
 
--- | Fire event not frequently as given frame per second ratio.
-alignWithFps :: (TimerMonad t m, MonadAppHost t m)
-  => Int -- ^ FPS (frames per second)
-  -> Event t a -- ^ Event that frequently changes
-  -> m (Event t a) -- ^ Event that changes are aligned with FPS
-alignWithFps fps ea = do
-  fpsE <- tickEvery . realToFrac $ 1 / (fromIntegral fps :: Double)
-  ref <- liftIO $ newIORef Nothing
-  performEvent_ $ ffor ea $ liftIO . atomicWriteIORef ref . Just
-  alignedE <- performEvent $ ffor fpsE $ const $
-    liftIO $ atomicModifyIORef' ref $ \v -> (Nothing, v)
-  return $ fmapMaybe id alignedE
+class AlignWithFps r where
+  -- | Fire event not frequently as given frame per second ratio.
+  alignWithFps :: (TimerMonad t m, MonadAppHost t m)
+    => Int -- ^ FPS (frames per second)
+    -> r t a -- ^ Event/Dynamic that frequently changes
+    -> m (r t a) -- ^ Event/Dynamic that changes are aligned with FPS
+
+instance AlignWithFps Event where
+  alignWithFps fps ea = do
+    fpsE <- tickEvery . realToFrac $ 1 / (fromIntegral fps :: Double)
+    ref <- liftIO $ newIORef Nothing
+    performEvent_ $ ffor ea $ liftIO . atomicWriteIORef ref . Just
+    alignedE <- performEvent $ ffor fpsE $ const $
+      liftIO $ atomicModifyIORef' ref $ \v -> (Nothing, v)
+    return $ fmapMaybe id alignedE
+
+instance AlignWithFps Dynamic where
+  alignWithFps fps da = do
+    a <- sample . current $ da
+    ea <- alignWithFps fps $ updated da
+    holdDyn a ea
 
 -- | Same as 'tickEvery' but stops after n ticks.
 tickEveryN :: (TimerMonad t m, MonadAppHost t m)
@@ -72,7 +81,7 @@ tickEveryN dt n userStopE
   | n <= 0    = return never
   | otherwise = do
     ref <- newExternalRef 0
-    let stopE = fforMaybe (externalEvent ref) $ \i -> if i >= n then Just () else Nothing
+    let stopE = fforMaybe (externalEvent ref) $ \i -> if i >= n-1 then Just () else Nothing
     e <- tickEveryUntil dt $ leftmost [stopE, const () <$> userStopE]
     performEvent $ ffor e $ const $ modifyExternalRef ref $ \i -> (i+1, i+1)
 
