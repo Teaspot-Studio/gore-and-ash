@@ -73,6 +73,7 @@ library
     MultiParamTypeClasses
     RankNTypes
     RecordWildCards
+    RecursiveDo
     ScopedTypeVariables
     TupleSections
     TypeFamilies

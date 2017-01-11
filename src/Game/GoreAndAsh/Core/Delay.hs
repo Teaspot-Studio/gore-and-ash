@@ -75,12 +75,12 @@ linearInterpolate :: forall t m a . (MonadAppHost t m, TimerMonad t m, Fractiona
   -> Dynamic t a -- ^ Value that updates should be interpolated
   -> m (Dynamic t a) -- ^ Interpolated result, that is delayed by interval of interpolation
 linearInterpolate n dt da = do
-  v0 <- sample . current $ da
-  oldDa <- delay v0 da
-  let
-    stepper :: Event t (m (Dynamic t a))
-    stepper = step oldDa (const () <$> updated da) <$> updated da
-  join <$> holdAppHost (return da) stepper
+  rec
+    let
+      stepper :: Event t (m (Dynamic t a))
+      stepper = step interDa (const () <$> updated da) <$> updated da
+    interDa <- join <$> holdAppHost (return da) stepper
+  return interDa
   where
     step :: Dynamic t a -> Event t () -> a -> m (Dynamic t a)
     step oldDa stopE v1 = do
