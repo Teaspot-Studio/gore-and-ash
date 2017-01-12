@@ -11,7 +11,6 @@ Portability : POSIX
 module Game.GoreAndAsh.Time(
     TimerMonad(..)
   , AlignWithFps(..)
-  , tickOnce
   , tickEveryN
   , TimerT
   ) where
@@ -38,23 +37,30 @@ class (Reflex t, MonadFix m) => TimerMonad t m | m -> t where
   -- Note: the event will tick even there are no subscriders to it. Use
   -- 'tickEveryUntil' if you want to free underlying thread.
   tickEvery :: NominalDiffTime -> m (Event t ())
+  -- | Generate an event after given time once
+  tickOnce :: NominalDiffTime -> m (Event t ())
   -- | Get event that fires every n seconds. Second event cease ticking.
   tickEveryUntil :: NominalDiffTime -> Event t a -> m (Event t ())
   -- | Get event that fires only after given event with specified delay
   delayBy :: NominalDiffTime -> Event t a -> m (Event t a)
 
--- | Generate an event after given time once
-tickOnce :: TimerMonad t m => NominalDiffTime -> m (Event t ())
-tickOnce dt = do
-  rec e <- tickEveryUntil dt e
-  return e
-
 class AlignWithFps r where
-  -- | Fire event not frequently as given frame per second ratio.
+  -- | Fire event not frequently as given frame per second ratio. Starts global
+  -- counter, so first occurence of resulted event can be delayed by 1/fps seconds.
+  -- The resulted event fires with last occurence of original event during 1/fps
+  -- interval.
   alignWithFps :: (TimerMonad t m, MonadAppHost t m)
     => Int -- ^ FPS (frames per second)
     -> r t a -- ^ Event/Dynamic that frequently changes
     -> m (r t a) -- ^ Event/Dynamic that changes are aligned with FPS
+
+  -- | Fire event not frequently as given frame per second ratio. Doesn't delay
+  -- first occurence, simply throws away every occurences within 1/fps time interval
+  -- after not filtered fire.
+  limitRate :: (TimerMonad t m, MonadAppHost t m)
+    => Int -- ^ FPS or rate
+    -> r t a -- ^ Event/Dynamic which occurences you want to limit
+    -> m (r t a) -- ^ Event/Dynamic that changes are filtered with given rate
 
 instance AlignWithFps Event where
   alignWithFps fps ea = do
@@ -65,10 +71,23 @@ instance AlignWithFps Event where
       liftIO $ atomicModifyIORef' ref $ \v -> (Nothing, v)
     return $ fmapMaybe id alignedE
 
+  limitRate fps ea = do
+    let
+      dt = realToFrac $ 1 / (fromIntegral fps :: Double)
+      step = do
+        tickE <- tickOnce dt
+        switchPromptly never (const ea <$> tickE)
+    switchPromptlyDyn <$> holdAppHost (return ea) (const step <$> ea)
+
 instance AlignWithFps Dynamic where
   alignWithFps fps da = do
     a <- sample . current $ da
     ea <- alignWithFps fps $ updated da
+    holdDyn a ea
+
+  limitRate fps da = do
+    a <- sample . current $ da
+    ea <- limitRate fps $ updated da
     holdDyn a ea
 
 -- | Same as 'tickEvery' but stops after n ticks.
@@ -109,6 +128,14 @@ instance {-# OVERLAPPING #-} (MonadFix m, Reflex t, MonadAppHost t m) => TimerMo
       registerTimeout tm dt go
   {-# INLINE tickEvery #-}
 
+  tickOnce t = do
+    (tickEvent, fireTick) <- newExternalEvent
+    tm <- liftIO getSystemTimerManager
+    let dt = ceiling $ (realToFrac t :: Double) * 1000000
+    _ <- liftIO $ registerTimeout tm dt $ void $ fireTick ()
+    return tickEvent
+  {-# INLINE tickOnce #-}
+
   tickEveryUntil t ceaseE = do
     (tickEvent, fireTick) <- newExternalEvent
     stopRef <- liftIO $ newIORef False
@@ -134,9 +161,11 @@ instance {-# OVERLAPPING #-} (MonadFix m, Reflex t, MonadAppHost t m) => TimerMo
 -- | Automatic lifting across monad stack
 instance {-# OVERLAPPABLE #-} (MonadFix (mt m), TimerMonad t m, MonadTrans mt) => TimerMonad t (mt m) where
   tickEvery = lift . tickEvery
+  tickOnce = lift . tickOnce
   tickEveryUntil a b = lift $ tickEveryUntil a b
   delayBy a b = lift $ delayBy a b
   {-# INLINE tickEvery #-}
+  {-# INLINE tickOnce #-}
   {-# INLINE tickEveryUntil #-}
   {-# INLINE delayBy #-}
 
