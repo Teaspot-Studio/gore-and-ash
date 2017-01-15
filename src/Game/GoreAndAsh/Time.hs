@@ -72,12 +72,20 @@ instance AlignWithFps Event where
     return $ fmapMaybe id alignedE
 
   limitRate fps ea = do
-    let
-      dt = realToFrac $ 1 / (fromIntegral fps :: Double)
-      step = do
-        tickE <- tickOnce dt
-        switchPromptly never (const ea <$> tickE)
-    switchPromptlyDyn <$> holdAppHost (return ea) (const step <$> ea)
+    -- Create variable with gate flag
+    ref <- liftIO $ newIORef False
+    -- Pass values when gate is open
+    msilentedE <- performEvent $ ffor ea $ \v -> do
+      silented <- liftIO $ readIORef ref
+      return $ if silented then Nothing else Just v
+    let silentedE = fmapMaybe id msilentedE -- remove Nothing from occurences
+    -- Close gate for dt after each final occurence
+    _ <- performAppHost $ ffor silentedE $ const $ do
+      liftIO $ writeIORef ref True
+      let dt = realToFrac $ 1 / (fromIntegral fps :: Double)
+      releaseE <- tickOnce dt
+      performEvent_ $ ffor releaseE $ const $ liftIO $ writeIORef ref False
+    return silentedE
 
 instance AlignWithFps Dynamic where
   alignWithFps fps da = do
