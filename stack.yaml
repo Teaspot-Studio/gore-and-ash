@@ -7,11 +7,12 @@ resolver: lts-7.15
 packages:
 - '.'
 - location:
-    git: git@github.com:reflex-frp/reflex.git
+    git: https://github.com/reflex-frp/reflex.git
     commit: 4eb436e0d94418c11e4c06be7fa982d59629c9a9
 - location:
-    git: git@github.com:bennofs/reflex-host.git
+    git: https://github.com/bennofs/reflex-host.git
     commit: ef269102ef5c61f15072ed79370e791820e25d8d
+
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
 - prim-uniq-0.1.0.1
