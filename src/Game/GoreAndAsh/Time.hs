@@ -55,8 +55,8 @@ class AlignWithFps r where
     -> m (r t a) -- ^ Event/Dynamic that changes are aligned with FPS
 
   -- | Fire event not frequently as given frame per second ratio. Doesn't delay
-  -- first occurence, simply throws away every occurences within 1/fps time interval
-  -- after not filtered fire.
+  -- first occurence, only remembers last event occurence after 1/fps time
+  -- interval, it is refired at end of the interval.
   limitRate :: (TimerMonad t m, MonadAppHost t m)
     => Int -- ^ FPS or rate
     -> r t a -- ^ Event/Dynamic which occurences you want to limit
@@ -74,18 +74,28 @@ instance AlignWithFps Event where
   limitRate fps ea = do
     -- Create variable with gate flag
     ref <- liftIO $ newIORef False
+    refLast <- liftIO $ newIORef Nothing -- Store last occurence to reemit it
     -- Pass values when gate is open
-    msilentedE <- performEvent $ ffor ea $ \v -> do
-      silented <- liftIO $ readIORef ref
-      return $ if silented then Nothing else Just v
-    let silentedE = fmapMaybe id msilentedE -- remove Nothing from occurences
+    msilencedE <- performEvent $ ffor ea $ \v -> do
+      silenced <- liftIO $ readIORef ref
+      if silenced
+        then do
+          liftIO $ writeIORef refLast (Just v)
+          return Nothing
+        else return $ Just v
+    let silencedE = fmapMaybe id msilencedE -- remove Nothing from occurences
     -- Close gate for dt after each final occurence
-    _ <- performAppHost $ ffor silentedE $ const $ do
-      liftIO $ writeIORef ref True
-      let dt = realToFrac $ 1 / (fromIntegral fps :: Double)
-      releaseE <- tickOnce dt
-      performEvent_ $ ffor releaseE $ const $ liftIO $ writeIORef ref False
-    return silentedE
+    rec
+      lastEDyn <- holdAppHost (pure never) $ ffor resultE $ const $ do
+        liftIO $ writeIORef ref True
+        let dt = realToFrac $ 1 / (fromIntegral fps :: Double)
+        releaseE <- tickOnce dt
+        lastE <- performEvent $ ffor releaseE $ const $ liftIO $ do
+          writeIORef ref False
+          atomicModifyIORef' refLast $ \v -> (Nothing, v)
+        return $ fmapMaybe id lastE -- remove Nothing occurences
+      let resultE = leftmost [silencedE, switchPromptlyDyn lastEDyn]
+    return resultE
 
 instance AlignWithFps Dynamic where
   alignWithFps fps da = do
