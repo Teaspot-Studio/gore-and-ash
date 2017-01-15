@@ -44,6 +44,7 @@ class (Reflex t, MonadFix m) => TimerMonad t m | m -> t where
   -- | Get event that fires only after given event with specified delay
   delayBy :: NominalDiffTime -> Event t a -> m (Event t a)
 
+-- | Holds shared functions between Event and Dynamic to align occurences with time
 class AlignWithFps r where
   -- | Fire event not frequently as given frame per second ratio. Starts global
   -- counter, so first occurence of resulted event can be delayed by 1/fps seconds.

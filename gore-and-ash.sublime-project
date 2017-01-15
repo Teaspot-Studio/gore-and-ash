@@ -17,6 +17,11 @@
 			"working_dir": "${project_path}"
 		},
 		{
+			"name": "Stack haddock",
+			"shell_cmd": "stack haddock --no-haddock-deps",
+			"working_dir": "${project_path}"
+		},
+		{
 			"name": "Stack pedantic examples",
 			"shell_cmd": "stack install --pedantic --flag gore-and-ash-resource:examples --flag gore-and-ash:examples --flag gore-and-ash-network:examples --flag gore-and-ash-sdl:examples --flag gore-and-ash-logging:examples --flag gore-and-ash-sdl:examples --flag gore-and-ash-sync:examples",
 			"working_dir": "${project_path}"

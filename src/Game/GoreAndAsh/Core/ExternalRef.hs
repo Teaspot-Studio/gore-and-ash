@@ -31,7 +31,7 @@ import GHC.Generics
 -- and so on. It is designed to be updated from outputs of FRP network, not from
 -- outer world.
 data ExternalRef t a = ExternalRef {
-  -- | Storage of value
+  -- | Storage of value (do not change this by yourself, use helpers)
   externalRef   :: !(IORef a)
   -- | Event that fires when value is changed
 , externalEvent :: !(Event t a)
@@ -92,6 +92,7 @@ externalRefBehavior ExternalRef{..} = do
   a <- liftIO $ readIORef externalRef
   hold a externalEvent
 
+-- | Get dynamic that tracks value of the internal ref
 externalRefDynamic :: MonadAppHost t m => ExternalRef t a -> m (Dynamic t a)
 externalRefDynamic ExternalRef{..} = do
   a <- liftIO $ readIORef externalRef

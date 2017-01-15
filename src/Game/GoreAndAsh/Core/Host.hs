@@ -35,8 +35,7 @@ switchKeyAppInfo :: forall t m k .
   => Map k (AppInfo t) -- ^ Initial FRP application
   -- | Updates, 'Nothing' deletes specified key and 'Just' adds/overwrite given key
   -> Event t (Map k (Maybe (AppInfo t)))
-  -- | Collected application info
-  -> m (AppInfo t)
+  -> m (AppInfo t) -- ^ Collected application info
 switchKeyAppInfo initialMap updatedMap = do
   -- calculate eventsToPerform events
   let initialPerforms :: Map k (Event t (AppPerformAction t))
