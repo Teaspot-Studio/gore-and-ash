@@ -36,7 +36,6 @@ library
     Game.GoreAndAsh.Core.ExternalRef
     Game.GoreAndAsh.Core.Host
     Game.GoreAndAsh.Core.Monad
-    Game.GoreAndAsh.Core.Wire
     Game.GoreAndAsh.Math
     Game.GoreAndAsh.Time
 
