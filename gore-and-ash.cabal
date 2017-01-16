@@ -1,5 +1,5 @@
 name:                gore-and-ash
-version:             1.2.2.0
+version:             2.0.0.0
 synopsis:            Core of FRP game engine called Gore&Ash
 description:         Please see README.md
 homepage:            https://github.com/Teaspot-Studio/gore-and-ash
@@ -19,70 +19,208 @@ extra-source-files:
   CHANGELOG.md
   stack.yaml
 
+flag examples
+  description: Enable building of examples
+  default:     False
+
 library
   hs-source-dirs:      src
   exposed-modules:
-                      Control.Wire
-                      Control.Wire.Core
-                      Control.Wire.Event
-                      Control.Wire.Interval
-                      Control.Wire.Run
-                      Control.Wire.Session
-                      Control.Wire.Switch
-                      Control.Wire.Time
-                      Control.Wire.Unsafe.Event
-                      Data.Filterable
-                      FRP.Netwire
-                      FRP.Netwire.Analyze
-                      FRP.Netwire.Move
-                      FRP.Netwire.Noise
-                      FRP.Netwire.Utils.Timeline
-                      Game.GoreAndAsh
-                      Game.GoreAndAsh.Core
-                      Game.GoreAndAsh.Core.Arrow
-                      Game.GoreAndAsh.Core.Monad
-                      Game.GoreAndAsh.Core.Session
-                      Game.GoreAndAsh.Core.State
-                      Game.GoreAndAsh.Math
+    Data.Filterable
+    Game.GoreAndAsh
+    Game.GoreAndAsh.Core
+    Game.GoreAndAsh.Core.Chain
+    Game.GoreAndAsh.Core.Collection
+    Game.GoreAndAsh.Core.Delay
+    Game.GoreAndAsh.Core.Dispense
+    Game.GoreAndAsh.Core.ExternalRef
+    Game.GoreAndAsh.Core.Host
+    Game.GoreAndAsh.Core.Monad
+    Game.GoreAndAsh.Math
+    Game.GoreAndAsh.Time
 
   default-language:    Haskell2010
-  build-depends:       base >= 4.7 && < 5
-                     , containers >= 0.5.6.2
-                     , deepseq >= 1.4
-                     , exceptions >= 0.8.0.2
-                     , hashable >= 1.2.3.3
-                     , linear >= 1.20.3
-                     , mtl >= 2.2
-                     , parallel >= 3.2
-                     , profunctors >= 4.3
-                     , random >= 1.1
-                     , semigroups >= 0.15
-                     , time >= 1.5.0.1
-                     , transformers >= 0.4
-                     , unordered-containers >= 0.2.5.1
+  build-depends:
+      base                  >= 4.7      && < 5
+    , containers            >= 0.5.6.2  && < 0.6
+    , deepseq               >= 1.4      && < 1.5
+    , dependent-sum         >= 0.3      && < 0.4
+    , dlist                 >= 0.8      && < 0.9
+    , exceptions            >= 0.8.0.2  && < 0.9
+    , hashable              >= 1.2.3.3  && < 1.3
+    , linear                >= 1.20.3   && < 1.21
+    , monad-control         >= 1.0      && < 1.1
+    , mtl                   >= 2.2      && < 2.3
+    , reducers              >= 3.12     && < 3.13
+    , reflex                >= 0.5      && < 0.6
+    , reflex-host           >= 0.3      && < 0.4
+    , stateWriter           >= 0.2      && < 0.3
+    , time                  >= 1.6      && < 1.7
+    , transformers          >= 0.4      && < 0.6
+    , transformers-base     >= 0.4      && < 0.5
+    , unbounded-delays      >= 0.1      && < 0.2
+    , unordered-containers  >= 0.2.5.1  && < 0.3
 
   default-extensions:
-                      Arrows
-                      DataKinds
-                      DeriveDataTypeable
-                      DeriveFoldable
-                      DeriveFunctor
-                      DeriveGeneric
-                      DeriveTraversable
-                      FlexibleContexts
-                      FlexibleInstances
-                      FunctionalDependencies
-                      GADTs
-                      GeneralizedNewtypeDeriving
-                      MultiParamTypeClasses
-                      RankNTypes
-                      RecordWildCards
-                      ScopedTypeVariables
-                      TupleSections
-                      TypeFamilies
-                      TypeOperators
-                      UndecidableInstances
+    DataKinds
+    DeriveGeneric
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    GeneralizedNewtypeDeriving
+    MultiParamTypeClasses
+    RankNTypes
+    RecordWildCards
+    RecursiveDo
+    ScopedTypeVariables
+    TupleSections
+    TypeFamilies
+    TypeOperators
+    UndecidableInstances
 
+executable gore-and-ash-example-logger
+  if flag(examples)
+    buildable: True
+  else
+    buildable: False
+
+  hs-source-dirs:     examples
+  main-is:            Logger.hs
+  other-modules:
+    Logger.API
+  default-language:   Haskell2010
+  build-depends:
+      base                  >= 4.7      && < 5
+    , gore-and-ash
+    , mtl                   >= 2.2      && < 2.3
+    , stateWriter           >= 0.2      && < 0.3
+
+  default-extensions:
+    BangPatterns
+    DeriveFunctor
+    DeriveGeneric
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GeneralizedNewtypeDeriving
+    MultiParamTypeClasses
+    OverloadedStrings
+    RecordWildCards
+    ScopedTypeVariables
+    TypeFamilies
+    UndecidableInstances
+
+  ghc-options: -threaded
+
+executable gore-and-ash-example-timer
+  if flag(examples)
+    buildable: True
+  else
+    buildable: False
+
+  hs-source-dirs:     examples
+  main-is:            Timer.hs
+  other-modules:
+    Logger.API
+  default-language:   Haskell2010
+  build-depends:
+      base                  >= 4.7      && < 5
+    , gore-and-ash
+    , mtl                   >= 2.2      && < 2.3
+    , stateWriter           >= 0.2      && < 0.3
+    , time                  >= 1.6      && < 1.7
+
+  default-extensions:
+    BangPatterns
+    DeriveFunctor
+    DeriveGeneric
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GeneralizedNewtypeDeriving
+    MultiParamTypeClasses
+    OverloadedStrings
+    RecordWildCards
+    ScopedTypeVariables
+    TypeFamilies
+    UndecidableInstances
+
+  ghc-options: -threaded
+
+executable gore-and-ash-example-counter
+  if flag(examples)
+    buildable: True
+  else
+    buildable: False
+
+  hs-source-dirs:     examples
+  main-is:            Counter.hs
+  other-modules:
+    Logger.API
+    Counter.API
+  default-language:   Haskell2010
+  build-depends:
+      base                  >= 4.7      && < 5
+    , gore-and-ash
+    , mtl                   >= 2.2      && < 2.3
+    , stateWriter           >= 0.2      && < 0.3
+    , time                  >= 1.6      && < 1.7
+
+  default-extensions:
+    BangPatterns
+    DeriveFunctor
+    DeriveGeneric
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GeneralizedNewtypeDeriving
+    MultiParamTypeClasses
+    OverloadedStrings
+    RecordWildCards
+    ScopedTypeVariables
+    TypeFamilies
+    UndecidableInstances
+
+  ghc-options: -threaded
+
+executable gore-and-ash-example-collection
+  if flag(examples)
+    buildable: True
+  else
+    buildable: False
+
+  hs-source-dirs:     examples
+  main-is:            Collection.hs
+  other-modules:
+    Logger.API
+  default-language:   Haskell2010
+  build-depends:
+      base                  >= 4.7      && < 5
+    , containers            >= 0.5      && < 0.6
+    , gore-and-ash
+    , mtl                   >= 2.2      && < 2.3
+    , random                >= 1.1      && < 1.2
+    , stateWriter           >= 0.2      && < 0.3
+    , time                  >= 1.6      && < 1.7
+
+  default-extensions:
+    BangPatterns
+    DeriveFunctor
+    DeriveGeneric
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GeneralizedNewtypeDeriving
+    MultiParamTypeClasses
+    OverloadedStrings
+    RecordWildCards
+    RecursiveDo
+    ScopedTypeVariables
+    TypeFamilies
+    UndecidableInstances
+
+  ghc-options: -threaded
 source-repository head
   type:     git
   location: https://github.com/Teaspot-Studio/gore-and-ash.git

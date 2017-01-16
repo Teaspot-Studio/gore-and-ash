@@ -8,279 +8,432 @@ Maintainer  : ncrashed@gmail.com
 Stability   : experimental
 Portability : POSIX
 
-The module defines 'GameMonadT' monad transformer as base monad for all arrows of ther engine.
+The module defines 'GameMonadT' monad transformer as base monad for engine.
 Also there is 'GameModule' class that must be implemented by all core modules. Finally 'ModuleStack'
 type family is for user usage to compose all modules in single monad stack.
 -}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE LambdaCase #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Game.GoreAndAsh.Core.Monad(
-    GameMonadT
-  , GameContext(..)
-  , newGameContext
-  , evalGameMonad
+    ReflexMonad
+  , GameContext
+  , GameMonad
   , GameModule(..)
-  , IOState
-  , IdentityState
-  , ModuleStack
+  -- * Reexports
+  , module Reflex
+  , module Reflex.Host.App
+  , module Reflex.Host.Class
+  -- * Helpers for host monad
+  , performAppHostAsync
+  , wrapError
+  , dontCare
+  , fcutMaybe
+  , fcutEither
+  , fkeepNothing
+  , fkeepLeft
   ) where
 
 import Control.DeepSeq
+import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.IO.Class
+import Control.Monad.Reader
 import Control.Monad.State.Strict
-import Data.Functor.Identity
-import Data.Proxy (Proxy(..))
+import Control.Monad.Trans.Control
+import Control.Monad.Trans.Identity
+import Control.Monad.Trans.RSS.Strict
+import Control.Monad.Writer
+import Data.Either
+import Data.Maybe
+import Data.Proxy
+import Data.Semigroup.Applicative
 import GHC.Generics (Generic)
+import Reflex hiding (performEvent, performEvent_, getPostBuild, performEventAsync)
+import Reflex.Host.App
+import Reflex.Host.App.Internal
+import Reflex.Host.Class
 
--- | Basic game monad transformer which wraps core modules.
+import qualified Reflex.Spider.Internal as R
+
+-- | Capture usual requirements for FRP monad
+type ReflexMonad t m = (Reflex t, MonadSample t m, MonadFix m, MonadIO m)
+
+-- | Describes how to run core modules. Each core module must define
+-- an instance of the class.
 --
--- Here goes all core API that accessable from each 
--- game object. All specific (mods etc) API should
--- be included in inner `m` monad.
---
--- [@m@] Core modules monads stacked up here.
---
--- [@a@] Value caried by the monad.
---
--- The monad is used to create new arrows, there a 90% chances
--- that you will create your own arrows. You could use "Control.Wire.Core"
--- module and especially 'mkGen', 'mkGen_' and 'mkSFN' functions to create
--- new arrows.
-newtype GameMonadT m a = GameMonadT { 
-  runGameMonadT :: StateT GameContext m a
-} deriving (MonadThrow, MonadCatch, MonadMask)
+-- The class describes how the module is executed each game frame, which external
+-- events are created and which respond to output of FRP network is done.
+class (ReflexHost t, Monad gm) => GameModule t gm where
+  -- | Specific options of module
+  type ModuleOptions t gm :: *
+  type ModuleOptions t gm = ()
+
+  -- | Execution of reactive subsystem of module
+  runModule :: ModuleOptions t gm -> gm a -> AppHost t a
+
+  -- | Place when some external resouce initialisation can be placed
+  withModule :: Proxy t -> Proxy gm -> IO a -> IO a
+
+  -- -- | Gracefull cleanup of module resources
+  -- cleanupModule :: MonadIO m => Proxy t -> Proxy gm -> m ()
 
 -- | State of core.
 --
 -- At the moment it is empty, but left for future
 -- extensions. For example, some introspection API
 -- of enabled modules would be added.
-data GameContext = GameContext {
-  
+data GameContext t = GameContext {
+
 } deriving Generic
 
-instance NFData GameContext
+instance NFData (GameContext t)
 
 -- | Create empty context
-newGameContext :: GameContext 
+newGameContext :: GameContext t
 newGameContext = GameContext
 
-instance Functor m => Functor (GameMonadT m) where 
-  fmap f (GameMonadT m) = GameMonadT $ fmap f m
+-- | Internal representation of 'GameMonad'
+type GameMonadStack t = StateT (GameContext t) (AppHost t)
+
+-- | Endpoint for application monad stack that captures engine features for reactivity.
+--
+-- [@t@] FRP engine implementation (needed by reflex). Almost always you should
+-- just type 't' in all user code in the place and ignore it.
+--
+-- [@a@] Value carried by the monad.
+--
+-- Should be used in application monad stack as end monad:
+--
+-- @
+-- type AppMonad t a = LoggingT (ActorT (GameMonad t)) a
+-- @
+newtype GameMonad t a = GameMonad {
+  runGameMonad :: GameMonadStack t a
+}
+
+instance ReflexHost t => Functor (GameMonad t) where
+  fmap f (GameMonad m) = GameMonad $ fmap f m
 
 -- | Monad is needed as StateT Applicative instance requires it
-instance Monad m => Applicative (GameMonadT m) where
-  pure a = GameMonadT $ pure a
-  (GameMonadT f) <*> (GameMonadT m) = GameMonadT $ f <*> m
+instance ReflexHost t => Applicative (GameMonad t) where
+  pure a = GameMonad $ pure a
+  (GameMonad f) <*> (GameMonad m) = GameMonad $ f <*> m
 
-instance Monad m => Monad (GameMonadT m) where 
-  return = pure 
-  (GameMonadT ma) >>= f = GameMonadT $ do 
+instance ReflexHost t => Monad (GameMonad t) where
+  return = pure
+  (GameMonad ma) >>= f = GameMonad $ do
     a <- ma
-    runGameMonadT $ f a
+    runGameMonad $ f a
 
-instance MonadFix m => MonadFix (GameMonadT m) where
-  mfix f = GameMonadT $ mfix (runGameMonadT . f)
+instance ReflexHost t => MonadFix (GameMonad t) where
+  mfix f = GameMonad $ mfix (runGameMonad . f)
 
-instance MonadTrans GameMonadT where 
-  lift = GameMonadT . lift
+instance (MonadIO (HostFrame t), ReflexHost t) => MonadIO (GameMonad t) where
+  liftIO m = GameMonad $ liftIO m
 
-instance MonadIO m => MonadIO (GameMonadT m) where 
-  liftIO = GameMonadT . liftIO
+instance (ReflexHost t, MonadIO (HostFrame t)) => MonadBase IO (AppHost t) where
+  liftBase = liftHostFrame . liftIO
 
--- | Runs game monad with given context
-evalGameMonad :: GameMonadT m a -> GameContext -> m (a, GameContext)
-evalGameMonad (GameMonadT m) ctx = runStateT m ctx
+instance MonadBase IO (SpiderHost s) where
+  liftBase = R.SpiderHost . liftIO
 
--- | Describes how to run core modules. Each core module must define
--- an instance of the class.
+instance MonadBaseControl IO (SpiderHost s) where
+  type StM (SpiderHost s) a = a
+  liftBaseWith ma = do
+    s <- R.SpiderHost ask
+    liftBase $ ma (flip runReaderT s . R.unSpiderHost)
+  restoreM = return
+
+instance MonadBase IO (R.SpiderHostFrame s) where
+  liftBase = R.SpiderHostFrame . liftIO
+
+instance MonadBaseControl IO (R.SpiderHostFrame s) where
+  type StM (R.SpiderHostFrame s) a = a
+  liftBaseWith ma = do
+    liftBase $ ma (R.unEventM . R.runSpiderHostFrame)
+  restoreM = return
+
+-- | TODO: move this to reflex-host (need to deep look in AppHost monad to prevent skolem problems)
+instance (MonadBaseControl IO (HostFrame t), MonadIO (HostFrame t), ReflexHost t) => MonadBaseControl IO (AppHost t) where
+  type StM (AppHost t) a = StM (HostFrame t) (HostFrame t (AppInfo t), a)
+  liftBaseWith (ma :: RunInBase (AppHost t) IO -> IO a) = do
+    env <- AppHost ask
+    let rearrange (a, Ap m) = (m, a)
+    liftHostFrame $ liftBaseWith $ \(runnerIO :: RunInBase (HostFrame t) IO) -> do
+      let runner :: RunInBase (AppHost t) IO
+          runner (AppHost m) = runnerIO (rearrange <$> evalRSST m env ())
+      liftIO $ ma runner
+  restoreM stma = do
+    (hst, a) <- liftHostFrame $ restoreM stma
+    performPostBuild_ hst
+    return a
+
+instance (MonadIO (HostFrame t), ReflexHost t) => MonadBase IO (GameMonad t) where
+  liftBase = GameMonad . liftIO
+
+instance (MonadBaseControl IO (HostFrame t), MonadIO (HostFrame t), ReflexHost t) => MonadBaseControl IO (GameMonad t) where
+  type StM (GameMonad t) a = StM (GameMonadStack t) a
+  liftBaseWith ma = do
+    GameMonad $ liftBaseWith $ \runner -> ma (runner . runGameMonad)
+  restoreM stma = GameMonad $ restoreM stma
+
+-- | Endpoint for 'ModuleStack' that captures engine features for reactivity.
 --
--- The class describes how the module is executed each game frame
--- and how to pass its own state to the next state.
---
--- The state 's' must be unique for each game module.
---
--- 'GameMonadT' has 'm' parameter that should implement the class.
---
--- Typical backbone of new core module:
+-- Should be used in 'ModuleStack' as end monad:
 --
 -- @
---   -- | State of your module
---   data MyModuleState s = MyModuleState {
---     -- | Next state in state chain of modules
---   , myModuleNextState :: !s
---   } deriving (Generic)
---   
---   -- | Needed to step game state
---   instance NFData s => NFData (MyModuleState s)
---  
---   -- | Creation of initial state
---   emptyMyModuleState :: s -> MyModuleState s 
---   emptyMyModuleState s = MyModuleState {
---       myModuleNextState = s
---     }
---   
---   -- Your monad transformer that implements module API
---   newtype MyModuleT s m a = MyModuleT { runMyModuleT :: StateT (MyModuleState s) m a }
---     deriving (Functor, Applicative, Monad, MonadState (MyModuleState s), MonadFix, MonadTrans, MonadIO, MonadThrow, MonadCatch, MonadMask)
---   
---   instance GameModule m s => GameModule (MyModuleT s m) (MyModuleState s) where 
---     type ModuleState (MyModuleT s m) = MyModuleState s
---     runModule (MyModuleT m) s = do
---       -- First phase: execute all dependent modules actions and transform own state 
---       ((a, s'), nextState) <- runModule (runStateT m s) (myModuleNextState s)
---       -- Second phase: here you could execute your IO actions
---       return (a, s' { 
---          myModuleNextState = nextState 
---         })
---   
---     newModuleState = emptyMyModuleState <$> newModuleState
---   
---     withModule _ = id
---     cleanupModule _ = return ()
---   
---   -- | Define your module API
---   class OtherModuleMonad m => MyModuleMonad m where
---     -- | The function would be seen in any arrow
---     myAwesomeFunction :: AnotherModule m => a -> b -> m (a, b) 
---   
---   -- | Implementation of API
---   instance {-\# OVERLAPPING #-} OtherModuleMonad m => MyModuleMonad (MyModuleT s m) where
---      myAwesomeFunction = ...
---  
---   -- | Passing calls through other modules
---   instance {-\# OVERLAPPABLE #-} (MyModuleMonad m, MonadTrans mt) => MyModuleMonad (mt m) where 
---     myAwesomeFunction a b = lift $ myAwesomeFunction a b
+-- type AppMonad t a = LoggingT (ActorT (GameMonad t)) a
 -- @
---
--- After the backbone definition you could include your monad to application stack with 'ModuleStack'
--- and use it within any arrow in your application.
-class Monad m => GameModule m s | m -> s, s -> m where
-  -- | Defines what state has given module.
-  --
-  -- The correct implentation of the association:
-  -- >>> type ModuleState (MyModuleT s m) = MyModuleState s
-  type ModuleState m :: *
+instance ReflexHost t => GameModule t (GameMonad t) where
+  runModule _ m = do
+    (!a, _) <- runStateT (runGameMonad m) newGameContext
+    return a
+  withModule _ _ = id
+  --cleanupModule _ _ _ = return ()
 
-  -- | Executes module action with given state. Produces new state that should be passed to next step
-  --
-  -- Each core module has responsibility of executing underlying modules with nested call to 'runModule'.
-  --
-  -- Typically there are two phases of execution:
-  --
-  --   * Calculation of own state and running underlying modules
-  --
-  --   * Execution of IO actions that are queued in module state
-  --
-  -- Some of modules requires 'IO' monad at the end of monad stack to call 'IO' actions in place within
-  -- first phase of module execution (example: network module). You should avoid the pattern and prefer 
-  -- to execute 'IO' actions at the second phase as bad designed use of first phase could lead to strange 
-  -- behavior at arrow level.
-  runModule :: MonadIO m' => m a -> s -> m' (a, s)
-  -- | Creates new state of module.
-  -- 
-  -- Typically there are nested calls to 'newModuleState' for nested modules.
-  -- @
-  -- newModuleState = emptyMyModuleState <$> newModuleState
-  -- @
-  newModuleState :: MonadIO m' => m' s
-  -- | Wrap action with module initialization and cleanup.
-  --
-  -- Could be `withSocketsDo` or another external library initalization.
-  withModule :: Proxy m -> IO a -> IO a
-  -- | Cleanup resources of the module, should be called on exit (actually 'cleanupGameState' do this for your)
-  cleanupModule :: s -> IO ()
+  {-# INLINE runModule #-}
+  {-# INLINE withModule #-}
+  --{-# INLINE cleanupModule #-}
 
--- | Type level function that constucts complex module stack from given list of modules.
---
--- The type family helps to simplify chaining of core modules at user application:
---
--- @
--- -- | Application monad is monad stack build from given list of modules over base monad (IO)
--- type AppStack = ModuleStack [LoggingT, ActorT, NetworkT] IO
--- newtype AppState = AppState (ModuleState AppStack)
---   deriving (Generic)
--- 
--- instance NFData AppState 
--- 
--- -- | Wrapper around type family to enable automatic deriving
--- -- 
--- -- Note: There could be need of manual declaration of module API stub instances, as GHC can fail to derive instance automatically.
--- newtype AppMonad a = AppMonad (AppStack a)
---   deriving (Functor, Applicative, Monad, MonadFix, MonadIO, LoggingMonad, NetworkMonad, ActorMonad, MonadThrow, MonadCatch)
--- 
--- -- | Top level wrapper for module stack
--- instance GameModule AppMonad AppState where 
---   type ModuleState AppMonad = AppState
---   runModule (AppMonad m) (AppState s) = do 
---     (a, s') <- runModule m s 
---     return (a, AppState s')
---   newModuleState = AppState <$> newModuleState
---   withModule _ = withModule (Proxy :: Proxy AppStack)
---   cleanupModule (AppState s) = cleanupModule s 
--- 
--- -- | Arrow that is build over the monad stack
--- type AppWire a b = GameWire AppMonad a b
--- -- | Action that makes indexed app wire
--- type AppActor i a b = GameActor AppMonad i a b
--- @
---
--- There are two endpoint monads that are currently built in the core:
---
---   * 'Identity' - for modules stack that does only pure actions at it first phase;
---
---   * 'IO' - most common case, modules can execute 'IO' actions in place at firts phase.
-type family ModuleStack (ms :: [* -> (* -> *) -> * -> *]) (endm :: * -> *) :: * -> * where
-  ModuleStack '[] curm = curm
-  ModuleStack (m ': ms) curm = ModuleStack ms (m (ModuleState curm) curm)
+instance ReflexHost t => MonadSample t (GameMonad t) where
+  sample = GameMonad . sample
 
--- | Endpoint of state chain for Identity monad
--- 
--- Could be used in 'ModuleStack' as end monad:
---
--- @
--- type AppStack = ModuleStack [LoggingT, ActorT] Identity
--- @
-data IdentityState = IdentityState deriving Generic
+instance ReflexHost t => MonadHold t (GameMonad t) where
+  hold            a b = GameMonad $ hold a b
+  holdDyn         a b = GameMonad $ holdDyn a b
+  holdIncremental a b = GameMonad $ holdIncremental a b
 
-instance NFData IdentityState
+instance ReflexHost t => MonadSubscribeEvent t (GameMonad t) where
+  subscribeEvent = GameMonad . subscribeEvent
 
--- | Module stack that does only pure actions in its first phase.
---
--- Could be used in 'ModuleStack' as end monad:
---
--- @
--- type AppStack = ModuleStack [LoggingT, ActorT] Identity
--- @
-instance GameModule Identity IdentityState where
-  type ModuleState Identity = IdentityState
-  runModule i _ = return $ (runIdentity i, IdentityState)
-  newModuleState = return IdentityState
-  withModule _ = id
-  cleanupModule _ = return ()
+instance ReflexHost t => MonadReflexCreateTrigger t (GameMonad t) where
+  newEventWithTrigger = GameMonad . newEventWithTrigger
+  newFanEventWithTrigger trigger = GameMonad $ newFanEventWithTrigger trigger
 
--- | Endpoint of state chain for IO monad.
---
--- Could be used in 'ModuleStack' as end monad:
---
--- @
--- type AppStack = ModuleStack [LoggingT, ActorT, NetworkT] IO
--- @
-data IOState = IOState deriving Generic
+instance (MonadIO (HostFrame t), ReflexHost t) => MonadAppHost t (GameMonad t) where
+  getFireAsync = GameMonad getFireAsync
+  getRunAppHost = do
+    runner <- GameMonad getRunAppHost
+    return $ \m -> runner $ runGameMonad m
+  performPostBuild_ = GameMonad . performPostBuild_
+  liftHostFrame = GameMonad . liftHostFrame
 
-instance NFData IOState
+instance MonadThrow (R.EventM a) where
+  throwM = R.EventM . throwM
 
--- | Module stack that does IO action.
---
--- Could be used in 'ModuleStack' as end monad:
---
--- @
--- type AppStack = ModuleStack [LoggingT, ActorT, NetworkT] IO
--- @
-instance GameModule IO IOState where
-  type ModuleState IO = IOState
-  runModule io _ = do 
-    a <- liftIO io
-    return (a, IOState)
-  newModuleState = return IOState
-  withModule _ = id
-  cleanupModule _ = return ()
+instance MonadThrow (R.SpiderHostFrame a) where
+  throwM = R.SpiderHostFrame . throwM
+
+instance MonadThrow m => MonadThrow (RSST r w s m) where
+  throwM = lift . throwM
+
+instance (MonadThrow (HostFrame t), ReflexHost t) => MonadThrow (AppHost t) where
+  throwM = AppHost . throwM
+
+instance (MonadThrow (HostFrame t), ReflexHost t) => MonadThrow (GameMonad t) where
+  throwM = GameMonad . throwM
+
+instance MonadCatch (R.EventM a) where
+  catch (R.EventM m) f = R.EventM $ m `catch` (R.unEventM . f)
+
+instance MonadCatch (R.SpiderHostFrame a) where
+  catch (R.SpiderHostFrame m) f = R.SpiderHostFrame $ m `catch` (R.runSpiderHostFrame . f)
+
+instance (Monoid w, MonadCatch m) => MonadCatch (RSST r w s m) where
+  catch m f = do
+    r <- ask
+    s <- get
+    (a, s', w) <- lift $ runRSST m r s `catch` (\e -> runRSST (f e) r s)
+    put s'
+    tell w
+    return a
+
+instance (MonadCatch (HostFrame t), ReflexHost t) => MonadCatch (AppHost t) where
+  catch (AppHost m) f = AppHost $ m `catch` (unAppHost . f)
+
+instance (MonadCatch (HostFrame t), ReflexHost t) => MonadCatch (GameMonad t) where
+  catch (GameMonad m) f = GameMonad $ m `catch` (runGameMonad . f)
+
+instance (Monoid w, MonadMask m) => MonadMask (RSST r w s m) where
+  mask m = do
+    r <- ask
+    s <- get
+    (a, s', w) <- lift $ mask $ \u -> runRSST (m $ q u) r s
+    put s'
+    tell w
+    return a
+    where
+      q :: (forall b . m b -> m b) -> RSST r w s m a -> RSST r w s m a
+      q u m' = do
+        r <- ask
+        s <- get
+        (a, s', w) <- lift $ u (runRSST m' r s)
+        put s'
+        tell w
+        return a
+
+  uninterruptibleMask m = do
+    r <- ask
+    s <- get
+    (a, s', w) <- lift $ uninterruptibleMask $ \u -> runRSST (m $ q u) r s
+    put s'
+    tell w
+    return a
+    where
+      q :: (forall b . m b -> m b) -> RSST r w s m a -> RSST r w s m a
+      q u m' = do
+        r <- ask
+        s <- get
+        (a, s', w) <- lift $ u (runRSST m' r s)
+        put s'
+        tell w
+        return a
+
+instance MonadMask (R.EventM s) where
+  mask m = R.EventM $ mask $ \u -> R.unEventM (m $ q u)
+    where
+    q :: (forall b . IO b -> IO b) -> R.EventM s a -> R.EventM s a
+    q u m' = R.EventM $ u (R.unEventM m')
+  uninterruptibleMask m = R.EventM $ uninterruptibleMask $ \u -> R.unEventM (m $ q u)
+    where
+    q :: (forall b . IO b -> IO b) -> R.EventM s a -> R.EventM s a
+    q u m' = R.EventM $ u (R.unEventM m')
+
+instance MonadMask (R.SpiderHostFrame s) where
+  mask m = R.SpiderHostFrame $ mask $ \u -> R.runSpiderHostFrame (m $ q u)
+    where
+    q :: (forall b . R.EventM s b -> R.EventM s b) -> R.SpiderHostFrame s a -> R.SpiderHostFrame s a
+    q u m' = R.SpiderHostFrame $ u (R.runSpiderHostFrame m')
+  uninterruptibleMask m = R.SpiderHostFrame $ uninterruptibleMask $ \u -> R.runSpiderHostFrame (m $ q u)
+    where
+    q :: (forall b . R.EventM s b -> R.EventM s b) -> R.SpiderHostFrame s a -> R.SpiderHostFrame s a
+    q u m' = R.SpiderHostFrame $ u (R.runSpiderHostFrame m')
+
+type AppHostStack t = RSST (AppEnv t) (Ap (HostFrame t) (AppInfo t)) () (HostFrame t)
+
+instance (MonadMask (HostFrame t), ReflexHost t) => MonadMask (AppHost t) where
+  mask m = AppHost $ mask $ \u -> unAppHost (m $ q u)
+    where
+    q :: (forall b . AppHostStack t b -> AppHostStack t b) -> AppHost t a -> AppHost t a
+    q u m' = AppHost $ u (unAppHost m')
+  uninterruptibleMask m = AppHost $ uninterruptibleMask $ \u -> unAppHost (m $ q u)
+    where
+    q :: (forall b . AppHostStack t b -> AppHostStack t b) -> AppHost t a -> AppHost t a
+    q u m' = AppHost $ u (unAppHost m')
+
+instance (MonadMask (HostFrame t), ReflexHost t) => MonadMask (GameMonad t) where
+  mask m = GameMonad $ mask $ \u -> runGameMonad (m $ q u)
+    where
+    q :: (forall b . GameMonadStack t b -> GameMonadStack t b) -> GameMonad t a -> GameMonad t a
+    q u m' = GameMonad $ u (runGameMonad m')
+  uninterruptibleMask m = GameMonad $ uninterruptibleMask $ \u -> runGameMonad (m $ q u)
+    where
+    q :: (forall b . GameMonadStack t b -> GameMonadStack t b) -> GameMonad t a -> GameMonad t a
+    q u m' = GameMonad $ u (runGameMonad m')
+
+-- TODO: move this to reflex-host
+instance MonadAppHost t m => MonadAppHost t (StateT s m) where
+  getFireAsync = lift getFireAsync
+  getRunAppHost = do
+    runner <- lift getRunAppHost
+    s <- get
+    return $ \m -> runner $ evalStateT m s
+  performPostBuild_ = lift . performPostBuild_
+  liftHostFrame = lift . liftHostFrame
+
+instance MonadAppHost t m => MonadAppHost t (ReaderT s m) where
+  getFireAsync = lift getFireAsync
+  getRunAppHost = do
+    runner <- lift getRunAppHost
+    s <- ask
+    return $ \m -> runner $ runReaderT m s
+  performPostBuild_ = lift . performPostBuild_
+  liftHostFrame = lift . liftHostFrame
+
+instance MonadSample t m => MonadSample t (RSST r w s m) where
+  sample = lift . sample
+
+instance MonadHold t m => MonadHold t (RSST r w s m) where
+  hold            a b = lift $ hold a b
+  holdDyn         a b = lift $ holdDyn a b
+  holdIncremental a b = lift $ holdIncremental a b
+
+instance MonadSubscribeEvent t m => MonadSubscribeEvent t (RSST r w s m) where
+  subscribeEvent = lift . subscribeEvent
+
+instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (RSST r w s m) where
+  newEventWithTrigger = lift . newEventWithTrigger
+  newFanEventWithTrigger trigger = lift $ newFanEventWithTrigger trigger
+
+instance (Monoid w, MonadAppHost t m) => MonadAppHost t (RSST r w s m) where
+  getFireAsync = lift getFireAsync
+  getRunAppHost = do
+    runner <- lift getRunAppHost
+    r <- ask
+    s <- get
+    return $ \m -> runner . fmap (\(a, _, _) -> a) $ runRSST m r s
+  performPostBuild_ = lift . performPostBuild_
+  liftHostFrame = lift . liftHostFrame
+
+instance MonadSample t m => MonadSample t (IdentityT m) where
+  sample = lift . sample
+
+instance MonadHold t m => MonadHold t (IdentityT m) where
+  hold            a b = lift $ hold a b
+  holdDyn         a b = lift $ holdDyn a b
+  holdIncremental a b = lift $ holdIncremental a b
+
+instance MonadSubscribeEvent t m => MonadSubscribeEvent t (IdentityT m) where
+  subscribeEvent = lift . subscribeEvent
+
+instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (IdentityT m) where
+  newEventWithTrigger = lift . newEventWithTrigger
+  newFanEventWithTrigger trigger = lift $ newFanEventWithTrigger trigger
+
+instance (MonadAppHost t m) => MonadAppHost t (IdentityT m) where
+  getFireAsync = lift getFireAsync
+  getRunAppHost = do
+    runner <- lift getRunAppHost
+    return $ \m -> runner $ runIdentityT m
+  performPostBuild_ = lift . performPostBuild_
+  liftHostFrame = lift . liftHostFrame
+
+-- | Perform asynchronously a host operation and then switch into it
+performAppHostAsync :: (MonadAppHost t m, MonadBaseControl IO m)
+  => Event t (m a) -> m (Event t a)
+performAppHostAsync e = do
+  eLifted <- liftBaseWith $ \run -> return $ fmap run e
+  eAsync <- performEventAsync eLifted
+  performAppHost $ fmap restoreM eAsync
+
+-- | Helper to catch occurrences of error 'e' into 'Either'. Usually this is
+-- needed for event generator that can throw, but you want to provide an 'Either'
+-- in an event for end user.
+wrapError :: (MonadCatch m, Exception e) => m a -> m (Either e a)
+wrapError ma = (Right <$> ma) `catch` (return . Left)
+
+-- | Rethrow errors in host monad, reverse of 'wrapError' when an end user doesn't
+-- care about errors.
+dontCare :: (MonadAppHost t m, MonadThrow m, Exception e)
+  => Event t (Either e a) -> m (Event t a)
+dontCare e = performAppHost $ ffor e $ \case
+  Left err -> throwM err
+  Right a -> return a
+
+-- | Helper to pass through only a 'Just' values
+fcutMaybe :: Reflex t => Event t (Maybe a) -> Event t a
+fcutMaybe = fmap fromJust . ffilter isJust
+
+-- | Helper to pass through only a 'Nothing' values
+fkeepNothing :: Reflex t => Event t (Maybe a) -> Event t ()
+fkeepNothing = fmap (const ()) . ffilter isNothing
+
+-- | Helper to pass through only a 'Right' values
+fcutEither :: Reflex t => Event t (Either e a) -> Event t a
+fcutEither = fmap (\(Right a) -> a) . ffilter isRight
+
+-- | Helper to pass through only a 'Left' values
+fkeepLeft :: Reflex t => Event t (Either e a) -> Event t e
+fkeepLeft = fmap (\(Left e) -> e) . ffilter isLeft

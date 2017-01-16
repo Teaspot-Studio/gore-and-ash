@@ -1,17 +1,26 @@
 # For more information, see: https://github.com/commercialhaskell/stack/blob/release/doc/yaml_configuration.md
 
 # Specifies the GHC version and set of packages available (e.g., lts-3.5, nightly-2015-09-21, ghc-7.10.2)
-resolver: lts-7.9
+resolver: lts-7.15
 
 # Local packages, usually specified by relative directory name
 packages:
 - '.'
+- location:
+    git: https://github.com/reflex-frp/reflex.git
+    commit: 4eb436e0d94418c11e4c06be7fa982d59629c9a9
+  extra-dep: true
+- location:
+    git: https://github.com/bennofs/reflex-host.git
+    commit: ef269102ef5c61f15072ed79370e791820e25d8d
+  extra-dep: true
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
-extra-deps: []
-
-# Override default flag values for local packages and extra-deps
-flags: {}
+extra-deps:
+- prim-uniq-0.1.0.1
+- ref-tf-0.4.0.1
+- typesafe-endian-0.1.0.1
+- dependent-map-0.2.4.0
 
 # Extra package databases containing global packages
 extra-package-dbs: []
