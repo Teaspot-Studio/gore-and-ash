@@ -34,7 +34,6 @@ library
     Game.GoreAndAsh.Core.Delay
     Game.GoreAndAsh.Core.Dispense
     Game.GoreAndAsh.Core.ExternalRef
-    Game.GoreAndAsh.Core.Host
     Game.GoreAndAsh.Core.Monad
     Game.GoreAndAsh.Math
     Game.GoreAndAsh.Time
