@@ -16,8 +16,6 @@ import Data.Map.Strict (Map)
 import Reflex hiding (performEvent, performEvent_, getPostBuild, performEventAsync)
 import Reflex.Host.App
 
-import Game.GoreAndAsh.Core.Host
-
 import qualified Data.Map.Strict as M
 
 -- | Construct dynamic collection of components with incremental update.

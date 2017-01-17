@@ -12,7 +12,7 @@ packages:
   extra-dep: true
 - location:
     git: https://github.com/bennofs/reflex-host.git
-    commit: ef269102ef5c61f15072ed79370e791820e25d8d
+    commit: 4701a7b99f8825f7c2bf3b50609a5ba2f622a654
   extra-dep: true
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
