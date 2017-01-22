@@ -1,83 +1,9 @@
-{-# START_FILE {{name}}.cabal #-}
-name:                {{name}}
-version:             0.1.0.0
-synopsis:            Core module for Gore&Ash engine that do something.
-description:         Please see README.md
-homepage:            https://github.com/{{github-username}}{{^github-username}}githubuser{{/github-username}}/{{name}}#readme
-license:             BSD3
-license-file:        LICENSE
-author:              {{author-name}}{{^author-name}}Author name here{{/author-name}}
-maintainer:          {{author-email}}{{^author-email}}example@example.com{{/author-email}}
-copyright:           {{copyright}}{{^copyright}}2010 Author Here{{/copyright}}
-category:            Game
-build-type:          Simple
-cabal-version:       >=1.10
-
-library
-  hs-source-dirs:     src
-  exposed-modules:     
-                      Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}
-                      Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.API
-                      Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.Module
-                      Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.State
-  
-  default-language:   Haskell2010
-  build-depends:      base >= 4.7 && < 5
-                    , deepseq >= 1.4.1.1
-                    , exceptions >= 0.8.2.1
-                    , gore-and-ash >= 1.1.0.1
-                    , mtl >= 2.2.1
-                    , resourcet >= 1.1.7.1
-                    , transformers >= 0.4.2
-                    , transformers-base >= 0.4.4
-
-  default-extensions: 
-                      DeriveGeneric
-                      FlexibleInstances
-                      GeneralizedNewtypeDeriving
-                      MultiParamTypeClasses
-                      TypeFamilies
-                      UndecidableInstances
-                      ScopedTypeVariables
-                      
-{-# START_FILE Setup.hs #-}
-import Distribution.Simple
-main = defaultMain
-
-{-# START_FILE mkdocs #-}
-#!/usr/bin/env bash
-# usage: mkdocs {{name}} <version> <haddock-login>
-cabal update && cabal install --dependencies-only
-cabal configure && cabal build && cabal haddock --hyperlink-source \
-                                    --html-location='/package/$pkg-$version/docs' \
-                                    --contents-location='/package/$pkg' \
-                                    --haddock-options="--use-contents=https://hackage.haskell.org/package/${1}-${2}"
-S=$?
-if [ "${S}" -eq "0" ]; then
-    cd "dist/doc/html"
-    DDIR="${1}-${2}-docs"
-    cp -r "${1}" "${DDIR}" && tar -c -v -z --format=ustar -f "${DDIR}.tar.gz" "${DDIR}"
-    CS=$?
-    if [ "${CS}" -eq "0" ]; then
-        echo "Uploading to Hackage…"
-        curl -X PUT -H 'Content-Type: application/x-tar' -H 'Content-Encoding: gzip' --data-binary "@${DDIR}.tar.gz" "https://hackage.haskell.org/package/${1}-${2}/docs" --user ${3} --digest
-        exit $?
-    else
-        echo "Error when packaging the documentation"
-        exit $CS
-    fi
-else
-    echo "Error when trying to build the package."
-    exit $S
-fi
-
 {-# START_FILE .gitignore #-}
 .stack-work
-*.sublime-project
 *.sublime-workspace
 
 {-# START_FILE LICENSE #-}
-Copyright {{author-name}} (c) 2016
+Copyright {{author-name}} (c) {{current-year}}
 
 All rights reserved.
 
@@ -107,242 +33,483 @@ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
 THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
 {-# START_FILE README.md #-}
 {{name}}
-==================
+====================
 
-The module provides API for something for [Gore&Ash](https://github.com/Teaspot-Studio/gore-and-ash) engine.
+[![Build Status](https://travis-ci.org/Teaspot-Studio/{{name}}.svg?branch=master)](https://travis-ci.org/Teaspot-Studio/{{name}})
 
-Installing
-==========
+Core module of [gore-and-ash](https://github.com/teaspot-studio/gore-and-ash) game engine.
 
-Add following to your `stack.yml` to `packages` section:
-```yaml
+{-# START_FILE Setup.hs #-}
+import Distribution.Simple
+main = defaultMain
+
+{-# START_FILE {{name}}.cabal #-}
+name:                {{name}}
+version:             0.1.0.0
+synopsis:            Initial project template from stack
+description:         Please see README.md
+homepage:            https://github.com/{{github-username}}/{{name}}#readme
+license:             BSD3
+license-file:        LICENSE
+author:              {{author-name}}
+maintainer:          {{author-email}}
+copyright:           {{copyright}}
+category:            Game
+build-type:          Simple
+extra-source-files:  README.md
+cabal-version:       >=1.10
+
+flag examples
+  description: Enable building of examples
+  default:     False
+
+library
+  hs-source-dirs:      src
+  exposed-modules:
+    Game.GoreAndAsh.{{module-name}}
+    Game.GoreAndAsh.{{module-name}}.API
+    Game.GoreAndAsh.{{module-name}}.Module
+  build-depends:
+      base               >= 4.7      && < 5
+    , bytestring         >= 0.10     && < 0.11
+    , exceptions         >= 0.8      && < 0.9
+    , gore-and-ash       >= 2.0.0.0  && < 2.1
+    , monad-control      >= 1.0      && < 1.1
+    , mtl                >= 2.2      && < 2.3
+    , text               >= 1.2.1    && < 1.3
+    , transformers       >= 0.4.2    && < 0.6
+    , transformers-base  >= 0.4.4    && < 0.5
+
+  default-language:    Haskell2010
+  default-extensions:
+    DataKinds
+    DeriveGeneric
+    FlexibleInstances
+    FunctionalDependencies
+    GeneralizedNewtypeDeriving
+    InstanceSigs
+    MultiParamTypeClasses
+    OverloadedStrings
+    RankNTypes
+    RecordWildCards
+    ScopedTypeVariables
+    TypeFamilies
+    UndecidableInstances
+
+source-repository head
+  type:     git
+  location: https://github.com/ncrashed/{{name}}
+
+executable {{name}}-example01
+  if flag(examples)
+    buildable: True
+  else
+    buildable: False
+
+  hs-source-dirs:     examples
+  main-is:            Example01.hs
+  default-language:   Haskell2010
+  build-depends:
+      base                  >= 4.7      && < 5
+    , bytestring            >= 0.10     && < 0.11
+    , exceptions            >= 0.8      && < 0.9
+    , gore-and-ash          >= 2.0      && < 2.1
+    , gore-and-ash-logging  >= 3.0      && < 3.1
+    , {{name}}
+    , mtl                   >= 2.2      && < 2.3
+    , text                  >= 1.2.1    && < 1.3
+
+  default-extensions:
+    BangPatterns
+    DeriveFunctor
+    DeriveGeneric
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GeneralizedNewtypeDeriving
+    MultiParamTypeClasses
+    OverloadedStrings
+    RecordWildCards
+    ScopedTypeVariables
+    StandaloneDeriving
+    TypeFamilies
+    UndecidableInstances
+
+  ghc-options: -threaded
+
+{-# START_FILE {{name}}.sublime-project #-}
+{
+  "build_systems":
+  [
+    {
+      "name": "Stack",
+      "shell_cmd": "stack install",
+      "working_dir": "${project_path}"
+    },
+    {
+      "name": "Stack pedantic",
+      "shell_cmd": "stack install --pedantic",
+      "working_dir": "${project_path}"
+    },
+    {
+      "name": "Stack profile",
+      "shell_cmd": "stack install --profile",
+      "working_dir": "${project_path}"
+    },
+    {
+      "name": "Stack haddock",
+      "shell_cmd": "stack haddock --no-haddock-deps",
+      "working_dir": "${project_path}"
+    },
+    {
+      "name": "Stack pedantic examples",
+      "shell_cmd": "stack install --pedantic --flag {{name}}:examples",
+      "working_dir": "${project_path}"
+    }
+  ],
+  "folders":
+  [
+    {
+      "path": "."
+    }
+  ]
+}
+
+{-# START_FILE stack.yaml #-}
+# This file was automatically generated by 'stack init'
+#
+# Some commonly used options have been documented as comments in this file.
+# For advanced use and comprehensive documentation of the format, please see:
+# http://docs.haskellstack.org/en/stable/yaml_configuration/
+
+# Resolver to choose a 'specific' stackage snapshot or a compiler version.
+# A snapshot resolver dictates the compiler version and the set of packages
+# to be used for project dependencies. For example:
+#
+# resolver: lts-3.5
+# resolver: nightly-2015-09-21
+# resolver: ghc-7.10.2
+# resolver: ghcjs-0.1.0_ghc-7.10.2
+# resolver:
+#  name: custom-snapshot
+#  location: "./custom-snapshot.yaml"
+resolver: lts-7.16
+
+# User packages to be built.
+# Various formats can be used as shown in the example below.
+#
+# packages:
+# - some-directory
+# - https://example.com/foo/bar/baz-0.0.2.tar.gz
+# - location:
+#    git: https://github.com/commercialhaskell/stack.git
+#    commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
+# - location: https://github.com/commercialhaskell/stack/commit/e7b331f14bcffb8367cd58fbfc8b40ec7642100a
+#   extra-dep: true
+#  subdirs:
+#  - auto-update
+#  - wai
+#
+# A package marked 'extra-dep: true' will only be built if demanded by a
+# non-dependency (i.e. a user package), and its test suites and benchmarks
+# will not be run. This is useful for tweaking upstream packages.
+packages:
+- '.'
 - location:
-    git: https://github.com/{{github-username}}{{^github-username}}githubuser{{/github-username}}/{{name}}.git
-    commit: <PLACE HERE FULL HASH OF LAST COMMIT> 
-```
+    git: https://github.com/reflex-frp/reflex.git
+    commit: 4eb436e0d94418c11e4c06be7fa982d59629c9a9
+  extra-dep: true
+- location:
+    git: https://github.com/bennofs/reflex-host.git
+    commit: 4701a7b99f8825f7c2bf3b50609a5ba2f622a654
+  extra-dep: true
+- location:
+    git: https://github.com/teaspot-studio/gore-and-ash.git
+    commit: 29e0bf26f60b252debc5f8e6828ddaa09d32becf
+  extra-dep: true
+- location:
+    git: https://github.com/teaspot-studio/gore-and-ash-logging.git
+    commit: a1a1eb79585f94e85c6341d7fd9fd109694da9eb
+  extra-dep: true
 
-When defining you application stack, add `{{module-name}}{{^module-name}}MyModule{{/module-name}}T`:
-``` haskell
-type AppStack = ModuleStack [{{module-name}}{{^module-name}}MyModule{{/module-name}}T, ... other modules ... ] IO
-```
 
-And derive `Monad{{module-name}}{{^module-name}}MyModule{{/module-name}}` for your resulting `AppMonad`:
-``` haskell
-newtype AppMonad a = AppMonad (AppStack a)
-  deriving (Functor, Applicative, Monad, MonadFix, MonadIO, MonadThrow, MonadCatch, Monad{{module-name}}{{^module-name}}MyModule{{/module-name}})
-```
+# Dependency packages to be pulled from upstream that are not in the resolver
+# (e.g., acme-missiles-0.3)
+extra-deps:
+- gore-and-ash-2.0.0.0
+- gore-and-ash-logging-3.0.0.0
+- prim-uniq-0.1.0.1
+- ref-tf-0.4.0.1
 
-{-# START_FILE src/Game/GoreAndAsh/{{module-name}}{{^module-name}}MyModule{{/module-name}}.hs #-}
-{-# OPTIONS_GHC -fno-warn-unused-imports #-}
-{-|
-Module      : Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}
-Description : Core module for embedding concurrent IO actions into main loop.
-Copyright   : (c) Anton Gushcha, 2016
-License     : BSD3
-Maintainer  : ncrashed@gmail.com
-Stability   : experimental
-Portability : POSIX
+# Override default flag values for local packages and extra-deps
+flags: {}
 
-The core module contains API for something into main game loop for Gore&Ash.
+# Extra package databases containing global packages
+extra-package-dbs: []
 
-The module does not depend on any other core modules, so '{{module-name}}{{^module-name}}MyModule{{/module-name}}T' could be placed at any place in monad stack.
+# Control whether we use the GHC we find on the path
+# system-ghc: true
+#
+# Require a specific version of stack, using version ranges
+# require-stack-version: -any # Default
+# require-stack-version: ">=1.3"
+#
+# Override the architecture used by stack, especially useful on Windows
+# arch: i386
+# arch: x86_64
+#
+# Extra directories used by stack for building
+# extra-include-dirs: [/path/to/dir]
+# extra-lib-dirs: [/path/to/dir]
+#
+# Allow a newer minor version of GHC than the snapshot specifies
+# compiler-check: newer-minor
+{-# START_FILE examples/Example01.hs #-}
+module Main where
 
-The module is pure within first phase (see 'ModuleStack' docs), therefore 'Identity' can be used as end monad.
+import Control.Monad.Catch
+import Control.Monad.Except
+import Data.Proxy
 
-Example of embedding:
+import Game.GoreAndAsh.Core
+import Game.GoreAndAsh.Logging
+import Game.GoreAndAsh.{{module-name}}
+import Game.GoreAndAsh.Time
 
-@
--- | Application monad is monad stack build from given list of modules over base monad (IO or Identity)
-type AppStack = ModuleStack [{{module-name}}{{^module-name}}MyModule{{/module-name}}T ... other modules ... ] IO
-newtype AppState = AppState (ModuleState AppStack)
-  deriving (Generic)
+type AppStack t = {{module-name}}T t (LoggingT t (TimerT t (GameMonad t)))
 
-instance NFData AppState 
+newtype AppMonad t a = AppMonad { runAppMonad :: AppStack t a}
+  deriving (Functor, Applicative, Monad, MonadFix)
 
--- | Wrapper around type family
-newtype AppMonad a = AppMonad (AppStack a)
-  deriving (Functor, Applicative, Monad, MonadFix, MonadIO, MonadThrow, MonadCatch,  Monad{{module-name}}{{^module-name}}MyModule{{/module-name}} ... other modules monads ... )
+app :: forall t m . (Monad{{module-name}} t m) => m ()
+app = exampleFunc
 
-instance GameModule AppMonad AppState where 
-  type ModuleState AppMonad = AppState
-  runModule (AppMonad m) (AppState s) = do 
-    (a, s') <- runModule m s 
-    return (a, AppState s')
-  newModuleState = AppState <$> newModuleState
-  withModule _ = withModule (Proxy :: Proxy AppStack)
-  cleanupModule (AppState s) = cleanupModule s 
+main :: IO ()
+main = runSpiderHost $ hostApp $ runModule opts (app :: AppMonad Spider ())
 
--- | Arrow that is build over the monad stack
-type AppWire a b = GameWire AppMonad a b
-@
-
--}
-module Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}(
-  -- * Low-level
-    {{module-name}}{{^module-name}}MyModule{{/module-name}}State
-  , {{module-name}}{{^module-name}}MyModule{{/module-name}}T 
-  , Monad{{module-name}}{{^module-name}}MyModule{{/module-name}}(..)
-  ) where
-
--- for docs
-import Game.GoreAndAsh
-
-import Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.API as X 
-import Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.Module as X 
-import Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.State as X 
-
-{-# START_FILE src/Game/GoreAndAsh/{{module-name}}{{^module-name}}MyModule{{/module-name}}/State.hs #-}
-{-|
-Module      : Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.State
-Description : Internal state of core module
-Copyright   : (c) Anton Gushcha, 2016
-License     : BSD3
-Maintainer  : ncrashed@gmail.com
-Stability   : experimental
-Portability : POSIX
--}
-module Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.State(
-    {{module-name}}{{^module-name}}MyModule{{/module-name}}State(..)
-  , empty{{module-name}}{{^module-name}}MyModule{{/module-name}}State
-  ) where
-
-import Control.DeepSeq
-import GHC.Generics (Generic)
-
--- | Internal state of core module
---
--- [@s@] - state of next module, they are chained until bottom, that is usually
---         an empty data type.
-data {{module-name}}{{^module-name}}MyModule{{/module-name}}State s = {{module-name}}{{^module-name}}MyModule{{/module-name}}State {
-  -- | Next module state in chain of modules
-  {{module-name-lower}}{{^module-name-lower}}mymodule{{/module-name-lower}}NextState :: !s
-} deriving (Generic)
-
-instance NFData s => NFData ({{module-name}}{{^module-name}}MyModule{{/module-name}}State s)
-
--- | Create inital state of the core module
---
--- [@s@] -  state of next module
-empty{{module-name}}{{^module-name}}MyModule{{/module-name}}State :: s -> {{module-name}}{{^module-name}}MyModule{{/module-name}}State s 
-empty{{module-name}}{{^module-name}}MyModule{{/module-name}}State s = {{module-name}}{{^module-name}}MyModule{{/module-name}}State {
-    {{module-name-lower}}{{^module-name-lower}}mymodule{{/module-name-lower}}NextState = s
+opts :: {{module-name}}Options ()
+opts = {{module-name}}Options {
+    {{field-prefix}}OptsNext = ()
   }
 
-{-# START_FILE src/Game/GoreAndAsh/{{module-name}}{{^module-name}}MyModule{{/module-name}}/Module.hs #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+-- Boilerplate below
+
+deriving instance (ReflexHost t, MonadCatch (HostFrame t)) => MonadCatch (AppMonad t)
+deriving instance (ReflexHost t, MonadThrow (HostFrame t)) => MonadThrow (AppMonad t)
+deriving instance (ReflexHost t, MonadMask (HostFrame t)) => MonadMask (AppMonad t)
+deriving instance (ReflexHost t, MonadIO (HostFrame t)) => MonadIO (AppMonad t)
+deriving instance (ReflexHost t, MonadIO (HostFrame t)) => Monad{{module-name}} t (AppMonad t)
+deriving instance (ReflexHost t, MonadIO (HostFrame t)) => TimerMonad t (AppMonad t)
+deriving instance (ReflexHost t, MonadIO (HostFrame t)) => LoggingMonad t (AppMonad t)
+deriving instance (ReflexHost t) => MonadSample t (AppMonad t)
+deriving instance (ReflexHost t) => MonadHold t (AppMonad t)
+deriving instance (ReflexHost t) => MonadSubscribeEvent t (AppMonad t)
+
+instance ReflexHost t => MonadReflexCreateTrigger t (AppMonad t) where
+  newEventWithTrigger = AppMonad . newEventWithTrigger
+  newFanEventWithTrigger trigger = AppMonad $ newFanEventWithTrigger trigger
+
+instance (ReflexHost t, MonadIO (HostFrame t)) => MonadAppHost t (AppMonad t) where
+  getFireAsync = AppMonad getFireAsync
+  getRunAppHost = do
+    runner <- AppMonad getRunAppHost
+    return $ \m -> runner $ runAppMonad m
+  performPostBuild_ = AppMonad . performPostBuild_
+  liftHostFrame = AppMonad . liftHostFrame
+
+instance (ReflexHost t, MonadIO (HostFrame t)) => GameModule t (AppMonad t) where
+  type ModuleOptions t (AppMonad t) = ModuleOptions t (AppStack t)
+  runModule os m = runModule os $ runAppMonad m
+  withModule t _ = withModule t (Proxy :: Proxy (AppStack t))
+
+{-# START_FILE src/Game/GoreAndAsh/{{module-name}}/API.hs #-}
 {-|
-Module      : Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.Module
-Description : Monad transformer and instance for core module
-Copyright   : (c) Anton Gushcha, 2016
+Module      : Game.GoreAndAsh.{{module-name}}.API
+Description : API of resource module
+Copyright   : (c) Anton Gushcha, 2016-2017
+                  Anatoly Nardid, 2016-2017
 License     : BSD3
 Maintainer  : ncrashed@gmail.com
 Stability   : experimental
 Portability : POSIX
+
+The module contains public API for {{module-docs-name}} module.
 -}
-module Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.Module(
-    {{module-name}}{{^module-name}}MyModule{{/module-name}}T(..)
+module Game.GoreAndAsh.{{module-name}}.API(
+    Monad{{module-name}}(..)
+  ) where
+
+import Control.Monad.Trans
+import Game.GoreAndAsh
+
+-- | Public API of resouce module.
+--
+-- You can use like a mtl type class:
+--
+-- @
+-- foo :: (Monad{{module-name}} t m, LoggingMonad t m) => m ()
+-- @
+class MonadAppHost t m => Monad{{module-name}} t m | m -> t where
+  exampleFunc :: m ()
+
+instance {-# OVERLAPPABLE #-} (MonadTrans mt, MonadAppHost t (mt m), Monad{{module-name}} t m)
+  => Monad{{module-name}} t (mt m) where
+
+  exampleFunc = lift exampleFunc
+  {-# INLINE exampleFunc #-}
+
+{-# START_FILE src/Game/GoreAndAsh/{{module-name}}/Module.hs #-}
+{-|
+Module      : Game.GoreAndAsh.{{module-name}}.Module
+Description : Internal implementation of public API of {{module-docs-name}} game module
+Copyright   : (c) Anton Gushcha, 2016-2017
+                  Anatoly Nardid, 2016-2017
+License     : BSD3
+Maintainer  : ncrashed@gmail.com
+Stability   : experimental
+Portability : POSIX
+
+The module defines implementation of {{module-docs-name}} game module. You are
+interested only in a '{{module-name}}T' and '{{module-name}}Options' types as '{{module-name}}T'
+should be placed in your monad stack to enable 'Monad{{module-name}}' API in your
+application.
+
+@
+type AppStack t = {{module-name}}T t (LoggingT t (TimerT t (GameMonad t)))
+
+newtype AppMonad t a = AppMonad { runAppMonad :: AppStack t a}
+  deriving (Functor, Applicative, Monad, MonadFix)
+@
+
+And you will need some boilerplate code for instance deriving, see
+`examples/Example01.hs` for full example.
+
+-}
+module Game.GoreAndAsh.{{module-name}}.Module(
+    {{module-name}}Options(..)
+  , {{module-name}}T(..)
   ) where
 
 import Control.Monad.Base
 import Control.Monad.Catch
-import Control.Monad.Error.Class
-import Control.Monad.Fix 
-import Control.Monad.State.Strict
-import Control.Monad.Trans.Resource
+import Control.Monad.Fix
+import Control.Monad.IO.Class
+import Control.Monad.Reader
+import Control.Monad.Trans.Control
 import Data.Proxy
 
 import Game.GoreAndAsh
-import Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.State
+import Game.GoreAndAsh.{{module-name}}.API
 
--- | Monad transformer of the core module.
+-- | Options that are passed to 'runModule' at application startup.
 --
--- [@s@] - State of next core module in modules chain;
+-- [@s@] The nested options of next module in stack. Options are layered the
+-- similar way as parts of monad transformers.
+data {{module-name}}Options s = {{module-name}}Options {
+  {{field-prefix}}OptsNext   :: s -- ^ Nested options of next game module
+}
+
+-- | Internal environment of game module
+data {{module-name}}Env t = {{module-name}}Env {
+  -- | Options that were used to create the module
+  {{field-prefix}}EnvOptions    :: {{module-name}}Options ()
+}
+
+-- | Create a new environment for game module
+new{{module-name}}Env :: MonadAppHost t m => {{module-name}}Options s -> m ({{module-name}}Env t)
+new{{module-name}}Env opts = do
+  return {{module-name}}Env {
+      {{field-prefix}}EnvOptions = opts { {{field-prefix}}OptsNext = () }
+    }
+
+-- | Implementation of 'Monad{{module-name}}' API.
 --
--- [@m@] - Next monad in modules monad stack;
+-- [@t@] FRP engine, you could ignore this parameter as it resolved only at main
+-- function of your application.
 --
--- [@a@] - Type of result value;
+-- [@m@] Underlying game modules, next layer in monad stack.
 --
--- How to embed module:
--- 
+-- [@a@] Result of computation.
+--
+-- How to embed the monad into your app:
+--
 -- @
--- type AppStack = ModuleStack [{{module-name}}{{^module-name}}MyModule{{/module-name}}T, ... other modules ... ] IO
+-- type AppStack t = {{module-name}}T t (LoggingT t (TimerT t (GameMonad t)))
 --
--- newtype AppMonad a = AppMonad (AppStack a)
---   deriving (Functor, Applicative, Monad, MonadFix, MonadIO, MonadThrow, MonadCatch, Monad{{module-name}}{{^module-name}}MyModule{{/module-name}})
+-- newtype AppMonad t a = AppMonad { runAppMonad :: AppStack t a}
+--   deriving (Functor, Applicative, Monad, MonadFix)
 -- @
 --
--- The module is pure within first phase (see 'ModuleStack' docs), therefore 'Identity' can be used as end monad.
-newtype {{module-name}}{{^module-name}}MyModule{{/module-name}}T s m a = {{module-name}}{{^module-name}}MyModule{{/module-name}}T { run{{module-name}}{{^module-name}}MyModule{{/module-name}}T :: StateT ({{module-name}}{{^module-name}}MyModule{{/module-name}}State s) m a }
-  deriving (Functor, Applicative, Monad, MonadState ({{module-name}}{{^module-name}}MyModule{{/module-name}}State s), MonadFix, MonadTrans, MonadIO, MonadThrow, MonadCatch, MonadMask, MonadError e)
+-- And you will need some boilerplate code for instance deriving, see
+-- `examples/Example01.hs` for full example.
+--
+newtype {{module-name}}T t m a = {{module-name}}T { run{{module-name}}T :: ReaderT ({{module-name}}Env t) m a }
+  deriving (Functor, Applicative, Monad, MonadReader ({{module-name}}Env t), MonadFix
+    , MonadIO, MonadThrow, MonadCatch, MonadMask, MonadSample t, MonadHold t)
 
-instance MonadBase IO m => MonadBase IO ({{module-name}}{{^module-name}}MyModule{{/module-name}}T s m) where
-  liftBase = {{module-name}}{{^module-name}}MyModule{{/module-name}}T . liftBase
+instance {-# OVERLAPPING #-} MonadAppHost t m => Monad{{module-name}} t ({{module-name}}T t m) where
+  exampleFunc = return ()
+  {-# INLINE exampleFunc #-}
 
-instance MonadResource m => MonadResource ({{module-name}}{{^module-name}}MyModule{{/module-name}}T s m) where 
-  liftResourceT = {{module-name}}{{^module-name}}MyModule{{/module-name}}T . liftResourceT 
+-- Boilerplate
 
-instance GameModule m s => GameModule ({{module-name}}{{^module-name}}MyModule{{/module-name}}T s m) ({{module-name}}{{^module-name}}MyModule{{/module-name}}State s) where 
-  type ModuleState ({{module-name}}{{^module-name}}MyModule{{/module-name}}T s m) = {{module-name}}{{^module-name}}MyModule{{/module-name}}State s
-  runModule ({{module-name}}{{^module-name}}MyModule{{/module-name}}T m) s = do
-    ((a, s'), nextState) <- runModule (runStateT m s) ({{module-name-lower}}{{^module-name-lower}}mymodule{{/module-name-lower}}NextState s)
-    return (a, s' {
-        {{module-name-lower}}{{^module-name-lower}}mymodule{{/module-name-lower}}NextState = nextState 
-      })  
-  
-  newModuleState = empty{{module-name}}{{^module-name}}MyModule{{/module-name}}State <$> newModuleState
-  withModule _ = withModule (Proxy :: Proxy m)
-  cleanupModule _ = return ()
+instance MonadTrans ({{module-name}}T t) where
+  lift = {{module-name}}T . lift
 
-{-# START_FILE src/Game/GoreAndAsh/{{module-name}}{{^module-name}}MyModule{{/module-name}}/API.hs #-}
+instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t ({{module-name}}T t m) where
+  newEventWithTrigger = lift . newEventWithTrigger
+  newFanEventWithTrigger initializer = lift $ newFanEventWithTrigger initializer
+
+instance MonadSubscribeEvent t m => MonadSubscribeEvent t ({{module-name}}T t m) where
+  subscribeEvent = lift . subscribeEvent
+
+instance MonadAppHost t m => MonadAppHost t ({{module-name}}T t m) where
+  getFireAsync = lift getFireAsync
+  getRunAppHost = do
+    runner <- {{module-name}}T getRunAppHost
+    return $ \m -> runner $ run{{module-name}}T m
+  performPostBuild_ = lift . performPostBuild_
+  liftHostFrame = lift . liftHostFrame
+
+instance MonadTransControl ({{module-name}}T t) where
+  type StT ({{module-name}}T t) a = StT (ReaderT ({{module-name}}Env t)) a
+  liftWith = defaultLiftWith {{module-name}}T run{{module-name}}T
+  restoreT = defaultRestoreT {{module-name}}T
+
+instance MonadBase b m => MonadBase b ({{module-name}}T t m) where
+  liftBase = {{module-name}}T . liftBase
+
+instance (MonadBaseControl b m) => MonadBaseControl b ({{module-name}}T t m) where
+  type StM ({{module-name}}T t m) a = ComposeSt ({{module-name}}T t) m a
+  liftBaseWith     = defaultLiftBaseWith
+  restoreM         = defaultRestoreM
+
+instance (MonadIO (HostFrame t), GameModule t m) => GameModule t ({{module-name}}T t m) where
+  type ModuleOptions t ({{module-name}}T t m) = {{module-name}}Options (ModuleOptions t m)
+  runModule opts ({{module-name}}T m) = do
+    s <- new{{module-name}}Env opts
+    runModule ({{field-prefix}}OptsNext opts) $ runReaderT m s
+  withModule t _ = withModule t (Proxy :: Proxy m)
+
+
+{-# START_FILE src/Game/GoreAndAsh/{{module-name}}.hs #-}
 {-|
-Module      : Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.API
-Description : Monadic and arrow API for module
-Copyright   : (c) Anton Gushcha, 2016
+Module      : Game.GoreAndAsh.{{module-name}}
+Description : Top module of game module for Gore&Ash engine for {{module-docs-name}} handling.
+Copyright   : (c) Anton Gushcha, 2016-2017
+                  Anatoly Nardid, 2016-2017
 License     : BSD3
 Maintainer  : ncrashed@gmail.com
 Stability   : experimental
 Portability : POSIX
 -}
-module Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.API(
-    Monad{{module-name}}{{^module-name}}MyModule{{/module-name}}(..)
+module Game.GoreAndAsh.{{module-name}}(
+    Monad{{module-name}}(..)
+  , {{module-name}}T(..)
+  , {{module-name}}Options(..)
   ) where
 
-import Control.Monad.Trans 
-
-import Game.GoreAndAsh.{{module-name}}{{^module-name}}MyModule{{/module-name}}.Module 
-
--- | Low level monadic API for module.
---
--- Note: does not require 'm' to be 'IO' monad.
-class Monad m => Monad{{module-name}}{{^module-name}}MyModule{{/module-name}} m where 
-  -- | stab method, temporary
-  {{module-name-lower}}{{^module-name-lower}}mymodule{{/module-name-lower}}Stab :: m ()
-
-instance {-# OVERLAPPING #-} Monad m => Monad{{module-name}}{{^module-name}}MyModule{{/module-name}} ({{module-name}}{{^module-name}}MyModule{{/module-name}}T s m) where
-  {{module-name-lower}}{{^module-name-lower}}mymodule{{/module-name-lower}}Stab = return ()
-
-instance {-# OVERLAPPABLE #-} (Monad (mt m), Monad{{module-name}}{{^module-name}}MyModule{{/module-name}} m, MonadTrans mt) => Monad{{module-name}}{{^module-name}}MyModule{{/module-name}} (mt m) where 
-  {{module-name-lower}}{{^module-name-lower}}mymodule{{/module-name-lower}}Stab = lift {{module-name-lower}}{{^module-name-lower}}mymodule{{/module-name-lower}}Stab
-
-{-# START_FILE Dockerfile #-}
-FROM phadej/ghc:7.10.2 
-
-ADD mkdocs /opt/project/
-ADD LICENSE /opt/project/
-ADD Setup.hs /opt/project/
-ADD README.md /opt/project/
-ADD {{name}}.cabal /opt/project/
-ADD stack.yaml /opt/project/
-ADD src /opt/project/src
-
-WORKDIR /opt/project
-
-ENTRYPOINT ["./mkdocs", "{{name}}", "0.1.0.0", "{{author-name}}{{^author-name}}Author name here{{/author-name}}"]
-
-{-# START_FILE publish #-}
-stack upload .
-sudo docker build -t {{name}} .
-sudo docker run --rm -it {{name}}
+import Game.GoreAndAsh.{{module-name}}.Module
+import Game.GoreAndAsh.{{module-name}}.API

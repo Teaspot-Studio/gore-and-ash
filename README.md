@@ -20,6 +20,15 @@ Making your own module
 
 You can generate backbone of core module with `stack`:
 
-```
-stack new gore-and-ash-testtemp ./gore-and-ash-module.hsfiles -p module-name:TestTemp -p module-name-lower:testtemp --solver
+``` bash
+stack new gore-and-ash-mymodule ./gore-and-ash-sample.hsfiles \
+  -p module-name:Test \
+  -p module-docs-name:test \
+  -p field-prefix:test \
+  -p github-username:teaspot-studio \
+  -p current-year:2017 \
+  -p author-name:ncrashed \
+  -p author-email:ncrashed@gmail.com \
+  -p copyright:Anton Gushcha 2017 \
+  --solver
 ```
