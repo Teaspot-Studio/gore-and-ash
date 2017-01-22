@@ -21,7 +21,7 @@ Making your own module
 You can generate backbone of core module with `stack`:
 
 ``` bash
-stack new gore-and-ash-mymodule ./gore-and-ash-sample.hsfiles \
+stack new gore-and-ash-mymodule ./gore-and-ash-module.hsfiles \
   -p module-name:Test \
   -p module-docs-name:test \
   -p field-prefix:test \
