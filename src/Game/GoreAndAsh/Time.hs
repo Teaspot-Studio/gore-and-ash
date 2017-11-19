@@ -23,6 +23,7 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Control.Monad.Trans.Identity
+import Data.Functor (void)
 import Data.IORef
 import Data.Proxy
 import Data.Time
@@ -120,7 +121,7 @@ tickEveryN dt n userStopE
   | otherwise = do
     ref <- newExternalRef 0
     let stopE = fforMaybe (externalEvent ref) $ \i -> if i >= n-1 then Just () else Nothing
-    e <- tickEveryUntil dt $ leftmost [stopE, const () <$> userStopE]
+    e <- tickEveryUntil dt $ leftmost [stopE, void userStopE]
     performEvent $ ffor e $ const $ modifyExternalRef ref $ \i -> (i+1, i+1)
 
 -- | Implementation basis of Timer API.
@@ -211,12 +212,14 @@ instance MonadHold t m => MonadHold t (TimerT t m) where
   hold            a b = lift $ hold a b
   holdDyn         a b = lift $ holdDyn a b
   holdIncremental a b = lift $ holdIncremental a b
+  buildDynamic    a b = lift $ buildDynamic a b
+  headE           a   = lift $ headE a
 
 instance MonadAppHost t m => MonadAppHost t (TimerT t m) where
   getFireAsync = lift getFireAsync
   getRunAppHost = do
     runner <- lift getRunAppHost
-    return $ \m -> runner $ evalTimerT $ m
+    return $ \m -> runner $ evalTimerT m
   performPostBuild_ = lift . performPostBuild_
   liftHostFrame = lift . liftHostFrame
 

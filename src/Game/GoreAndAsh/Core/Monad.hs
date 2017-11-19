@@ -36,6 +36,7 @@ module Game.GoreAndAsh.Core.Monad(
   ) where
 
 import Control.DeepSeq
+import Control.Monad (void)
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.IO.Class
@@ -50,7 +51,7 @@ import Data.Maybe
 import Data.Proxy
 import Data.Semigroup.Applicative
 import GHC.Generics (Generic)
-import Reflex hiding (performEvent, performEvent_, getPostBuild, performEventAsync)
+import Reflex hiding (performEvent, performEvent_, getPostBuild, performEventAsync, delay)
 import Reflex.Host.App
 import Reflex.Host.App.Internal
 import Reflex.Host.Class
@@ -151,7 +152,7 @@ instance MonadBase IO (R.SpiderHostFrame s) where
 
 instance MonadBaseControl IO (R.SpiderHostFrame s) where
   type StM (R.SpiderHostFrame s) a = a
-  liftBaseWith ma = do
+  liftBaseWith ma =
     liftBase $ ma (R.unEventM . R.runSpiderHostFrame)
   restoreM = return
 
@@ -204,6 +205,8 @@ instance ReflexHost t => MonadHold t (GameMonad t) where
   hold            a b = GameMonad $ hold a b
   holdDyn         a b = GameMonad $ holdDyn a b
   holdIncremental a b = GameMonad $ holdIncremental a b
+  buildDynamic    a b = GameMonad $ buildDynamic a b
+  headE           a   = GameMonad $ headE a
 
 instance ReflexHost t => MonadSubscribeEvent t (GameMonad t) where
   subscribeEvent = GameMonad . subscribeEvent
@@ -359,6 +362,8 @@ instance MonadHold t m => MonadHold t (RSST r w s m) where
   hold            a b = lift $ hold a b
   holdDyn         a b = lift $ holdDyn a b
   holdIncremental a b = lift $ holdIncremental a b
+  buildDynamic    a b = lift $ buildDynamic a b
+  headE           a   = lift $ headE a
 
 instance MonadSubscribeEvent t m => MonadSubscribeEvent t (RSST r w s m) where
   subscribeEvent = lift . subscribeEvent
@@ -384,6 +389,8 @@ instance MonadHold t m => MonadHold t (IdentityT m) where
   hold            a b = lift $ hold a b
   holdDyn         a b = lift $ holdDyn a b
   holdIncremental a b = lift $ holdIncremental a b
+  buildDynamic    a b = lift $ buildDynamic a b
+  headE           a   = lift $ headE a
 
 instance MonadSubscribeEvent t m => MonadSubscribeEvent t (IdentityT m) where
   subscribeEvent = lift . subscribeEvent
@@ -428,7 +435,7 @@ fcutMaybe = fmap fromJust . ffilter isJust
 
 -- | Helper to pass through only a 'Nothing' values
 fkeepNothing :: Reflex t => Event t (Maybe a) -> Event t ()
-fkeepNothing = fmap (const ()) . ffilter isNothing
+fkeepNothing = void . ffilter isNothing
 
 -- | Helper to pass through only a 'Right' values
 fcutEither :: Reflex t => Event t (Either e a) -> Event t a

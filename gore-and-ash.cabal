@@ -1,5 +1,5 @@
 name:                gore-and-ash
-version:             2.0.0.0
+version:             2.0.1.0
 synopsis:            Core of FRP game engine called Gore&Ash
 description:         Please see README.md
 homepage:            https://github.com/Teaspot-Studio/gore-and-ash
@@ -15,7 +15,6 @@ build-type:          Simple
 cabal-version:       >=1.10
 extra-source-files:
   README.md
-  README_netwire.md
   CHANGELOG.md
   stack.yaml
 
@@ -43,7 +42,7 @@ library
       base                  >= 4.7      && < 5
     , containers            >= 0.5.6.2  && < 0.6
     , deepseq               >= 1.4      && < 1.5
-    , dependent-sum         >= 0.3      && < 0.4
+    , dependent-sum         >= 0.4      && < 0.5
     , dlist                 >= 0.8      && < 0.9
     , exceptions            >= 0.8.0.2  && < 0.9
     , hashable              >= 1.2.3.3  && < 1.3
