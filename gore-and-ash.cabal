@@ -53,7 +53,7 @@ library
     , reflex                >= 0.5      && < 0.6
     , reflex-host           >= 0.3      && < 0.4
     , stateWriter           >= 0.2      && < 0.3
-    , time                  >= 1.6      && < 1.7
+    , time                  >= 1.6      && < 1.9
     , transformers          >= 0.4      && < 0.6
     , transformers-base     >= 0.4      && < 0.5
     , unbounded-delays      >= 0.1      && < 0.2

@@ -1,14 +1,14 @@
 # For more information, see: https://github.com/commercialhaskell/stack/blob/release/doc/yaml_configuration.md
 
 # Specifies the GHC version and set of packages available (e.g., lts-3.5, nightly-2015-09-21, ghc-7.10.2)
-resolver: lts-9.13
+resolver: lts-11.9
 
 # Local packages, usually specified by relative directory name
 packages:
 - '.'
 - location:
     git: https://github.com/reflex-frp/reflex.git
-    commit: 60d2878142943487987feeeea108dbed5405f469
+    commit: e549ebb9439bc8fbf3152e1e84a9e62b9eadd40e
   extra-dep: true
 - location:
     git: https://github.com/bennofs/reflex-host.git
