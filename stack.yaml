@@ -10,10 +10,6 @@ packages:
     git: https://github.com/reflex-frp/reflex.git
     commit: e549ebb9439bc8fbf3152e1e84a9e62b9eadd40e
   extra-dep: true
-- location:
-    git: https://github.com/bennofs/reflex-host.git
-    commit: ab72c16077ab3bcc1c1e81312aac1090e64b97d4
-  extra-dep: true
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:

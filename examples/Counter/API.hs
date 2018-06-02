@@ -1,6 +1,7 @@
 module Counter.API(
     CounterMonad(..)
   , CounterT
+  , runCounterT
   ) where
 
 import Control.Monad.IO.Class (MonadIO)
@@ -15,12 +16,17 @@ class (Reflex t, Monad m) => CounterMonad t m | m -> t where
   -- | Get value of counter
   getCounter :: m (Dynamic t Int)
 
--- | Implementation basis of Counter API.
-newtype CounterT t m a = CounterT { runCounterT :: ReaderT (ExternalRef t Int) m a}
-  deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadReader (ExternalRef t Int))
+-- | Shortcut for implementation of 'CounterMonad'
+type CounterT t = ReaderT (ExternalRef t Int)
+
+-- | Execute counter layer
+runCounterT :: MonadGame t m => CounterT t m a -> m a
+runCounterT m = do
+  ref <- newExternalRef 0
+  runReaderT m ref
 
 -- | Implement our Counter API
-instance {-# OVERLAPPING #-} (Monad m, Reflex t, MonadAppHost t m) => CounterMonad t (CounterT t m) where
+instance {-# OVERLAPPING #-} (Monad m, Reflex t, MonadGame t m) => CounterMonad t (ReaderT (ExternalRef t Int) m) where
   incCounter e = do
     ref <- ask
     performEvent_ $ ffor e $ const $ modifyExternalRef ref (\a -> (a+1, ()))
@@ -36,43 +42,3 @@ instance {-# OVERLAPPABLE #-} (Monad (mt m), CounterMonad t m, MonadTrans mt) =>
   getCounter = lift getCounter
   {-# INLINE incCounter #-}
   {-# INLINE getCounter #-}
-
--- | The instance registers external events and process reaction to output events
-instance (GameModule t m, MonadIO (HostFrame t)) => GameModule t (CounterT t m) where
-  type ModuleOptions t (CounterT t m) = ModuleOptions t m
-  runModule opts m = do
-    ref <- newExternalRef 0
-    runModule opts $ runReaderT (runCounterT m) ref
-  withModule t _ = withModule t (Proxy :: Proxy m)
-  {-# INLINE runModule #-}
-  {-# INLINE withModule #-}
-
---------------------------------------------------------------------------------
--- Boilerplate
---------------------------------------------------------------------------------
-
-instance MonadTrans (CounterT t) where
-  lift = CounterT . lift
-
-instance MonadSample t m => MonadSample t (CounterT t m) where
-  sample = lift . sample
-
-instance MonadHold t m => MonadHold t (CounterT t m) where
-  hold            a b = lift $ hold a b
-  holdDyn         a b = lift $ holdDyn a b
-  holdIncremental a b = lift $ holdIncremental a b
-
-instance MonadAppHost t m => MonadAppHost t (CounterT t m) where
-  getFireAsync = lift getFireAsync
-  getRunAppHost = do
-    runner <- CounterT getRunAppHost
-    return $ \m -> runner $ runCounterT m
-  performPostBuild_ = lift . performPostBuild_
-  liftHostFrame = lift . liftHostFrame
-
-instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (CounterT t m) where
-  newEventWithTrigger = lift . newEventWithTrigger
-  newFanEventWithTrigger a = lift $ newFanEventWithTrigger a
-
-instance MonadSubscribeEvent t m => MonadSubscribeEvent t (CounterT r m) where
-  subscribeEvent = lift . subscribeEvent

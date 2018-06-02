@@ -12,6 +12,7 @@ module Game.GoreAndAsh.Core.Dispense(
   , itemRoller
   ) where
 
+import Control.Monad.IO.Class
 import Game.GoreAndAsh.Core.ExternalRef
 import Game.GoreAndAsh.Core.Monad
 
@@ -24,7 +25,7 @@ type ItemRoller t a = (Dynamic t a, IO ())
 
 -- | Create a item chooser from given list, returns dynamic with current item
 -- and action to change it.
-itemRoller :: MonadAppHost t m => NonEmpty a -> m (ItemRoller t a)
+itemRoller :: (Reflex t, MonadHold t m, TriggerEvent t m, MonadIO m) => NonEmpty a -> m (ItemRoller t a)
 itemRoller as = do
   ref <- newExternalRef (NE.toList as, [])
   let getCurItem xs = case xs of

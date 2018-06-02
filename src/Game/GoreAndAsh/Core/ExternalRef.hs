@@ -36,7 +36,7 @@ data ExternalRef t a = ExternalRef {
   -- | Event that fires when value is changed
 , externalEvent :: !(Event t a)
   -- | Method of updating valu of previous event
-, externalFire  :: !(a -> IO Bool)
+, externalFire  :: !(a -> IO ())
 } deriving (Generic)
 
 instance NFData (ExternalRef t a) where
@@ -47,10 +47,10 @@ instance NFData (ExternalRef t a) where
     ()
 
 -- | Creation of external ref in host monad
-newExternalRef :: MonadAppHost t m => a -> m (ExternalRef t a)
+newExternalRef :: (TriggerEvent t m, MonadIO m) => a -> m (ExternalRef t a)
 newExternalRef a = do
   ref <- liftIO $ newIORef a
-  (e, fire) <- newExternalEvent
+  (e, fire) <- newTriggerEvent
   return $ ExternalRef ref e fire
 
 -- | Read current value of external reference
@@ -87,13 +87,13 @@ modifyExternalRefM ExternalRef{..} f = do
   return b
 
 -- | Construct a behavior from external reference
-externalRefBehavior :: MonadAppHost t m => ExternalRef t a -> m (Behavior t a)
+externalRefBehavior :: (MonadHold t m, MonadIO m) => ExternalRef t a -> m (Behavior t a)
 externalRefBehavior ExternalRef{..} = do
   a <- liftIO $ readIORef externalRef
   hold a externalEvent
 
 -- | Get dynamic that tracks value of the internal ref
-externalRefDynamic :: MonadAppHost t m => ExternalRef t a -> m (Dynamic t a)
+externalRefDynamic :: (MonadHold t m, MonadIO m) => ExternalRef t a -> m (Dynamic t a)
 externalRefDynamic ExternalRef{..} = do
   a <- liftIO $ readIORef externalRef
   holdDyn a externalEvent

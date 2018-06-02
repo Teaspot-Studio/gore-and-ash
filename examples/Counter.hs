@@ -7,10 +7,10 @@ import Counter.API
 import Logger.API
 
 -- | Application monad that is used for implementation of game API
-type AppMonad = LoggerT Spider (TimerT Spider (CounterT Spider (GameMonad Spider)))
+type AppMonad = LoggerT Spider (CounterT Spider GMSpider)
 
 -- The application should be generic in the host monad that is used
-app :: (LoggerMonad t m, TimerMonad t m, CounterMonad t m, MonadAppHost t m) => m ()
+app :: (LoggerMonad t m, CounterMonad t m, MonadGame t m) => m ()
 app = do
   -- Show value of counter every second
   timeE <- tickEvery (realToFrac (1 :: Double))
@@ -27,4 +27,4 @@ app = do
   outputMessage $ ffor oldMsgE $ \v -> "Counter was: " ++ show v
 
 main :: IO ()
-main = runSpiderHost $ hostApp $ runModule () (app :: AppMonad ())
+main = runGM $ runCounterT $ runLoggerT (app :: AppMonad ())

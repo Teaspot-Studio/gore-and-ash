@@ -10,11 +10,12 @@ Portability : POSIX
 {-# LANGUAGE RecursiveDo #-}
 module Game.GoreAndAsh.Core.Collection(
     holdKeyCollection
+  , module Reflex.Collection
   ) where
 
 import Data.Map.Strict (Map)
-import Reflex hiding (performEvent, performEvent_, getPostBuild, performEventAsync)
-import Reflex.Host.App
+import Reflex
+import Reflex.Collection
 
 import qualified Data.Map.Strict as M
 
@@ -29,12 +30,10 @@ import qualified Data.Map.Strict as M
 -- * You want to remove them dynamically.
 --
 -- * You don't want to recreate old components when a new one is added.
-holdKeyCollection :: forall t m k v a . (Ord k, MonadAppHost t m)
+{-# DEPRECATED holdKeyCollection "Use listHoldWithKey, will be removed in next release" #-}
+holdKeyCollection :: forall t m k v a . (Ord k, Adjustable t m, MonadHold t m)
   => Map k v -- ^ Initial set of components
   -> Event t (Map k (Maybe v)) -- ^ Nothing entries delete component, Just ones create or replace
   -> (k -> v -> m a) -- ^ Constructor of widget
   -> m (Dynamic t (Map k a)) -- ^ Collected output of components
-holdKeyCollection initMap updE makeItem = do
-  let initial = M.mapWithKey makeItem initMap
-      updateE = M.mapWithKey (\k -> fmap (makeItem k)) <$> updE
-  holdKeyAppHost initial updateE
+holdKeyCollection = listHoldWithKey

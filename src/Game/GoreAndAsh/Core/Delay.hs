@@ -15,6 +15,7 @@ module Game.GoreAndAsh.Core.Delay(
   ) where
 
 import Control.Monad
+import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Data.IORef
 import Data.Time
@@ -24,13 +25,13 @@ import Game.GoreAndAsh.Time -- TODO: move this to core
 -- | Defines operation of delaying reactive primitivies.
 class Delay r where
   -- | Delay event/dynamic first occurence and return fixed value instead
-  delay :: MonadAppHost t m => a -> r t a -> m (r t a)
+  delayWith :: MonadGame t m => a -> r t a -> m (r t a)
 
 -- | Delay first occurence of event by given value
 instance Delay Event where
-  delay a e = do
+  delayWith a e = do
     ref <- liftIO $ newIORef a
-    (e', fire) <- newExternalEvent
+    (e', fire) <- newTriggerEvent
     performEvent_ $ ffor e $ \v -> liftIO $ do
       oldV <- atomicModifyIORef' ref $ \oldV -> (v, oldV)
       _ <- fire oldV
@@ -39,16 +40,16 @@ instance Delay Event where
 
 -- | Delay first occurence of dynamic by given value
 instance Delay Dynamic where
-  delay a d = do
-    e' <- delay a (updated d)
+  delayWith a d = do
+    e' <- delayWith a (updated d)
     holdDyn a e'
-  {-# INLINE delay #-}
+  {-# INLINE delayWith #-}
 
 -- | Saves value of dynamic each interval and fire them after the end of interval
 --
 -- Note that the function doesn't replay all changes, only certain points in past
 -- that are saved at start of each interval.
-lookPast :: (TimerMonad t m, MonadAppHost t m)
+lookPast :: forall t m a . (Reflex t, TriggerEvent t m, MonadHold t m, PerformEvent t m, MonadIO m, MonadIO (Performable m), MonadSample t (Performable m))
   => NominalDiffTime -- ^ Save each n seconds
   -> a -- ^ Initial value (before first delayed value)
   -> Event t a -- ^ When fires, the stored past value is replaced by payload.
@@ -57,7 +58,7 @@ lookPast :: (TimerMonad t m, MonadAppHost t m)
 lookPast dt v0 ea da = do
   tickE <- tickEvery dt
   ref <- liftIO $ newIORef v0
-  (e', fire) <- newExternalEvent
+  (e', fire) <- newTriggerEvent
   performEvent_ $ ffor ea $ liftIO . atomicWriteIORef ref
   performEvent_ $ ffor tickE $ const $ do
     v <- sample . current $ da
@@ -69,7 +70,7 @@ lookPast dt v0 ea da = do
 
 -- | Make linear interpolation of dynamic value. Each time the value updates, start
 -- transition between old value and new value.
-linearInterpolate :: forall t m a . (MonadAppHost t m, TimerMonad t m, Fractional a)
+linearInterpolate :: forall t m a . (Reflex t, Adjustable t m, MonadHold t m, TriggerEvent t m, MonadFix m, PerformEvent t m, MonadIO m, MonadIO (Performable m), Fractional a)
   => Int -- ^ Number of intermediate values
   -> NominalDiffTime -- ^ Time interval in which all interpolation have to be
   -> Dynamic t a -- ^ Value that updates should be interpolated
@@ -79,7 +80,7 @@ linearInterpolate n dt da = do
     let
       stepper :: Event t (m (Dynamic t a))
       stepper = step interDa (const () <$> updated da) <$> updated da
-    interDa <- join <$> holdAppHost (return da) stepper
+    interDa <- join <$> networkHold (return da) stepper
   return interDa
   where
     step :: Dynamic t a -> Event t () -> a -> m (Dynamic t a)
@@ -88,7 +89,7 @@ linearInterpolate n dt da = do
       simpleInterpolate n dt v0 v1 stopE
 
 -- | Perform simple linear interpolation betwen start and end positions.
-simpleInterpolate :: forall t m a . (MonadAppHost t m, TimerMonad t m, Fractional a)
+simpleInterpolate :: forall t m a . (Reflex t, Adjustable t m, MonadHold t m, TriggerEvent t m, MonadFix m, PerformEvent t m, MonadIO m, MonadIO (Performable m), Fractional a)
   => Int -- ^ Number of intermediate values
   -> NominalDiffTime -- ^ Time interval in which all interpolation have to be
   -> a -- ^ Start value

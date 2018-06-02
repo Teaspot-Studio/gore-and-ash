@@ -12,7 +12,7 @@ import qualified Data.Foldable as F
 import qualified Data.Map.Strict as M
 
 -- | Application monad that is used for implementation of game API
-type AppMonad = TimerT Spider (LoggerT Spider (GameMonad Spider))
+type AppMonad = LoggerT Spider GMSpider
 
 -- | We index components by ints
 type ComponentId = Int
@@ -22,7 +22,7 @@ type Seconds = Double
 
 -- | Single component that waits a specified time and emits an event about disire
 -- to die.
-component :: (MonadAppHost t m, LoggerMonad t m, TimerMonad t m) => ComponentId -> Seconds -> m (Event t ComponentId)
+component :: (MonadGame t m, LoggerMonad t m) => ComponentId -> Seconds -> m (Event t ComponentId)
 component n seconds = do
   startE <- getPostBuild
   outputMessage $ ffor startE $ const $ "Component " ++ show n ++ " is born!"
@@ -32,13 +32,13 @@ component n seconds = do
   return $ const n <$> deathEvent
 
 -- The application should be generic in the host monad that is used
-app :: forall t m . (MonadAppHost t m, LoggerMonad t m, TimerMonad t m) => Seconds -> Seconds -> m ()
+app :: forall t m . (MonadGame t m, LoggerMonad t m) => Seconds -> Seconds -> m ()
 app bornTime tireTime = do
   -- generate new child every bornTime seconds
   bornTick <- tickEvery $ realToFrac bornTime
   rec
     -- recursive loop as components sends signal when the want to die
-    cmps :: Dynamic t (Map ComponentId (Event t ComponentId)) <- holdKeyCollection mempty updE component
+    cmps :: Dynamic t (Map ComponentId (Event t ComponentId)) <- listHoldWithKey mempty updE component
     let countDyn = length <$> cmps
         -- build map with those that wanted to die
         delEvent = switchPromptlyDyn $ ffor cmps $ collectDelEvents . M.elems
@@ -56,4 +56,4 @@ collectDelEvents :: Reflex t => [Event t ComponentId] -> Event t (Map ComponentI
 collectDelEvents es = ffor (mergeList es) $ \is -> M.fromList [(i, Nothing) | i <- F.toList is]
 
 main :: IO ()
-main = runSpiderHost $ hostApp $ runModule () (app 2 5 :: AppMonad ())
+main = runGM $ runLoggerT (app 2 5 :: AppMonad ())

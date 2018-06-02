@@ -1,5 +1,5 @@
 name:                gore-and-ash
-version:             2.0.1.0
+version:             3.0.0.0
 synopsis:            Core of FRP game engine called Gore&Ash
 description:         Please see README.md
 homepage:            https://github.com/Teaspot-Studio/gore-and-ash
@@ -50,8 +50,8 @@ library
     , monad-control         >= 1.0      && < 1.1
     , mtl                   >= 2.2      && < 2.3
     , reducers              >= 3.12     && < 3.13
+    , ref-tf                >= 0.4      && < 0.5
     , reflex                >= 0.5      && < 0.6
-    , reflex-host           >= 0.3      && < 0.4
     , stateWriter           >= 0.2      && < 0.3
     , time                  >= 1.6      && < 1.9
     , transformers          >= 0.4      && < 0.6
@@ -127,7 +127,7 @@ executable gore-and-ash-example-timer
     , gore-and-ash
     , mtl                   >= 2.2      && < 2.3
     , stateWriter           >= 0.2      && < 0.3
-    , time                  >= 1.6      && < 1.7
+    , time                  >= 1.6      && < 1.9
 
   default-extensions:
     BangPatterns
@@ -163,7 +163,7 @@ executable gore-and-ash-example-counter
     , gore-and-ash
     , mtl                   >= 2.2      && < 2.3
     , stateWriter           >= 0.2      && < 0.3
-    , time                  >= 1.6      && < 1.7
+    , time                  >= 1.6      && < 1.9
 
   default-extensions:
     BangPatterns
@@ -200,7 +200,7 @@ executable gore-and-ash-example-collection
     , mtl                   >= 2.2      && < 2.3
     , random                >= 1.1      && < 1.2
     , stateWriter           >= 0.2      && < 0.3
-    , time                  >= 1.6      && < 1.7
+    , time                  >= 1.6      && < 1.9
 
   default-extensions:
     BangPatterns

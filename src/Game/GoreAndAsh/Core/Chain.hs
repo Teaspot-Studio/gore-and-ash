@@ -25,9 +25,9 @@ instance Reflex t => Monoid (Chain t m a) where
 
 -- | Run component that can replace itself with new component constructed
 -- internally in the original widget.
-chain :: forall t m a . MonadAppHost t m => m (a, Chain t m a) -> m (Dynamic t a)
+chain :: forall t m a . MonadGame t m => m (a, Chain t m a) -> m (Dynamic t a)
 chain w = do
-  rec (rd :: Dynamic t (a, Chain t m a)) <- holdAppHost w re
+  rec (rd :: Dynamic t (a, Chain t m a)) <- networkHold w re
       let (rd':: Dynamic t (Event t (m (a, Chain t m a)))) = fmap (unChain . snd) rd
           (re :: Event t (m (a, Chain t m a))) = switchPromptlyDyn rd'
   return $ fst <$> rd
