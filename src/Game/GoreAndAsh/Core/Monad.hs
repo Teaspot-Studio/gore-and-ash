@@ -20,6 +20,9 @@ module Game.GoreAndAsh.Core.Monad(
     GM
   , GMSpider
   , runGM
+  , EmbedNetwork
+  , NetworksChan
+  , runGMWithExternal
   , MonadGameConstraints
   , MonadGame
   -- * Reexports
@@ -42,6 +45,7 @@ import Control.Monad (void)
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.IO.Class
+import Control.Monad.Primitive
 import Control.Monad.Reader
 import Control.Monad.Ref
 import Control.Monad.State.Strict
@@ -53,6 +57,7 @@ import Data.Dependent.Sum (DSum (..))
 import Data.Either
 import Data.Functor.Identity
 import Data.IORef
+import Data.Map.Strict (Map)
 import Data.Maybe
 import Data.Proxy
 import Data.Semigroup.Applicative
@@ -71,6 +76,7 @@ import Reflex.Spider.Internal (SpiderTimeline)
 import Reflex.TriggerEvent.Base
 import Reflex.TriggerEvent.Class as Reexport
 
+import qualified Data.Map.Strict as M
 import qualified Reflex.Spider.Internal as R
 
 -- | Channel for events that should be fired in another thread
@@ -80,11 +86,11 @@ type EventWithTrigger t a = (Event t a, a -> IO ())
 
 -- | State of core.
 data GameContext t = GameContext {
-  envExit :: !(EventWithTrigger t ()) -- ^ Event that indicates that main thread should exit
+  envExit         :: !(EventWithTrigger t ()) -- ^ Event that indicates that main thread should exit
 } deriving Generic
 
 -- | Create empty context
-newGameContext :: TriggerEvent t m => m (GameContext t)
+newGameContext :: (TriggerEvent t m, MonadIO m) => m (GameContext t)
 newGameContext = do
   exitEv <- newTriggerEvent
   pure GameContext {
@@ -111,7 +117,15 @@ type GMSpider = GM Spider (SpiderHost Global)
 
 -- | Run main reactive network of server, exits when 'getExitEvent' resulted event is fired.
 runGM :: MonadIO m => GMSpider a -> m a
-runGM ma = liftIO $ do
+runGM ma = do
+  extchan <- liftIO newChan
+  runGMWithExternal extchan ma
+
+-- | Run main reactive network of server, exits when 'getExitEvent' resulted event is fired.
+--
+-- Channel for self embedding allows to integrate new created FRP networks from other threads.
+runGMWithExternal :: MonadIO m => NetworksChan Spider GMSpider -> GMSpider a -> m a
+runGMWithExternal extchan ma = liftIO $ do
   events <- newChan
   exitVar <- newEmptyMVar
   (a, fc) <- runGM' $ do
@@ -119,7 +133,10 @@ runGM ma = liftIO $ do
     a <- flip runTriggerEventT events $ do
       env <- newGameContext
       performEvent_ $ ffor (fst . envExit $ env) $ const $ liftIO $ putMVar exitVar ()
-      runPostBuildT (runReaderT ma env) postBuild
+      let ma' = do
+            selfEmbedNetworks extchan
+            ma
+      runPostBuildT (runReaderT ma' env) postBuild
     pure (a, postBuildTriggerRef)
   processAsyncEvents events fc
   takeMVar exitVar
@@ -152,15 +169,18 @@ type MonadGameConstraints t m =
   ( Adjustable t m
   , MonadFix m
   , MonadHold t m
+  , MonadIO (HostFrame t)
   , MonadIO (Performable m)
   , MonadIO m
+  , MonadRef (HostFrame t)
   , MonadReflexCreateTrigger t m
   , MonadSample t (Performable m)
   , PerformEvent t m
   , PostBuild t m
-  , TriggerEvent t m
+  , PrimMonad (HostFrame t)
+  , Ref m ~ IORef, Ref (HostFrame t) ~ IORef
   , ReflexHost t
-  , MonadRef (HostFrame t)
+  , TriggerEvent t m
   )
 
 -- | Abstract interface for server side reactive networks. The wrapper is designed
@@ -183,7 +203,7 @@ class MonadGameConstraints t m => MonadGame t m where
   postExitEvent :: Event t () -> m ()
 
 instance {-# OVERLAPPING #-} MonadGameConstraints t m => MonadGame t (ReaderT (GameContext t) m) where
-  getExitEvent = asks (fst. envExit)
+  getExitEvent = asks (fst . envExit)
   {-# INLINE getExitEvent #-}
   postExitEvent e = do
     fire <- asks $ snd . envExit
@@ -196,300 +216,31 @@ instance {-# OVERLAPPABLE #-} MonadGame t m => MonadGame t (ReaderT e m) where
   postExitEvent = lift . postExitEvent
   {-# INLINE postExitEvent #-}
 
--- -- | Internal representation of 'GameMonad'
--- type GameMonadStack t = ReaderT (GameContext t) (AppHost t)
---
--- -- | Endpoint for application monad stack that captures engine features for reactivity.
--- --
--- -- [@t@] FRP engine implementation (needed by reflex). Almost always you should
--- -- just type 't' in all user code in the place and ignore it.
--- --
--- -- [@a@] Value carried by the monad.
--- --
--- -- Should be used in application monad stack as end monad:
--- --
--- -- @
--- -- type AppMonad t a = LoggingT (ActorT (GameMonad t)) a
--- -- @
--- newtype GameMonad t a = GameMonad {
---   runGameMonad :: GameMonadStack t a
--- }
---
--- instance ReflexHost t => Functor (GameMonad t) where
---   fmap f (GameMonad m) = GameMonad $ fmap f m
---
--- -- | Monad is needed as StateT Applicative instance requires it
--- instance ReflexHost t => Applicative (GameMonad t) where
---   pure a = GameMonad $ pure a
---   (GameMonad f) <*> (GameMonad m) = GameMonad $ f <*> m
---
--- instance ReflexHost t => Monad (GameMonad t) where
---   return = pure
---   (GameMonad ma) >>= f = GameMonad $ do
---     a <- ma
---     runGameMonad $ f a
---
--- instance ReflexHost t => MonadFix (GameMonad t) where
---   mfix f = GameMonad $ mfix (runGameMonad . f)
---
--- instance (MonadIO (HostFrame t), ReflexHost t) => MonadIO (GameMonad t) where
---   liftIO m = GameMonad $ liftIO m
---
--- instance (ReflexHost t, MonadIO (HostFrame t)) => MonadBase IO (AppHost t) where
---   liftBase = liftHostFrame . liftIO
---
--- instance MonadBase IO (SpiderHost s) where
---   liftBase = R.SpiderHost . liftIO
---
--- instance MonadBaseControl IO (SpiderHost s) where
---   type StM (SpiderHost s) a = a
---   liftBaseWith ma = do
---     s <- R.SpiderHost ask
---     liftBase $ ma (flip runReaderT s . R.unSpiderHost)
---   restoreM = return
---
--- instance MonadBase IO (R.SpiderHostFrame s) where
---   liftBase = R.SpiderHostFrame . liftIO
---
--- instance MonadBaseControl IO (R.SpiderHostFrame s) where
---   type StM (R.SpiderHostFrame s) a = a
---   liftBaseWith ma =
---     liftBase $ ma (R.unEventM . R.runSpiderHostFrame)
---   restoreM = return
---
--- -- | TODO: move this to reflex-host (need to deep look in AppHost monad to prevent skolem problems)
--- instance (MonadBaseControl IO (HostFrame t), MonadIO (HostFrame t), ReflexHost t) => MonadBaseControl IO (AppHost t) where
---   type StM (AppHost t) a = StM (HostFrame t) (HostFrame t (AppInfo t), a)
---   liftBaseWith (ma :: RunInBase (AppHost t) IO -> IO a) = do
---     env <- AppHost ask
---     let rearrange (a, Ap m) = (m, a)
---     liftHostFrame $ liftBaseWith $ \(runnerIO :: RunInBase (HostFrame t) IO) -> do
---       let runner :: RunInBase (AppHost t) IO
---           runner (AppHost m) = runnerIO (rearrange <$> evalRSST m env ())
---       liftIO $ ma runner
---   restoreM stma = do
---     (hst, a) <- liftHostFrame $ restoreM stma
---     performPostBuild_ hst
---     return a
---
--- instance (MonadIO (HostFrame t), ReflexHost t) => MonadBase IO (GameMonad t) where
---   liftBase = GameMonad . liftIO
---
--- instance (MonadBaseControl IO (HostFrame t), MonadIO (HostFrame t), ReflexHost t) => MonadBaseControl IO (GameMonad t) where
---   type StM (GameMonad t) a = StM (GameMonadStack t) a
---   liftBaseWith ma = do
---     GameMonad $ liftBaseWith $ \runner -> ma (runner . runGameMonad)
---   restoreM stma = GameMonad $ restoreM stma
---
---
--- instance ReflexHost t => MonadSample t (GameMonad t) where
---   sample = GameMonad . sample
---
--- instance ReflexHost t => MonadHold t (GameMonad t) where
---   hold            a b = GameMonad $ hold a b
---   holdDyn         a b = GameMonad $ holdDyn a b
---   holdIncremental a b = GameMonad $ holdIncremental a b
---   buildDynamic    a b = GameMonad $ buildDynamic a b
---   headE           a   = GameMonad $ headE a
---
--- instance ReflexHost t => MonadSubscribeEvent t (GameMonad t) where
---   subscribeEvent = GameMonad . subscribeEvent
---
--- instance ReflexHost t => MonadReflexCreateTrigger t (GameMonad t) where
---   newEventWithTrigger = GameMonad . newEventWithTrigger
---   newFanEventWithTrigger trigger = GameMonad $ newFanEventWithTrigger trigger
---
--- instance (MonadIO (HostFrame t), ReflexHost t) => MonadAppHost t (GameMonad t) where
---   getFireAsync = GameMonad getFireAsync
---   getRunAppHost = do
---     runner <- GameMonad getRunAppHost
---     return $ \m -> runner $ runGameMonad m
---   performPostBuild_ = GameMonad . performPostBuild_
---   liftHostFrame = GameMonad . liftHostFrame
---
--- instance MonadThrow (R.EventM a) where
---   throwM = R.EventM . throwM
---
--- instance MonadThrow (R.SpiderHostFrame a) where
---   throwM = R.SpiderHostFrame . throwM
---
--- instance MonadThrow m => MonadThrow (RSST r w s m) where
---   throwM = lift . throwM
---
--- instance (MonadThrow (HostFrame t), ReflexHost t) => MonadThrow (AppHost t) where
---   throwM = AppHost . throwM
---
--- instance (MonadThrow (HostFrame t), ReflexHost t) => MonadThrow (GameMonad t) where
---   throwM = GameMonad . throwM
---
--- instance MonadCatch (R.EventM a) where
---   catch (R.EventM m) f = R.EventM $ m `catch` (R.unEventM . f)
---
--- instance MonadCatch (R.SpiderHostFrame a) where
---   catch (R.SpiderHostFrame m) f = R.SpiderHostFrame $ m `catch` (R.runSpiderHostFrame . f)
---
--- instance (Monoid w, MonadCatch m) => MonadCatch (RSST r w s m) where
---   catch m f = do
---     r <- ask
---     s <- get
---     (a, s', w) <- lift $ runRSST m r s `catch` (\e -> runRSST (f e) r s)
---     put s'
---     tell w
---     return a
---
--- instance (MonadCatch (HostFrame t), ReflexHost t) => MonadCatch (AppHost t) where
---   catch (AppHost m) f = AppHost $ m `catch` (unAppHost . f)
---
--- instance (MonadCatch (HostFrame t), ReflexHost t) => MonadCatch (GameMonad t) where
---   catch (GameMonad m) f = GameMonad $ m `catch` (runGameMonad . f)
---
--- instance (Monoid w, MonadMask m) => MonadMask (RSST r w s m) where
---   mask m = do
---     r <- ask
---     s <- get
---     (a, s', w) <- lift $ mask $ \u -> runRSST (m $ q u) r s
---     put s'
---     tell w
---     return a
---     where
---       q :: (forall b . m b -> m b) -> RSST r w s m a -> RSST r w s m a
---       q u m' = do
---         r <- ask
---         s <- get
---         (a, s', w) <- lift $ u (runRSST m' r s)
---         put s'
---         tell w
---         return a
---
---   uninterruptibleMask m = do
---     r <- ask
---     s <- get
---     (a, s', w) <- lift $ uninterruptibleMask $ \u -> runRSST (m $ q u) r s
---     put s'
---     tell w
---     return a
---     where
---       q :: (forall b . m b -> m b) -> RSST r w s m a -> RSST r w s m a
---       q u m' = do
---         r <- ask
---         s <- get
---         (a, s', w) <- lift $ u (runRSST m' r s)
---         put s'
---         tell w
---         return a
---
--- instance MonadMask (R.EventM s) where
---   mask m = R.EventM $ mask $ \u -> R.unEventM (m $ q u)
---     where
---     q :: (forall b . IO b -> IO b) -> R.EventM s a -> R.EventM s a
---     q u m' = R.EventM $ u (R.unEventM m')
---   uninterruptibleMask m = R.EventM $ uninterruptibleMask $ \u -> R.unEventM (m $ q u)
---     where
---     q :: (forall b . IO b -> IO b) -> R.EventM s a -> R.EventM s a
---     q u m' = R.EventM $ u (R.unEventM m')
---
--- instance MonadMask (R.SpiderHostFrame s) where
---   mask m = R.SpiderHostFrame $ mask $ \u -> R.runSpiderHostFrame (m $ q u)
---     where
---     q :: (forall b . R.EventM s b -> R.EventM s b) -> R.SpiderHostFrame s a -> R.SpiderHostFrame s a
---     q u m' = R.SpiderHostFrame $ u (R.runSpiderHostFrame m')
---   uninterruptibleMask m = R.SpiderHostFrame $ uninterruptibleMask $ \u -> R.runSpiderHostFrame (m $ q u)
---     where
---     q :: (forall b . R.EventM s b -> R.EventM s b) -> R.SpiderHostFrame s a -> R.SpiderHostFrame s a
---     q u m' = R.SpiderHostFrame $ u (R.runSpiderHostFrame m')
---
--- type AppHostStack t = RSST (AppEnv t) (Ap (HostFrame t) (AppInfo t)) () (HostFrame t)
---
--- instance (MonadMask (HostFrame t), ReflexHost t) => MonadMask (AppHost t) where
---   mask m = AppHost $ mask $ \u -> unAppHost (m $ q u)
---     where
---     q :: (forall b . AppHostStack t b -> AppHostStack t b) -> AppHost t a -> AppHost t a
---     q u m' = AppHost $ u (unAppHost m')
---   uninterruptibleMask m = AppHost $ uninterruptibleMask $ \u -> unAppHost (m $ q u)
---     where
---     q :: (forall b . AppHostStack t b -> AppHostStack t b) -> AppHost t a -> AppHost t a
---     q u m' = AppHost $ u (unAppHost m')
---
--- instance (MonadMask (HostFrame t), ReflexHost t) => MonadMask (GameMonad t) where
---   mask m = GameMonad $ mask $ \u -> runGameMonad (m $ q u)
---     where
---     q :: (forall b . GameMonadStack t b -> GameMonadStack t b) -> GameMonad t a -> GameMonad t a
---     q u m' = GameMonad $ u (runGameMonad m')
---   uninterruptibleMask m = GameMonad $ uninterruptibleMask $ \u -> runGameMonad (m $ q u)
---     where
---     q :: (forall b . GameMonadStack t b -> GameMonadStack t b) -> GameMonad t a -> GameMonad t a
---     q u m' = GameMonad $ u (runGameMonad m')
---
--- -- TODO: move this to reflex-host
--- instance MonadAppHost t m => MonadAppHost t (StateT s m) where
---   getFireAsync = lift getFireAsync
---   getRunAppHost = do
---     runner <- lift getRunAppHost
---     s <- get
---     return $ \m -> runner $ evalStateT m s
---   performPostBuild_ = lift . performPostBuild_
---   liftHostFrame = lift . liftHostFrame
---
--- instance MonadAppHost t m => MonadAppHost t (ReaderT s m) where
---   getFireAsync = lift getFireAsync
---   getRunAppHost = do
---     runner <- lift getRunAppHost
---     s <- ask
---     return $ \m -> runner $ runReaderT m s
---   performPostBuild_ = lift . performPostBuild_
---   liftHostFrame = lift . liftHostFrame
---
--- instance MonadSample t m => MonadSample t (RSST r w s m) where
---   sample = lift . sample
---
--- instance MonadHold t m => MonadHold t (RSST r w s m) where
---   hold            a b = lift $ hold a b
---   holdDyn         a b = lift $ holdDyn a b
---   holdIncremental a b = lift $ holdIncremental a b
---   buildDynamic    a b = lift $ buildDynamic a b
---   headE           a   = lift $ headE a
---
--- instance MonadSubscribeEvent t m => MonadSubscribeEvent t (RSST r w s m) where
---   subscribeEvent = lift . subscribeEvent
---
--- instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (RSST r w s m) where
---   newEventWithTrigger = lift . newEventWithTrigger
---   newFanEventWithTrigger trigger = lift $ newFanEventWithTrigger trigger
---
--- instance (Monoid w, MonadAppHost t m) => MonadAppHost t (RSST r w s m) where
---   getFireAsync = lift getFireAsync
---   getRunAppHost = do
---     runner <- lift getRunAppHost
---     r <- ask
---     s <- get
---     return $ \m -> runner . fmap (\(a, _, _) -> a) $ runRSST m r s
---   performPostBuild_ = lift . performPostBuild_
---   liftHostFrame = lift . liftHostFrame
---
--- instance MonadSample t m => MonadSample t (IdentityT m) where
---   sample = lift . sample
---
--- instance MonadHold t m => MonadHold t (IdentityT m) where
---   hold            a b = lift $ hold a b
---   holdDyn         a b = lift $ holdDyn a b
---   holdIncremental a b = lift $ holdIncremental a b
---   buildDynamic    a b = lift $ buildDynamic a b
---   headE           a   = lift $ headE a
---
--- instance MonadSubscribeEvent t m => MonadSubscribeEvent t (IdentityT m) where
---   subscribeEvent = lift . subscribeEvent
---
--- instance MonadReflexCreateTrigger t m => MonadReflexCreateTrigger t (IdentityT m) where
---   newEventWithTrigger = lift . newEventWithTrigger
---   newFanEventWithTrigger trigger = lift $ newFanEventWithTrigger trigger
---
--- instance (MonadAppHost t m) => MonadAppHost t (IdentityT m) where
---   getFireAsync = lift getFireAsync
---   getRunAppHost = do
---     runner <- lift getRunAppHost
---     return $ \m -> runner $ runIdentityT m
---   performPostBuild_ = lift . performPostBuild_
---   liftHostFrame = lift . liftHostFrame
+-- | FRP network that must be embedded to main network
+type EmbedNetwork t m = m (Event t ())
+-- | Channel with subnetworks that must be encorporated into main network
+type NetworksChan t m = Chan (EmbedNetwork t m)
+
+-- | Maintains collection of networks with feature of network self deleting
+selfEmbedNetworks :: forall t m . (MonadGameConstraints t m)
+  => NetworksChan t m -> m ()
+selfEmbedNetworks networksChan = do
+  (chanE, chanFire) <- newTriggerEvent
+  _ <- liftIO . forkIO . forever $ chanFire =<< readChan networksChan
+  rec activeNetworks :: Dynamic t (Map Int (Event t ())) <- listWithKeyShallowDiff mempty updNetworkE $ \_ ma _ -> ma
+      let
+        delsEvent :: Event t (Map Int ())
+        delsEvent = switch . current $ mergeMap <$> activeNetworks
+
+        networkCount :: Dynamic t Int
+        networkCount = length <$> activeNetworks
+
+        newServetE :: Event t (Map Int (EmbedNetwork t m))
+        newServetE = uncurry M.singleton <$> attach (current networkCount) chanE
+
+        updNetworkE :: Event t (Map Int (Maybe (EmbedNetwork t m)))
+        updNetworkE = (fmap (const Nothing) <$> delsEvent) <> (fmap Just <$> newServetE)
+  pure ()
 
 -- | Helper to catch occurrences of error 'e' into 'Either'. Usually this is
 -- needed for event generator that can throw, but you want to provide an 'Either'
