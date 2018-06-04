@@ -32,7 +32,7 @@ module Game.GoreAndAsh.Core.Monad(
   , NetworksChan
   , runGMWithExternal
   , MonadGameConstraints
-  , MonadGame
+  , MonadGame(..)
   -- * Reexports
   , module Reflex
   , module Reflex.Collection
