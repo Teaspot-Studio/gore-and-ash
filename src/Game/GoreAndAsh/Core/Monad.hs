@@ -285,11 +285,13 @@ wrapError ma = (Right <$> ma) `catch` (return . Left)
 
 -- | Rethrow errors in host monad, reverse of 'wrapError' when an end user doesn't
 -- care about errors.
-dontCare :: (MonadGame t m, MonadThrow (Performable m), Exception e)
+dontCare :: (MonadGame t m, Exception e)
   => Event t (Either e a) -> m (Event t a)
-dontCare e = performEvent $ ffor e $ \case
-  Left err -> throwM err
-  Right a -> return a
+dontCare e = fmap (fmapMaybe id) $ performEvent $ ffor e $ \case
+  Left err -> do
+    liftIO $ print err
+    pure Nothing
+  Right a -> pure $ Just a
 
 -- | Helper to pass through only a 'Just' values
 fcutMaybe :: Reflex t => Event t (Maybe a) -> Event t a
