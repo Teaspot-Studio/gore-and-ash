@@ -45,6 +45,7 @@ module Game.GoreAndAsh.Core.Monad(
   , fcutEither
   , fkeepNothing
   , fkeepLeft
+  , performNetwork
   ) where
 
 import Control.Concurrent
@@ -305,3 +306,10 @@ fcutEither = fmap (\(Right a) -> a) . ffilter isRight
 -- | Helper to pass through only a 'Left' values
 fkeepLeft :: Reflex t => Event t (Either e a) -> Event t e
 fkeepLeft = fmap (\(Left e) -> e) . ffilter isLeft
+
+-- | Wrapper around 'networkHold' that allows to perform network rebuild on event
+performNetwork :: MonadGame t m => Event t (m a) -> m (Event t a)
+performNetwork me = fmap (switch . current) $ networkHold (pure never) $ ffor me $ \ma -> do
+  a <- ma
+  e <- getPostBuild
+  pure $ a <$ e
