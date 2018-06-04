@@ -49,6 +49,7 @@ module Game.GoreAndAsh.Core.Monad(
   ) where
 
 import Control.Concurrent
+import Control.Concurrent.STM
 import Control.DeepSeq
 import Control.Monad (void)
 import Control.Monad.Base
@@ -58,6 +59,7 @@ import Control.Monad.Primitive
 import Control.Monad.Reader
 import Control.Monad.Ref
 import Control.Monad.State.Strict
+import Control.Monad.STM
 import Control.Monad.Trans.Control
 import Control.Monad.Trans.Identity
 import Control.Monad.Trans.RSS.Strict
@@ -96,14 +98,16 @@ type EventWithTrigger t a = (Event t a, a -> IO ())
 -- | State of core.
 data GameContext t = GameContext {
   envExit         :: !(EventWithTrigger t ()) -- ^ Event that indicates that main thread should exit
+, envMainThread   :: !(TChan (IO ())) -- ^ Actions that should be executed in main thread
 } deriving Generic
 
 -- | Create empty context
-newGameContext :: (TriggerEvent t m, MonadIO m) => m (GameContext t)
-newGameContext = do
+newGameContext :: (TriggerEvent t m, MonadIO m) => TChan (IO ()) -> m (GameContext t)
+newGameContext mtchan = do
   exitEv <- newTriggerEvent
   pure GameContext {
-      envExit     = exitEv
+      envExit       = exitEv
+    , envMainThread = mtchan
     }
 
 -- | Implementation of reactive network of game engine. You usually don't need
@@ -136,19 +140,35 @@ runGM ma = do
 runGMWithExternal :: forall m a . MonadIO m => NetworksChan Spider GMSpider -> GMSpider a -> m a
 runGMWithExternal extchan ma = liftIO $ do
   events <- newChan
-  exitVar <- newEmptyMVar
+  exitVar <- newEmptyTMVarIO
+  actionChan <- newTChanIO
   (a, fc) <- runGM' $ do
     (postBuild, postBuildTriggerRef) <- newEventWithTriggerRef
     a <- flip runTriggerEventT events $ do
-      env <- newGameContext
-      performEvent_ $ ffor (fst . envExit $ env) $ const $ liftIO $ putMVar exitVar ()
+      env <- newGameContext actionChan
+      performEvent_ $ ffor (fst . envExit $ env) $ const $ liftIO . atomically $ putTMVar exitVar ()
       let ma' = do
             selfEmbedNetworks extchan
             ma
       runPostBuildT (runReaderT ma' env) postBuild
     pure (a, postBuildTriggerRef)
   processAsyncEvents events fc
-  takeMVar exitVar
+  -- Start listening either for exit or for main thread actions
+  let
+    listenExit = do
+      takeTMVar exitVar
+      pure $ Left ()
+    listenAction = do
+      ma <- readTChan actionChan
+      pure $ Right ma
+    mainThreadJob = do
+      res <- liftIO . atomically $ orElse listenExit listenAction
+      case res of
+        Left _ -> pure ()
+        Right action -> do
+          action
+          mainThreadJob
+  mainThreadJob
   pure a
 
 -- | Internal helper for 'runGM'
@@ -211,6 +231,10 @@ class MonadGameConstraints t m => MonadGame t m where
   getExitEvent :: m (Event t ())
   -- | Setup event, which fire is considered as signal to exit from program
   postExitEvent :: Event t () -> m ()
+  -- | Send IO action in main thread to execute it there (important for OpenGL)
+  performInMainThread :: Event t (IO a) -> m (Event t a)
+  -- | Send IO action in main thread to execute it there (important for OpenGL)
+  performInMainThread_ :: Event t (IO ()) -> m ()
 
 instance {-# OVERLAPPING #-} MonadGameConstraints t m => MonadGame t (ReaderT (GameContext t) m) where
   getExitEvent = asks (fst . envExit)
@@ -219,12 +243,22 @@ instance {-# OVERLAPPING #-} MonadGameConstraints t m => MonadGame t (ReaderT (G
     fire <- asks $ snd . envExit
     performEvent_ $ ffor e $ const $ liftIO $ fire ()
   {-# INLINE postExitEvent #-}
+  performInMainThread e = performEventAsync $ ffor e $ \ma ret -> do
+    chan <- asks envMainThread
+    liftIO . atomically $ writeTChan chan $ ret =<< ma
+  {-# INLINE performInMainThread #-}
+  performInMainThread_ e = performEvent_ $ ffor e $ \ma -> do
+    chan <- asks envMainThread
+    liftIO . atomically $ writeTChan chan ma
+  {-# INLINE performInMainThread_ #-}
 
 instance {-# OVERLAPPABLE #-} MonadGame t m => MonadGame t (ReaderT e m) where
   getExitEvent = lift getExitEvent
   {-# INLINE getExitEvent #-}
   postExitEvent = lift . postExitEvent
   {-# INLINE postExitEvent #-}
+  performInMainThread = lift . performInMainThread
+  {-# INLINE performInMainThread #-}
 
 -- | TODO: check that the implementation is correct int context of game engine
 -- TODO: possible reimplementation of Adjustable
