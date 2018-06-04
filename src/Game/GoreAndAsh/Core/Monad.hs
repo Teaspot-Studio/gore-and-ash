@@ -1,16 +1,24 @@
 {-|
 Module      : Game.GoreAndAsh.Core.Monad
 Description : Definition of game monad and core modules.
-Copyright   : (c) Anton Gushcha, 2015-2016
+Copyright   : (c) Anton Gushcha, 2015-2018
                   Oganyan Levon, 2016
 License     : BSD3
 Maintainer  : ncrashed@gmail.com
 Stability   : experimental
 Portability : POSIX
 
-The module defines 'GameMonadT' monad transformer as base monad for engine.
-Also there is 'GameModule' class that must be implemented by all core modules. Finally 'ModuleStack'
-type family is for user usage to compose all modules in single monad stack.
+The module defines basement for FRP engine on base of reflex framework. The most
+useful context is 'MonadGame' that defines API of each game module.
+
+Example of usage:
+@
+app :: forall t m . MonadGame t m => m ()
+app = ...
+
+main :: IO ()
+main = runGM app
+@
 -}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ConstraintKinds #-}
@@ -67,12 +75,12 @@ import Reflex.Class as Reexport
 import Reflex.Collection
 import Reflex.Host.Class
 import Reflex.Network
+import Reflex.NotReady.Class
 import Reflex.PerformEvent.Base
 import Reflex.PerformEvent.Class as Reexport
 import Reflex.PostBuild.Base
 import Reflex.PostBuild.Class as Reexport
 import Reflex.Spider (Global, Spider, SpiderHost, runSpiderHost)
-import Reflex.Spider.Internal (SpiderTimeline)
 import Reflex.TriggerEvent.Base
 import Reflex.TriggerEvent.Class as Reexport
 
@@ -87,14 +95,17 @@ type EventWithTrigger t a = (Event t a, a -> IO ())
 -- | State of core.
 data GameContext t = GameContext {
   envExit         :: !(EventWithTrigger t ()) -- ^ Event that indicates that main thread should exit
+, envNotReady     :: {-# UNPACK #-} !(IORef Int) -- ^ Tracks count of not ready elements
 } deriving Generic
 
 -- | Create empty context
 newGameContext :: (TriggerEvent t m, MonadIO m) => m (GameContext t)
 newGameContext = do
   exitEv <- newTriggerEvent
+  nready <- liftIO $ newIORef 0
   pure GameContext {
-      envExit = exitEv
+      envExit     = exitEv
+    , envNotReady = nready
     }
 
 -- | Implementation of reactive network of game engine. You usually don't need
@@ -124,7 +135,7 @@ runGM ma = do
 -- | Run main reactive network of server, exits when 'getExitEvent' resulted event is fired.
 --
 -- Channel for self embedding allows to integrate new created FRP networks from other threads.
-runGMWithExternal :: MonadIO m => NetworksChan Spider GMSpider -> GMSpider a -> m a
+runGMWithExternal :: forall m a . MonadIO m => NetworksChan Spider GMSpider -> GMSpider a -> m a
 runGMWithExternal extchan ma = liftIO $ do
   events <- newChan
   exitVar <- newEmptyMVar
@@ -164,6 +175,22 @@ processAsyncEvents events fireCommand = void . forkIO . forever $ do
   where
     triggerFires mes (FireCommand fire) = void $ fire (catMaybes mes) $ pure ()
 
+-- instance (MonadHold t m, PerformEvent t m, MonadIO m, MonadIO (Performable m)) => NotReady t (ReaderT (GameContext t) m) where
+--   notReadyUntil e = do
+--     eOnce <- headE e
+--     counterRef <- asks envNotReady
+--     liftIO $ modifyIORef' counterRef succ
+--     performEvent_ $ ffor eOnce $ const $ do
+--       old <- liftIO $ readIORef counterRef
+--       let new = pred old
+--       liftIO $ writeIORef counterRef $! new
+--       -- when (new == 0) $
+--   {-# INLINE notReadyUntil #-}
+--   notReady = do
+--     counterRef <- asks envNotReady
+--     liftIO $ modifyIORef' counterRef succ
+--   {-# INLINE notReady #-}
+
 -- | Enumeration of type classes that 'MonadGame' should implement
 type MonadGameConstraints t m =
   ( Adjustable t m
@@ -175,6 +202,7 @@ type MonadGameConstraints t m =
   , MonadRef (HostFrame t)
   , MonadReflexCreateTrigger t m
   , MonadSample t (Performable m)
+  , NotReady t m
   , PerformEvent t m
   , PostBuild t m
   , PrimMonad (HostFrame t)
@@ -216,13 +244,19 @@ instance {-# OVERLAPPABLE #-} MonadGame t m => MonadGame t (ReaderT e m) where
   postExitEvent = lift . postExitEvent
   {-# INLINE postExitEvent #-}
 
+-- | TODO: check that the implementation is correct int context of game engine
+-- TODO: possible reimplementation of Adjustable
+instance NotReady Spider (PerformEventT Spider (SpiderHost Global)) where
+  notReadyUntil e = pure ()
+  notReady = pure ()
+
 -- | FRP network that must be embedded to main network
 type EmbedNetwork t m = m (Event t ())
 -- | Channel with subnetworks that must be encorporated into main network
 type NetworksChan t m = Chan (EmbedNetwork t m)
 
 -- | Maintains collection of networks with feature of network self deleting
-selfEmbedNetworks :: forall t m . (MonadGameConstraints t m)
+selfEmbedNetworks :: forall t m . (MonadGame t m)
   => NetworksChan t m -> m ()
 selfEmbedNetworks networksChan = do
   (chanE, chanFire) <- newTriggerEvent
