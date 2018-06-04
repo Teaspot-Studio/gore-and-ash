@@ -96,17 +96,14 @@ type EventWithTrigger t a = (Event t a, a -> IO ())
 -- | State of core.
 data GameContext t = GameContext {
   envExit         :: !(EventWithTrigger t ()) -- ^ Event that indicates that main thread should exit
-, envNotReady     :: {-# UNPACK #-} !(IORef Int) -- ^ Tracks count of not ready elements
 } deriving Generic
 
 -- | Create empty context
 newGameContext :: (TriggerEvent t m, MonadIO m) => m (GameContext t)
 newGameContext = do
   exitEv <- newTriggerEvent
-  nready <- liftIO $ newIORef 0
   pure GameContext {
       envExit     = exitEv
-    , envNotReady = nready
     }
 
 -- | Implementation of reactive network of game engine. You usually don't need
@@ -175,22 +172,6 @@ processAsyncEvents events fireCommand = void . forkIO . forever $ do
   pure ()
   where
     triggerFires mes (FireCommand fire) = void $ fire (catMaybes mes) $ pure ()
-
--- instance (MonadHold t m, PerformEvent t m, MonadIO m, MonadIO (Performable m)) => NotReady t (ReaderT (GameContext t) m) where
---   notReadyUntil e = do
---     eOnce <- headE e
---     counterRef <- asks envNotReady
---     liftIO $ modifyIORef' counterRef succ
---     performEvent_ $ ffor eOnce $ const $ do
---       old <- liftIO $ readIORef counterRef
---       let new = pred old
---       liftIO $ writeIORef counterRef $! new
---       -- when (new == 0) $
---   {-# INLINE notReadyUntil #-}
---   notReady = do
---     counterRef <- asks envNotReady
---     liftIO $ modifyIORef' counterRef succ
---   {-# INLINE notReady #-}
 
 -- | Enumeration of type classes that 'MonadGame' should implement
 type MonadGameConstraints t m =
@@ -311,7 +292,6 @@ fkeepLeft = fmap (\(Left e) -> e) . ffilter isLeft
 
 -- | Wrapper around 'networkHold' that allows to perform network rebuild on event
 performNetwork :: MonadGame t m => Event t (m a) -> m (Event t a)
-performNetwork me = fmap (switch . current) $ networkHold (pure never) $ ffor me $ \ma -> do
-  a <- ma
-  e <- getPostBuild
-  pure $ a <$ e
+performNetwork me = do
+  resDyn <- networkHold (pure $ error "performNetwork: forced initial result, impossible happened!") me
+  pure $ updated resDyn
